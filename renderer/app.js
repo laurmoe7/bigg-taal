@@ -422,7 +422,7 @@ VIEWS.settings = () => {
   <div class="card"><h2>Updates</h2><p class="muted">Version ${esc(APPV || '?')}. ${esc(updateText())}</p>
     <label class="row"><input type="checkbox" id="s-upd" ${s.autoUpdate !== false ? 'checked' : ''}> Look for new versions automatically</label>
     <div class="row" style="margin-top:12px"><button class="ghost" data-act="update-check">🔄 Check for updates</button>${UPD.status === 'ready' ? '<button class="primary" data-act="update-install">Restart to update</button>' : ''}</div></div>
-  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.3.0 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸</p></div></div>`;
+  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.4.0 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸</p></div></div>`;
 };
 function updateText() {
   const u = UPD;

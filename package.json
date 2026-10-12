@@ -1,7 +1,7 @@
 {
   "name": "biggtaal",
   "productName": "BiggTaal",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "A cute dark Dutch learning app: flashcards, worksheets, listening, lesson reminders",
   "main": "main.js",
