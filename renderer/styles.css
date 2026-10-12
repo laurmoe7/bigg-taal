@@ -391,3 +391,14 @@ details summary { cursor: pointer; font-weight: 800; color: var(--lav); }
 .lvl-card .pig-md { width: 120px; height: 120px; } .lvl-big { font-size: 38px; font-weight: 900; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .lvl-name { font-size: 22px; font-weight: 800; } .lvl-name small { color: var(--muted); font-weight: 700; font-size: 14px; }
 @keyframes lvlpop { from { opacity: 0; transform: scale(.6) translateY(30px); } to { opacity: 1; transform: none; } } @keyframes fadein { from { opacity: 0; } }
+
+/* hover hints in worksheet questions */
+.hw { position: relative; cursor: help; } .hw.unk { border-bottom: 2px dotted var(--lav); }
+.hw::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px); background: var(--card-hi); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; font-size: 14px; font-weight: 700; line-height: 1.35; white-space: normal; width: max-content; max-width: 280px; text-align: left; box-shadow: 0 10px 22px -10px #000c; opacity: 0; pointer-events: none; transition: opacity .12s, transform .12s; z-index: 30; }
+.hw:hover::after { opacity: 1; transform: translateX(-50%); }
+.tile.hw::after { font-size: 13px; } .tipnote { margin: 4px 0 10px; font-size: 13px; }
+
+/* the gap in a fill-in question glows */
+.blank { display: inline-block; padding: 0 8px; margin: 0 2px; border-radius: 9px; color: var(--pink); font-weight: 900; letter-spacing: .06em; background: color-mix(in srgb, var(--pink) 14%, transparent); animation: blankglow 1.9s ease-in-out infinite; }
+@keyframes blankglow { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pink) 0%, transparent), 0 0 6px 0 color-mix(in srgb, var(--pink) 35%, transparent); } 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pink) 18%, transparent), 0 0 18px 3px color-mix(in srgb, var(--pink) 60%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .blank { animation: none; box-shadow: 0 0 10px 1px color-mix(in srgb, var(--pink) 45%, transparent); } }

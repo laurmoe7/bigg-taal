@@ -122,13 +122,40 @@ function toggleChip(el, list) {
 }
 
 // ---------- do one ----------
+// ---------- hover hints: what the Dutch words in a question mean ----------
+// Easy little words are skipped. Words you do not have in your list yet get a dotted underline ("might be new"); words you know are explained too, just without the underline.
+const HINT_SKIP = new Set('de het een ik jij je we wij ze zij hij u en of is zijn ben bent heb hebt heeft hebben wordt worden was waren naar met van voor bij aan op in om te niet geen maar ook dan nog als dat die dit deze er mijn jouw uw ons onze hun dus toch wel zo'.split(' '));
+const DUTCH_MARKERS = new Set('ik je een het de niet heb hebt naar maar ook wat hoe waar mijn geen dat dit wij hij ze zij jij jullie voor bij is zijn'.split(' ').filter((w) => !['is', 'zijn'].includes(w)));
+const looksDutch = (q) => (String(q).toLowerCase().match(/[a-zà-ÿ']+/g) || []).some((w) => DUTCH_MARKERS.has(w));
+let HINT_KNOWN = null; // form -> word in your list, built once per page draw
+function wordTip(tok) {
+  const key = tok.toLowerCase(), own = HINT_KNOWN && HINT_KNOWN.get(key);
+  if (own && own.en) return { tip: (own.article ? own.article + ' ' : '') + own.nl + ': ' + String(own.en).slice(0, 70), known: true };
+  if (typeof DICT === 'undefined') return null;
+  const rs = L.dictSearch(DICT, dictIndex(), key, 6).filter((x) => x.how === 'word' || x.how === 'form').slice(0, 2); if (!rs.length) return null;
+  const fmt = (r) => { const e = r.e; return (e[2] === 'de' || e[2] === 'het' ? e[2] + ' ' : '') + e[0] + ': ' + e[4].split('; ').slice(0, 2).join('; ').slice(0, 60) + (r.how === 'form' && e[0].toLowerCase() !== key ? ' (form of ' + e[0] + ')' : ''); };
+  return { tip: rs.map(fmt).join('  |  '), known: false };
+}
+const hintWord = (w, cls) => { const h = HINT_SKIP.has(w.toLowerCase()) || w.length < 3 ? null : wordTip(w); return h ? { h, html: `<span class="hw ${h.known ? '' : 'unk'} ${cls || ''}" data-tip="${esc(h.tip)}">${esc(w)}</span>` } : null; };
+// the gap in a question ("___" or "m_____") glows so your eye goes straight to it
+const glowBlanks = (html) => html.replace(/([A-Za-zÀ-ÿ]?)(_{2,})/g, '<span class="blank">$1$2</span>');
+function hintHtml(q) { return glowBlanks(hintHtml0(q)); }
+function hintHtml0(q) {
+  if (!looksDutch(q)) return esc(q);
+  return L.tokenize(String(q)).map((x, i, arr) => {
+    if (!x.w) return esc(x.t);
+    const blank = /^_/.test((arr[i + 1] || {}).t || '') || /_$/.test((arr[i - 1] || {}).t || ''); // the word being asked for ("m_____") never gets a hint
+    const r = blank ? null : hintWord(x.w);
+    return r ? r.html : esc(x.w);
+  }).join('');
+}
 // An order question shows its words as tiles that light up as you type them.
 function orderQ(it, typed) {
   const parts = L.orderParts(it.q);
-  if (!parts) return `<div class="wsq">${esc(it.q)}</div>`;
+  if (!parts) return `<div class="wsq">${hintHtml(it.q)}</div>`;
   const used = L.usedWords(parts.words, typed);
   return `<div class="wsq" style="margin-bottom:6px">${esc(parts.prefix || 'Put the words in order:')}</div>
-    <div class="tiles ${used.every(Boolean) ? 'all' : ''}" id="tiles-${it.id}">${parts.words.map((w, i) => `<span class="tile ${used[i] ? 'used' : ''}">${esc(w)}</span>`).join('')}<span class="muted tcount" id="tc-${it.id}">${used.filter(Boolean).length} of ${used.length} used</span></div>`;
+    <div class="tiles ${used.every(Boolean) ? 'all' : ''}" id="tiles-${it.id}">${parts.words.map((w, i) => { const h = HINT_SKIP.has(w.toLowerCase()) || w.length < 3 ? null : wordTip(w.replace(/[.,!?;:]+$/, '')); return `<span class="tile ${used[i] ? 'used' : ''}${h ? ' hw' + (h.known ? '' : ' unk') : ''}"${h ? ` data-tip="${esc(h.tip)}"` : ''}>${esc(w)}</span>`; }).join('')}<span class="muted tcount" id="tc-${it.id}">${used.filter(Boolean).length} of ${used.length} used</span></div>`;
 }
 function lightTiles(id) {
   const sh = sheetById(ui.sheetId), box = $('#tiles-' + id), it = sh && sh.items.find((x) => x.id === id);
@@ -164,6 +191,8 @@ function wsMoment(answered, total) {
 }
 const wsAnswered = (sh) => sh.items.filter((it) => (sh.answers[it.id] || '').trim()).length;
 function sheetPage(sh) {
+  HINT_KNOWN = knownFormMap();
+  if (typeof DICT === 'undefined') loadData('dict').then(() => { if (ui.view === 'sheets' && ui.sheetId && !/^(INPUT|TEXTAREA)$/.test((document.activeElement || {}).tagName || '')) render(); }).catch(() => {});
   sh.answers = sh.answers || {}; sh.results = sh.results || {};
   const answered = sh.items.filter((it) => (sh.answers[it.id] || '').trim()).length, st = sheetState(sh), sc = L.sheetScore(sh);
   const pending = sh.items.filter((it) => (sh.results[it.id] || {}).verdict === 'unsure');
@@ -182,7 +211,7 @@ function sheetPage(sh) {
         ${r.verdict === 'unsure' ? `<div class="row" style="margin-top:6px">${it.answer ? `<span class="muted">Model answer: <b>${esc(it.answer)}</b></span>` : ''}<button class="ghost" data-act="ws-self" data-id="${it.id}" data-v="right">I got it ✓</button><button class="ghost" data-act="ws-self" data-id="${it.id}" data-v="wrong">Not quite ✗</button></div>` : ''}</div>`;
     }
     return `<div class="card wsitem"><div class="row"><b class="wsnum">${it.id}</b><span class="pill sky">${esc(skillName(it.skill))}</span><span class="pill">${TYPE_LABEL[it.type]}</span></div>
-      ${it.type === 'order' ? orderQ(it, mine) : `<div class="wsq">${esc(it.q)}</div>`}${input}${res}</div>`;
+      ${it.type === 'order' ? orderQ(it, mine) : `<div class="wsq">${hintHtml(it.q)}</div>`}${input}${res}</div>`;
   }).join('<div style="height:12px"></div>');
   const fb = sh.summary ? `<div class="card upd" style="margin-top:16px"><h2>What to improve 🌸</h2>${sh.summary.good ? `<p>${esc(sh.summary.good)}</p>` : ''}
       ${sh.summary.improve.length ? `<ul>${sh.summary.improve.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${sh.summary.next ? `<p class="muted">Next time: ${esc(sh.summary.next)}</p>` : ''}
@@ -195,6 +224,7 @@ function sheetPage(sh) {
   const wc = wsCoach(sh), coachBar = `<div class="coach ws-coach">${pigSvg('happy', wc.played ? '' : 'act-' + wc.act, { stage: pigStage(), card: true })}<div class="cbub"><span>${esc(wc.line)}</span></div></div>`;
   wc.played = true;
   return `${coachBar}<div class="top"><div><button class="ghost" data-act="ws-back">← All worksheets</button><h1 style="margin-top:12px">${esc(sh.title)}</h1><p class="sub">${answered} of ${sh.items.length} answered${sh.checkedAt ? ` · ${sc.got % 1 ? sc.got.toFixed(2).replace(/0$/, '') : sc.got} of ${sc.marked} marked right` : ''}</p></div><span class="pill ${st.cls}">${esc(st.label)}</span></div>
+    <p class="muted tipnote">💡 Hover over a Dutch word to see what it means. A dotted underline means it might be new to you.</p>
     ${items}
     <div class="row" style="margin:18px 0 0"><button class="primary" data-act="ws-check">${sh.checkedAt ? '🔄 Check again' : '✅ Check my answers'}</button><span class="muted">Choose and fill-in items are marked right away. Nothing is sent anywhere.</span></div>
     ${fb}${claude}`;

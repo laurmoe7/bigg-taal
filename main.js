@@ -44,12 +44,14 @@ function setZoom(z) {
   try { fs.writeFileSync(prefsFile(), JSON.stringify(Object.assign(readPrefs(), { zoom: z }))); } catch {}
 }
 
+// `--quiet` (used when the app is started for testing): the window is never shown, so nothing pops up on the screen
+const QUIET = process.argv.includes('--quiet');
 function createWindow() {
   const wa = screen.getPrimaryDisplay().workAreaSize; // a good part of the screen (15% less than before)
   win = new BrowserWindow({
     width: Math.min(1500, Math.round(wa.width * 0.82)), height: Math.min(1064, Math.round(wa.height * 0.92)), minWidth: 820, minHeight: 560,
-    backgroundColor: '#0f1c2b', title: 'BiggTaal', autoHideMenuBar: true, icon: icon(),
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false },
+    backgroundColor: '#0f1c2b', title: 'BiggTaal', autoHideMenuBar: true, icon: icon(), show: !QUIET, skipTaskbar: QUIET,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false, backgroundThrottling: !QUIET },
   });
   win.removeMenu();
   // Run from the project folder, Windows would show the generic Electron icon on the taskbar: give the window the pig icon and
@@ -72,7 +74,7 @@ function createWindow() {
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); if (/^https:/.test(url)) shell.openExternal(url); } });
   win.on('closed', () => { win = null; });
 }
-function showWin() { if (!win) createWindow(); if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+function showWin() { if (QUIET) return; if (!win) createWindow(); if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 
 // Natural Dutch voices: the Piper engine plus voice models, bundled in ./voices (dev) or resources/voices (installed).
 const voicesDir = () => (app.isPackaged ? path.join(process.resourcesPath, 'voices') : path.join(__dirname, 'voices'));
