@@ -4,8 +4,8 @@ A cute, dark Dutch learning app for Windows (Electron). Same pig and look as Var
 
 - **Flashcards** with spaced repetition (Leitner boxes), flip or type-the-answer, NL→EN, EN→NL or mixed. New words are capped per day.
 - **Listening**: spell the word, pick the meaning, de/het, sentence dictation. Uses a Dutch voice installed in Windows.
-- **Worksheets** made from your own words (de/het, blanks, translations, word order, verb forms), with an answer key, saved as PDF.
-- **Book lessons**: your NT2school chapters with due dates, daily reminder notifications, a lesson helper (paste text, find new words, copy a prompt for Claude, import Claude's JSON).
+- **Worksheets**: practice worksheets that Claude writes from your words, lessons and weak spots (you copy a prompt to chat and paste the JSON reply back), done inside the app, marked instantly where possible and by Claude for open answers, with a running record of your mistakes by skill. The old printable sheets (made offline, saved as PDF) are still there on their own tab.
+- **Book lessons**: your NT2school chapters with due dates and a page per lesson: study just that lesson (flashcards, listening, worksheet), a reading view where you tap any word to hear it or add it, a finder for new words in the text (guesses de/het and pulls the example sentence), and exercises you can check with Claude (copy a ready-made prompt, paste the reply back, import the words).
 - **Words**, **Grammar** cheat sheets (B1), daily Dutch saying, streak and daily goal, pig that cheers you on.
 
 ## Run / build
@@ -38,7 +38,7 @@ Listening uses natural offline Dutch voices (alex, pim) from [Piper](https://git
 
 ## Files
 
-`main.js` window, tray, reminders, saving. `preload.js` bridge. `renderer/logic.js` pure rules (tested). `renderer/seed.js` starter words, verbs, grammar, pig lines. `renderer/pig.js` the mascot. `renderer/app.js` screens. `scripts/get-voices.js` downloads the voices.
+`main.js` window, saving, voices, updates. `preload.js` bridge. `renderer/logic.js` pure rules (tested). `renderer/seed.js` starter words, verbs, grammar, pig lines. `renderer/pig.js` the mascot. `renderer/app.js` screens. `scripts/get-voices.js` downloads the voices.
 
 ## Claude import format
 

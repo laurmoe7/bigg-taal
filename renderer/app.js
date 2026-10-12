@@ -1,6 +1,6 @@
 // BiggTaal page code. State S is saved whole through window.vt (Electron) or localStorage (fallback).
 let S = L.emptyState();
-const ui = { view: 'home', cards: null, listen: null, say: '', words: { q: '', lesson: '', sort: 'new' }, sheet: null, lessonId: '', edit: null, draftText: '', cand: [] };
+const ui = { view: 'home', cards: null, listen: null, say: '', words: { q: '', lesson: '', sort: 'new' }, sheet: null, edit: null, draftText: '' };
 const $ = (s, r) => (r || document).querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const today = () => L.ymd();
@@ -39,6 +39,7 @@ function chime(kind) {
   } catch {}
 }
 function toast(msg) {
+  document.querySelectorAll('.toast').forEach((x) => x.remove()); // one message at a time
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
 }
 function confetti() {
@@ -179,8 +180,8 @@ VIEWS.home = () => {
       </div></div>
     <div class="card"><h2>Book lesson</h2>${next
       ? `<div class="row"><div class="grow"><b>${esc(next.title)}</b><div class="${next.due && next.due < today() ? 'warn' : 'muted'}">${next.due ? (next.due < today() ? 'Overdue since ' : 'Due ') + esc(next.due) : 'No due date'}</div></div>
-         <button class="ghost" data-act="lesson-status" data-id="${next.id}" data-s="done">✓ Done</button><button class="ghost" data-act="nav" data-v="lessons">Open</button></div>`
-      : `<p class="muted">${S.lessons.length ? 'No open lessons. 🎉' : 'Add your NT2school lessons so I can remind you.'}</p><button class="ghost" data-act="nav" data-v="lessons">Add lessons</button>`}</div>
+         <button class="ghost" data-act="lesson-status" data-id="${next.id}" data-s="done">✓ Done</button><button class="ghost" data-act="lesson-go" data-id="${next.id}">Open</button></div>`
+      : `<p class="muted">${S.lessons.length ? 'No open lessons. 🎉' : 'Add your NT2school lessons and I will cheer you on!'}</p><button class="ghost" data-act="nav" data-v="lessons">Add lessons</button>`}</div>
     <div class="card"><h2>Last 7 days</h2><div class="week">${week.map((x, i) => `<div class="${i === 6 ? 'today' : ''}"><i style="height:${Math.round((x.n / max) * 44)}px"></i>${dn(x.d)}</div>`).join('')}</div></div>
     <div class="card"><h2>Spreuk van de dag</h2><div style="font-size:18px;font-weight:800">${esc(pv[0])}</div><div class="muted">${esc(pv[1])}</div>
       <button class="ghost" style="margin-top:10px" data-act="say" data-t="${esc(pv[0])}">🔊 Listen</button></div>
@@ -194,10 +195,13 @@ const bestCheck = (typed, w, dir) => {
   return a === 'right' || b === 'right' ? 'right' : a === 'close' || b === 'close' ? 'close' : 'wrong';
 };
 const cardPrefs = () => (S.cardPrefs = S.cardPrefs || { mode: 'flip', dir: 'nl-en', auto: false });
+// With a lesson picked (ui.lessonFilter) flashcards and listening use only that lesson's words.
+const lessonPool = (title) => { const ws = lessonWords(title); return ws.filter((w) => w.reps > 0 && L.isDue(w, today())).concat(ws.filter((w) => !w.reps).slice(0, 20)); };
+const cardsDue = () => (ui.lessonFilter ? lessonPool(ui.lessonFilter) : dueList());
 function startCards(extra) {
   const p = cardPrefs();
-  let pool = dueList();
-  if (extra || !pool.length) pool = L.pick(liveWords(), 10);
+  let pool = cardsDue();
+  if (extra || !pool.length) pool = L.pick(ui.lessonFilter ? lessonWords(ui.lessonFilter) : liveWords(), 10);
   pool = pool.slice(0, 40);
   if (!pool.length) return toast('Add some words first!');
   ui.cards = { queue: pool.map((w) => ({ id: w.id, dir: p.dir === 'mixed' ? rnd(['nl-en', 'en-nl']) : p.dir, again: false })), i: 0, flipped: false, res: null, typed: '', n: 0, good: 0, extra: !!extra };
@@ -207,13 +211,13 @@ function startCards(extra) {
 function curCard() { const c = ui.cards; if (!c || c.i >= c.queue.length) return null; const q = c.queue[c.i]; return { q, w: S.words.find((x) => x.id === q.id) }; }
 function autoSpeak() { const c = curCard(); if (c && c.q.dir === 'nl-en' && cardPrefs().auto) speak(c.w.nl); }
 VIEWS.cards = () => {
-  const p = cardPrefs(), c = ui.cards, due = dueList().length;
+  const p = cardPrefs(), c = ui.cards, due = cardsDue().length;
   const prefs = `<div class="row" style="margin-bottom:6px">
     <span class="muted">Mode</span> <button class="ghost ${p.mode === 'flip' ? 'on' : ''}" data-act="cpref" data-k="mode" data-v="flip">Flip</button><button class="ghost ${p.mode === 'type' ? 'on' : ''}" data-act="cpref" data-k="mode" data-v="type">Type answer</button>
     <span class="muted">Direction</span> <button class="ghost ${p.dir === 'nl-en' ? 'on' : ''}" data-act="cpref" data-k="dir" data-v="nl-en">NL → EN</button><button class="ghost ${p.dir === 'en-nl' ? 'on' : ''}" data-act="cpref" data-k="dir" data-v="en-nl">EN → NL</button><button class="ghost ${p.dir === 'mixed' ? 'on' : ''}" data-act="cpref" data-k="dir" data-v="mixed">Mixed</button>
     <button class="ghost ${p.auto ? 'on' : ''}" data-act="cpref" data-k="auto" data-v="${p.auto ? '' : '1'}">🔊 Auto-speak</button></div>`;
   if (!c) {
-    return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${due} due today. Spaced repetition shows hard words more often.</p></div></div><div class="fc-wrap">${prefs}
+    return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${due} due today. Spaced repetition shows hard words more often.</p></div></div><div class="fc-wrap">${lessonBanner()}${prefs}
       <div class="card" style="text-align:center;padding:30px">${pigSvg(due ? 'happy' : 'sleep', '', { stage: pigStage() })}
       <p>${due ? `<b>${due}</b> cards are ready.` : 'Nothing is due right now. Nice!'}</p>
       <div class="row" style="justify-content:center"><button class="primary" data-act="cards-start">${due ? 'Start' : 'Practice 10 random words'}</button>${due ? '<button class="ghost" data-act="cards-extra">Practice 10 random instead</button>' : ''}</div></div></div>`;
@@ -255,7 +259,7 @@ function checkTyped() {
 // ---------- listening ----------
 const LMODES = [['word', '✍️ Spell the word', 'Hear a Dutch word and type it'], ['meaning', '🎯 What does it mean?', 'Hear a word and pick the English'], ['article', '🔀 De or het?', 'Hear a noun and pick the article'], ['sentence', '💬 Sentence dictation', 'Hear a whole sentence and type it']];
 function startListen(mode, sound) {
-  let pool = liveWords();
+  let pool = ui.lessonFilter ? lessonWords(ui.lessonFilter) : liveWords();
   if (sound) pool = L.soundWords(pool, sound);
   if (mode === 'article') pool = pool.filter((w) => w.article);
   if (mode === 'sentence') pool = pool.filter((w) => w.example);
@@ -282,7 +286,7 @@ VIEWS.listen = () => {
   if (!l) {
     const st = soundStats().slice(0, 4), r = S.settings.rate;
     return `<div class="top"><div><h1>Listening</h1><p class="sub">Train your ear with the PC's Dutch voice${v ? ': ' + esc(voiceLabel()) : ''}.</p></div>
-      <div class="row"><span class="muted">Speed</span>${[['Slow', 0.7], ['Normal', 0.9], ['Fast', 1.1]].map(([n, x]) => `<button class="ghost ${Math.abs(r - x) < 0.06 ? 'on' : ''}" data-act="rate" data-r="${x}">${n}</button>`).join('')}</div></div>${warn}
+      <div class="row"><span class="muted">Speed</span>${[['Slow', 0.7], ['Normal', 0.9], ['Fast', 1.1]].map(([n, x]) => `<button class="ghost ${Math.abs(r - x) < 0.06 ? 'on' : ''}" data-act="rate" data-r="${x}">${n}</button>`).join('')}</div></div>${warn}${lessonBanner()}
     ${st.length ? `<div class="card" style="margin-bottom:16px"><h2>Sounds to practise 🎯</h2><p class="muted">From the words you wrote down wrongly. Bigg picked the ones that trip you up most.</p>
       ${st.map(([id, x]) => `<div class="lesson" style="margin:6px 0"><div class="lt">${esc(L.SOUNDS[id].name)} <span class="pill pink">${x.n} slip${x.n === 1 ? '' : 's'}</span><div class="muted" style="font-weight:600;font-size:13px">${esc(L.SOUNDS[id].tip)}</div></div><button class="primary" data-act="listen-start" data-m="word" data-s="${id}">Practise</button></div>`).join('')}</div>` : ''}
     <div class="grid g2">${LMODES.map(([id, name, d]) => `<div class="card"><h2>${name}</h2><p class="muted">${d}</p><button class="primary" data-act="listen-start" data-m="${id}">Start (10)</button></div>`).join('')}</div>`;
@@ -393,27 +397,6 @@ function makeSheet() {
   count('sheets');
 }
 
-// ---------- lessons ----------
-VIEWS.lessons = () => {
-  const ls = S.lessons.filter((l) => !l.deleted).sort((a, b) => (a.status === 'done') - (b.status === 'done') || ((a.due || '9') < (b.due || '9') ? -1 : 1));
-  const sel = ls.find((l) => l.id === ui.lessonId);
-  const mark = { todo: '', doing: '…', done: '✓' };
-  return `<div class="top"><div><h1>Book lessons</h1><p class="sub">Your NT2school lessons. I'll nudge you to do them.</p></div><a class="ghost" style="text-decoration:none" href="https://www.nt2school.nl/nl/" target="_blank">Open NT2school ↗</a></div>
-  <div class="card"><div class="row"><input type="text" class="grow" id="l-title" placeholder="Lesson, e.g. Les 12 – Wonen" data-enter="lesson-add"><input type="date" id="l-due" style="width:auto" value="${L.addDays(today(), 3)}"><button class="primary" data-act="lesson-add">Add lesson</button></div></div>
-  <div style="margin-top:14px">${ls.map((l) => `<div class="lesson ${l.status === 'done' ? 'done' : ''}"><button class="chk ${l.status === 'done' ? 'on' : ''}" data-act="lesson-cycle" data-id="${l.id}" title="todo → doing → done">${mark[l.status] || ''}</button>
-    <div class="lt">${esc(l.title)} ${l.status === 'doing' ? '<span class="pill butter">doing</span>' : ''}<div class="${l.due && l.due < today() && l.status !== 'done' ? 'warn' : 'muted'}" style="font-weight:600;font-size:13px">${l.due ? (l.due < today() && l.status !== 'done' ? 'Overdue · ' : 'Due ') + esc(l.due) : 'No due date'}</div></div>
-    <button class="ghost ${ui.lessonId === l.id ? 'on' : ''}" data-act="lesson-open" data-id="${l.id}">Helper</button><button class="ghost" data-act="lesson-del" data-id="${l.id}">🗑</button></div>`).join('') || '<div class="empty">No lessons yet. Add your next chapter above.</div>'}</div>
-  ${sel ? lessonHelper(sel) : ''}`;
-};
-function lessonHelper(l) {
-  return `<div class="card" style="margin-top:14px"><h2>Lesson helper: ${esc(l.title)}</h2>
-    <p class="muted">Paste text or a word list from the lesson. I can find words you don't have yet, add a vocab list, or prepare a message for Claude to explain it and make flashcards.</p>
-    <textarea id="l-text" placeholder="Paste lesson text, or a word list like “de afspraak = appointment”...">${esc(ui.draftText)}</textarea>
-    <div class="row" style="margin-top:8px"><button class="ghost" data-act="lesson-cands">🔎 Find new words</button><button class="primary" data-act="lesson-import">➕ Add as vocab list / Claude JSON</button><button class="ghost" data-act="lesson-claude">📋 Copy for Claude</button></div>
-    ${ui.cand.length ? `<p class="muted" style="margin-bottom:2px">Words in this text you don't have yet (click + to move into the box with a blank to fill in):</p>${ui.cand.map((c) => `<span class="cand">${esc(c.w)} <small class="muted">×${c.n}</small><button data-act="cand-add" data-w="${esc(c.w)}">+</button></span>`).join('')}` : ''}
-    <p class="muted" style="margin-top:10px">Claude tip: use <b>Copy for Claude</b>, paste it into our chat, and I'll reply with JSON. Paste that JSON in the box above and press <i>Add</i>.</p></div>`;
-}
-
 // ---------- grammar ----------
 VIEWS.grammar = () => `<div class="top"><div><h1>Grammar cheat sheets</h1><p class="sub">B1 essentials, short and practical.</p></div></div><div class="grid g2 gram">${GRAMMAR.map((g) => `<div class="card"><h3>${g.t}</h3>${g.b.map((p) => `<p>${p}</p>`).join('')}</div>`).join('')}</div>`;
 
@@ -422,15 +405,12 @@ VIEWS.settings = () => {
   const s = S.settings, nl = dutchVoices(), vc = voiceChoice(), cur = vc ? (vc.engine === 'piper' ? 'piper:' + vc.id : 'win:' + vc.voice.name) : '';
   return `<div class="top"><div><h1>Settings</h1></div></div>
   <div class="grid g2">
-  <div class="card"><h2>Reminders</h2>
-    <label class="row"><input type="checkbox" id="s-rem" ${s.remindersOn ? 'checked' : ''}> Remind me to study</label>
-    <label class="f">Time each day</label><input type="time" id="s-time" value="${esc(s.reminderTime)}" style="width:auto">
+  <div class="card"><h2>Daily goals</h2>
     <label class="f">Daily goal (cards)</label><input type="number" id="s-goal" min="3" max="200" value="${s.dailyGoal}" style="width:100px">
     <label class="f">New words per day</label><input type="number" id="s-new" min="0" max="50" value="${s.newPerDay}" style="width:100px">
-    <label class="row" style="margin-top:12px"><input type="checkbox" id="s-tray" ${s.tray ? 'checked' : ''}> Keep running in the system tray when I close the window <span class="muted">(needed for reminders)</span></label>
     <label class="row" style="margin-top:6px"><input type="checkbox" id="s-login" ${s.login ? 'checked' : ''}> Start with Windows</label>
     <label class="row" style="margin-top:6px"><input type="checkbox" id="s-sound" ${s.sound ? 'checked' : ''}> Sounds</label>
-    <div class="row" style="margin-top:12px"><button class="primary" data-act="settings-save">Save</button><button class="ghost" data-act="notify-test">🔔 Test notification</button></div></div>
+    <div class="row" style="margin-top:12px"><button class="primary" data-act="settings-save">Save</button></div></div>
   <div class="card"><h2>Voice</h2>
     ${PIPER.length || nl.length ? `<select id="s-voice" style="width:100%">${PIPER.length ? `<optgroup label="Natural voices (offline)">${PIPER.map((id) => `<option value="piper:${id}" ${cur === 'piper:' + id ? 'selected' : ''}>${VOICE_NAMES[id] || id}</option>`).join('')}</optgroup>` : ''}${nl.length ? `<optgroup label="Windows voices">${nl.map((x) => `<option value="win:${esc(x.name)}" ${cur === 'win:' + x.name ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</optgroup>` : ''}</select>`
       : `<p class="warn">No Dutch voice found. Windows: Settings → Time &amp; language → Language &amp; region → Add a language → Nederlands, include <i>Text-to-speech</i>, then restart this app.</p>`}
@@ -442,7 +422,7 @@ VIEWS.settings = () => {
   <div class="card"><h2>Updates</h2><p class="muted">Version ${esc(APPV || '?')}. ${esc(updateText())}</p>
     <label class="row"><input type="checkbox" id="s-upd" ${s.autoUpdate !== false ? 'checked' : ''}> Look for new versions automatically</label>
     <div class="row" style="margin-top:12px"><button class="ghost" data-act="update-check">🔄 Check for updates</button>${UPD.status === 'ready' ? '<button class="primary" data-act="update-install">Restart to update</button>' : ''}</div></div>
-  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.2.0 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸</p></div></div>`;
+  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.3.0 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸</p></div></div>`;
 };
 function updateText() {
   const u = UPD;
@@ -450,8 +430,8 @@ function updateText() {
 }
 function saveSettings() {
   const s = S.settings;
-  s.remindersOn = $('#s-rem').checked; s.reminderTime = $('#s-time').value || '19:00'; s.dailyGoal = Math.max(3, +$('#s-goal').value || 10); s.newPerDay = Math.max(0, +$('#s-new').value);
-  s.autoUpdate = $('#s-upd').checked; s.tray = $('#s-tray').checked; s.login = $('#s-login').checked; s.sound = $('#s-sound').checked;
+  s.dailyGoal = Math.max(3, +$('#s-goal').value || 10); s.newPerDay = Math.max(0, +$('#s-new').value);
+  s.autoUpdate = $('#s-upd').checked; s.login = $('#s-login').checked; s.sound = $('#s-sound').checked;
   const v = $('#s-voice'); if (v) s.voice = v.value; s.rate = +$('#s-rate').value || 0.9;
   save(); if (window.vt) { window.vt.save(S); window.vt.launchAtLogin(s.login); }
   toast('Saved'); ui.say = ''; render();
@@ -468,7 +448,7 @@ function importText(text, lesson) {
   return m.added + ln;
 }
 const ACT = {
-  nav: (el) => { ui.cards = ui.cards && ui.view === 'cards' ? ui.cards : null; go(el.dataset.v); },
+  nav: (el) => { if (el.dataset.v === 'lessons' && ui.view === 'lessons') ui.lessonId = ''; if (el.closest('#side')) ui.lessonFilter = ''; ui.cards = ui.cards && ui.view === 'cards' ? ui.cards : null; go(el.dataset.v); },
   say: (el) => speak(el.dataset.t),
   flip: () => { ui.cards.flipped = true; render(); },
   'cards-start': () => startCards(false), 'cards-extra': () => startCards(true), 'cards-done': () => { ui.cards = null; go('home'); },
@@ -501,13 +481,8 @@ const ACT = {
     if (l.status === 'done') { l.doneAt = Date.now(); count('lessons'); chime('goal'); confetti(); ui.say = 'Les klaar! You did it, I am so proud! ⭐'; toast('Lesson done! 🎉'); } else save();
     render();
   },
-  'lesson-open': (el) => { ui.lessonId = ui.lessonId === el.dataset.id ? '' : el.dataset.id; ui.cand = []; render(); },
   'lesson-del': (el) => { S.lessons.find((l) => l.id === el.dataset.id).deleted = true; save(); render(); },
-  'lesson-cands': () => { ui.draftText = $('#l-text').value; ui.cand = L.candidates(ui.draftText, S.words, 40); if (!ui.cand.length) toast('Nothing new found'); render(); },
-  'cand-add': (el) => { ui.draftText = ($('#l-text').value.replace(/\s+$/, '') + '\n' + el.dataset.w + ' = ').replace(/^\n/, ''); ui.cand = ui.cand.filter((c) => c.w !== el.dataset.w); render(); const t = $('#l-text'); t.focus(); t.scrollTop = t.scrollHeight; },
-  'lesson-import': () => { const t = $('#l-text').value; if (!t.trim()) return; const l = S.lessons.find((x) => x.id === ui.lessonId); if (importText(t, l && l.title)) { ui.draftText = ''; ui.cand = []; } else ui.draftText = t; render(); },
-  'lesson-claude': async () => { const t = $('#l-text').value; if (!t.trim()) return toast('Paste the lesson text first'); const l = S.lessons.find((x) => x.id === ui.lessonId); try { await navigator.clipboard.writeText(L.claudePrompt(l.title, t)); toast('Copied. Paste it into Claude.'); } catch { toast('Could not copy'); } },
-  'settings-save': saveSettings, 'notify-test': () => window.vt ? window.vt.testNotify() : toast('Notifications work in the installed app.'),
+  'settings-save': saveSettings,
   'voice-test': () => { const v = $('#s-voice'); if (v) S.settings.voice = v.value; S.settings.rate = +$('#s-rate').value || 0.9; speak('Hoi Lauren! Welkom bij BiggTaal. Veel plezier met leren!'); },
   'data-reveal': () => window.vt && window.vt.reveal(),
   'data-export': async () => { if (!window.vt) return toast('Export works in the installed app.'); const f = await window.vt.exportFile(JSON.stringify(S, null, 1), 'BiggTaal-backup.json'); if (f) toast('Exported'); },
