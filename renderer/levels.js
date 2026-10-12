@@ -38,6 +38,7 @@ function xpPop(n) {
 }
 // a big happy moment
 function levelUp(info) {
+  if (typeof checkEarned === 'function') setTimeout(checkEarned, 700); // level hats
   chime('goal'); confetti();
   const old = document.querySelector('.lvlup'); if (old) old.remove();
   const name = info.title;
@@ -64,8 +65,7 @@ function levelCard() {
   return `<div class="card"><h2>⭐ Your level</h2>
     <div class="lvl-line"><b class="lvl-num">Level ${info.level}</b><span class="lvl-title">${esc(info.title[0])} <small class="muted">${esc(info.title[1])}</small></span></div>
     <div class="bar" style="margin:10px 0 6px"><i id="xphome" style="width:${info.pct}%"></i></div>
-    <div class="muted" style="font-size:13px"><span id="xphome-sub">${homeSub(info)}</span> · <span id="xptoday">+${t} XP today</span></div>
-    <p class="muted" style="margin:10px 0 0;font-size:13px">XP for every card, listening answer and worksheet question, plus bonuses for finishing a session and reaching your daily goal.</p></div>`;
+    <div class="muted" style="font-size:13px"><span id="xphome-sub">${homeSub(info)}</span> · <span id="xptoday">+${t} XP today</span></div></div>`;
 }
 // if the saved data finished loading before this file ran, set up XP now (otherwise load() in app.js does it)
 if (typeof S !== 'undefined' && S && S.settings) { initXp(); if (typeof render === 'function' && ui.view) render(); }

@@ -206,7 +206,7 @@ function coachSay(line, act, burst) {
 document.addEventListener('animationend', (e) => { const t = e.target; if (t && t.matches && t.matches('.coach svg.pig')) ACTS.forEach((x) => t.classList.remove('act-' + x)); });
 // poke him and he giggles
 const POKES = ['Hehe, that tickles! 💗', 'Boop! 🌸', 'I am here, keep going! ✨', 'Hi hi! 🌱', 'You are doing so well! 💗', 'Wheee! 🎈'];
-document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('.coach svg.pig')) coachSay(rnd(POKES), rnd(['bounce', 'twirl', 'wave', 'wiggle', 'hop']), rnd(['💗', '✨', '🌸', ''])); });
+document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('.coach:not(.ws-coach) svg.pig')) coachSay(rnd(POKES), rnd(['bounce', 'twirl', 'wave', 'wiggle', 'hop']), rnd(['💗', '✨', '🌸', ''])); });
 // safety net: whatever the animation events do, he settles back to his idle bob soon after a move starts
 new MutationObserver(() => {
   const pig = document.querySelector('.coach svg.pig');

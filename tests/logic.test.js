@@ -323,7 +323,7 @@ test('reading texts: parse Claude reply or plain text, tokenize, find the senten
 test('seasons and holidays (ported from Varken board)', () => {
   const d = (y, m, day) => new Date(y, m - 1, day);
   assert.equal(L.holidayOf(d(2026, 12, 20)), 'christmas'); assert.equal(L.holidayOf(d(2026, 10, 31)), 'halloween'); assert.equal(L.holidayOf(d(2026, 4, 27)), 'kingsday');
-  assert.equal(L.holidayOf(d(2026, 4, 5)), 'easter'); assert.equal(L.holidayOf(d(2026, 5, 10)), 'birthday'); assert.equal(L.holidayOf(d(2026, 12, 4)), 'sinterklaas');
+  assert.equal(L.holidayOf(d(2026, 4, 5)), 'easter'); assert.equal(L.holidayOf(d(2026, 5, 10)), 'mothersday'); L.setBirthday('2000-05-10'); assert.equal(L.holidayOf(d(2026, 5, 10)), 'birthday'); L.setBirthday(''); assert.equal(L.holidayOf(d(2026, 12, 4)), 'sinterklaas');
   assert.equal(L.holidayOf(d(2026, 1, 1)), 'newyear'); assert.equal(L.holidayOf(d(2026, 2, 14)), 'valentine'); assert.equal(L.holidayOf(d(2026, 7, 4)), 'fourth'); assert.equal(L.holidayOf(d(2026, 8, 20)), '');
   assert.equal(L.seasonOf(d(2026, 1, 15)), 'winter'); assert.equal(L.seasonOf(d(2026, 4, 15)), 'spring'); assert.equal(L.seasonOf(d(2026, 7, 15)), 'summer'); assert.equal(L.seasonOf(d(2026, 10, 15)), 'autumn');
   assert.equal(L.lookOf(d(2026, 12, 20)), 'christmas'); assert.equal(L.lookOf(d(2026, 8, 20)), 'summer');
@@ -341,4 +341,17 @@ test('levels: 99 levels shaped like RuneScape, names spread out, start from old 
   assert.equal(L.levelTitle(1)[0], 'Zaadje'); assert.equal(L.levelTitle(4)[0], 'Zaadje'); assert.equal(L.levelTitle(5)[0], 'Kiem'); assert.equal(L.levelTitle(92)[0], 'Taalkoning'); assert.equal(L.levelTitle(98)[0], 'Taalfee'); assert.equal(L.levelTitle(99)[0], 'Taallegende');
   assert.equal(L.levelInfo(75).pct, 50); assert.ok(/MAX/.test(L.xpText(L.levelInfo(total))));
   assert.equal(L.xpFromHistory({ a: { reviews: 10, listen: 5, sheets: 1 }, b: { reviews: 99, xp: 40 } }, [L.newWord({ reps: 2 }), L.newWord({}), L.newWord({ deleted: true, reps: 3 })]), 40 + 20 + 15 + 40 + 1);
+});
+
+test('order tiles: a punctuation tile lights up when you type that mark', () => {
+  assert.deepEqual(L.usedWords(['heeft', 'de', '?'], 'heeft de'), [true, true, false]);
+  assert.deepEqual(L.usedWords(['heeft', 'de', '?'], 'heeft de ?'), [true, true, true]);
+  assert.deepEqual(L.usedWords(['heeft', 'de', '?'], 'heeft de?'), [true, true, true]);
+  assert.deepEqual(L.usedWords(['ja', ',', ','], 'ja,'), [true, true, false]);
+});
+
+test('daily mix: steps finish by their own counts, and cards count as done when nothing is due', () => {
+  const s0 = L.mixSteps({}, 10, 12); assert.deepEqual(s0.map((x) => x.done), [false, false, false]);
+  const s1 = L.mixSteps({ reviews: 10, lOk: 3, lMiss: 2, sOk: 4, sMiss: 2 }, 10, 5); assert.deepEqual(s1.map((x) => x.done), [true, true, true]);
+  assert.equal(L.mixSteps({}, 10, 0)[0].done, true);
 });

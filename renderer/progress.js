@@ -16,9 +16,9 @@ const missedNow = () => L.missedWords(liveWords(), S.missLog, today(), 7);
 function mistakesCard() {
   const m = missedNow(), n = m.length;
   return `<div class="card"><h2>🎯 Mistakes review</h2>
-    ${n ? `<p class="muted" style="margin:0 0 10px">${n} word${n === 1 ? '' : 's'} you missed this week: <b>${esc(m.slice(0, 4).map((w) => w.nl).join(', '))}${n > 4 ? '…' : ''}</b>. Practise them in whichever way you like.</p>
+    ${n ? `<p class="muted" style="margin:0 0 10px"><b>${esc(m.slice(0, 4).map((w) => w.nl).join(', '))}${n > 4 ? ' +' + (n - 4) : ''}</b></p>
       <div class="row"><button class="primary" data-act="mr-cards">🃏 Flashcards</button><button class="ghost" data-act="mr-listen">🎧 Listening</button><button class="ghost" data-act="mr-sheet">📝 Worksheet</button></div>`
-      : '<p class="muted" style="margin:0">No mistakes in the last 7 days. 🌸 When you miss a word it will show up here.</p>'}</div>`;
+      : '<p class="muted" style="margin:0">No mistakes this week. 🌸</p>'}</div>`;
 }
 Object.assign(ACT, {
   'mr-cards': () => { const m = missedNow(); if (!m.length) return toast('No mistakes to review yet.'); go('cards'); launchCards(m.slice(0, 15), 'Mistakes review'); },

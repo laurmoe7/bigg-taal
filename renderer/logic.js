@@ -240,7 +240,7 @@
       if (!r || typeof r !== 'object') { skipped++; return; }
       const type = String(r.type || '').toLowerCase(), q = String(r.q || r.question || '').trim(), answer = String(r.answer == null ? '' : r.answer).trim();
       if (!ITEM_TYPES.includes(type) || !q || (!answer && type !== 'write')) { skipped++; return; }
-      const it = { id: String(items.length + 1), type, q, answer, alt: (Array.isArray(r.alt) ? r.alt : []).map(String).map((x) => x.trim()).filter(Boolean), why: String(r.why || r.explanation || '').trim(), skill: L.normSkill(r.skill || r.category) };
+      const it = { id: String(items.length + 1), type, q, answer, alt: (Array.isArray(r.alt) ? r.alt : []).map(String).map((x) => x.trim()).filter(Boolean), why: String(r.why || r.explanation || '').trim(), tr: String(r.tr || r.translation || '').trim(), skill: L.normSkill(r.skill || r.category) };
       if (type === 'mc') {
         const options = (Array.isArray(r.options) ? r.options : []).map(String);
         if (options.length < 2 || !options.includes(answer)) { skipped++; return; }
@@ -280,7 +280,7 @@
     const total = s.hist.length, wrong = s.hist.filter((x) => !x).length;
     return { skill, total, wrong, acc: total ? (total - wrong) / total : 1, examples: s.examples, last: s.last };
   }).filter((x) => x.wrong > 0).sort((a, b) => b.wrong - a.wrong || a.acc - b.acc).slice(0, n || 3);
-  const JSON_SHEET = '{"worksheet":{"title":"Short title","items":[{"type":"mc","skill":"de/het","q":"___ huis is groot.","options":["De","Het"],"answer":"Het","why":"huis is a het-word."},{"type":"fill","skill":"past tense","q":"Gisteren ___ ik naar de winkel. (gaan)","answer":"ging","alt":[],"why":"Strong verb: gaan, ging, gegaan."},{"type":"translate","skill":"word order","q":"Tomorrow I have an appointment.","answer":"Morgen heb ik een afspraak.","alt":["Ik heb morgen een afspraak."],"why":"The verb stays second."}]}}';
+  const JSON_SHEET = '{"worksheet":{"title":"Short title","items":[{"type":"mc","skill":"de/het","q":"___ huis is groot.","options":["De","Het"],"answer":"Het","why":"huis is a het-word.","tr":"The house is big."},{"type":"fill","skill":"past tense","q":"Gisteren ___ ik naar de winkel. (gaan)","answer":"ging","alt":[],"why":"Strong verb: gaan, ging, gegaan.","tr":"Yesterday I went to the shop."},{"type":"translate","skill":"word order","q":"Tomorrow I have an appointment.","answer":"Morgen heb ik een afspraak.","alt":["Ik heb morgen een afspraak."],"why":"The verb stays second."}]}}';
   const LEVEL = 'I am learning Dutch (A2 done, working on B1) with NT2school';
   L.TOPICS = ['Housing & neighbours', 'Work & jobs', 'Health & the doctor', 'Shopping & money', 'Travel & transport', 'Food & restaurants', 'Family & friends', 'Daily routine', 'School & courses', 'Government & paperwork', 'Free time & hobbies', 'Weather & nature', 'News & society', 'Technology'];
   L.sheetPrompt = (o) => {
@@ -291,20 +291,25 @@
     if (wordList) lines.push('Use these words from my own list where it makes sense: ' + wordList + '.');
     if (o.weak && o.weak.length) lines.push('My weak spots, so make at least half of the items practise these:\n' + o.weak.map((w) => `- ${L.SKILL_NAMES[w.skill] || w.skill}: missed ${w.wrong} of my last ${w.total}${w.examples && w.examples[0] ? `; for example I wrote "${w.examples[0].yours}" where "${w.examples[0].correct}" was right` : ''}`).join('\n'));
     if (o.note) lines.push('In my own words, what else I want: ' + o.note);
-    lines.push('Item types, use a good mix: "mc" (2 to 4 options), "fill" (one gap), "order" (words in a sentence for me to put in order), "translate" (English to Dutch), "correct" (a sentence with one mistake for me to fix), "write" (1 to 2 sentences about a given topic).');
-    lines.push(`Rules: B1 level; every item must stand on its own; never show the answer in the question. For fill, order, translate and correct give the single best answer in "answer" and every other fully correct version in "alt". For mc, "answer" must equal one of "options" exactly. "why" is one short English sentence naming the rule. "skill" must be one of: ${L.SKILLS.join(', ')}. For "write" give a model answer in "answer".`);
+    const KIND_TXT = { mc: '"mc" (2 to 4 options)', fill: '"fill" (one gap)', order: '"order" (words in a sentence for me to put in order)', translate: '"translate" (English to Dutch)', correct: '"correct" (a sentence with one mistake for me to fix)', write: '"write" (1 to 2 sentences about a given topic)' };
+    if (o.kinds && o.kinds.length) lines.push('Item types: use ONLY these, spread evenly: ' + o.kinds.map((k) => KIND_TXT[k] || k).join(', ') + '. Do not use any other type.');
+    else lines.push('Item types, use a good mix: "mc" (2 to 4 options), "fill" (one gap), "order" (words in a sentence for me to put in order), "translate" (English to Dutch), "correct" (a sentence with one mistake for me to fix), "write" (1 to 2 sentences about a given topic).');
+    if (o.kinds && o.kinds.length) lines.push('The example items below only show the JSON shape; follow the item types above.');
+    lines.push(`Rules: B1 level; every item must stand on its own; never show the answer in the question. For fill, order, translate and correct give the single best answer in "answer" and every other fully correct version in "alt". For mc, "answer" must equal one of "options" exactly. "why" is one short English sentence naming the rule. "skill" must be one of: ${L.SKILLS.join(', ')}. For "write" give a model answer in "answer". Whenever the item or its answer is a full Dutch sentence, add "tr": a natural English translation of that sentence once it is correct (for translate items leave "tr" out).`);
     lines.push('JSON shape, shown with three items:\n```json\n' + JSON_SHEET + '\n```');
     return lines.join('\n\n');
   };
-  const RESULT_SHAPE = '{"results":[{"id":"3","verdict":"partly","correct":"Morgen heb ik een afspraak.","explain":"One short English sentence about the rule.","skills":["word order"]}],"summary":{"good":"What went well.","improve":["Concrete thing 1","Concrete thing 2"],"next":"What to focus on in the next worksheet."}}';
-  L.checkPrompt = (sheet) => {
+  const RESULT_SHAPE = '{"results":[{"id":"3","verdict":"partly","correct":"Morgen heb ik een afspraak.","explain":"One short English sentence about the rule.","tr":"Tomorrow I have an appointment.","skills":["word order"]}],"summary":{"good":"What went well.","improve":["Concrete thing 1","Concrete thing 2"],"next":"What to focus on in the next worksheet."}}';
+  L.checkPrompt = (sheet, o) => {
+    const all = !!(o && o.explainAll);
     const rows = sheet.items.map((it) => {
       const r = (sheet.results && sheet.results[it.id]) || {}, mine = (sheet.answers && sheet.answers[it.id]) || '';
       const need = r.verdict === 'unsure' || r.verdict === 'blank' || !r.verdict;
       return `${it.id}. [${need ? 'CHECK' : 'auto: ' + r.verdict}] (${it.type}, ${it.skill}) ${it.q}${it.options ? ' Options: ' + it.options.join(' / ') : ''}\n   my answer: ${mine || '(left blank)'}\n   expected: ${it.answer || '(model answer not given)'}${it.alt && it.alt.length ? ' | also fine: ' + it.alt.join(' | ') : ''}`;
     });
     return `${LEVEL}. I did this worksheet in my BiggTaal app. Items marked CHECK still need your marking; the auto ones were already marked by the app (you can still comment on them in the summary).\n\n` +
-      `For every CHECK item give: verdict (right, partly or wrong), the corrected Dutch in "correct" if it is not right, ONE short English sentence in "explain" naming the rule, and "skills" with the grammar areas of my mistake, each one of: ${L.SKILLS.join(', ')}. ` +
+      (all ? `Also: for EVERY item I got wrong or only partly right, including the ones the app already marked, add a result with "id", the same "verdict" the app gave, "correct" and "explain": one or two short English sentences saying why my answer is wrong and what the rule is. Do not add results for items I got right. ` : '') +
+      `For every CHECK item give: verdict (right, partly or wrong), the corrected Dutch in "correct" if it is not right, ONE short English sentence in "explain" naming the rule, "tr" with an English translation of the correct Dutch sentence, and "skills" with the grammar areas of my mistake, each one of: ${L.SKILLS.join(', ')}. ` +
       `Be kind and encouraging. Accept any fully correct alternative, not only the expected answer. Then write a "summary": what went well, 2 to 4 concrete things I should improve, and a suggested focus for my next worksheet. Reply with ONLY this JSON in a code block:\n\`\`\`json\n${RESULT_SHAPE}\n\`\`\`\n\nWORKSHEET "${sheet.title}":\n` + rows.join('\n');
   };
   // Reads Claude's marking reply: { results: {id: {verdict, correct, explain, skills}}, summary } or { error }.
@@ -316,7 +321,7 @@
       const id = String(r && r.id);
       if (!ids.has(id)) continue;
       const v = String(r.verdict || '').toLowerCase();
-      results[id] = { verdict: ['right', 'partly', 'wrong'].includes(v) ? v : 'wrong', correct: String(r.correct || ''), explain: String(r.explain || ''), skills: (Array.isArray(r.skills) ? r.skills : []).map(L.normSkill) };
+      results[id] = { verdict: ['right', 'partly', 'wrong'].includes(v) ? v : 'wrong', correct: String(r.correct || ''), explain: String(r.explain || ''), tr: String(r.tr || r.translation || ''), skills: (Array.isArray(r.skills) ? r.skills : []).map(L.normSkill) };
     }
     const sm = j.summary || {};
     return { results, summary: { good: String(sm.good || ''), improve: (Array.isArray(sm.improve) ? sm.improve : sm.improve ? [sm.improve] : []).map(String), next: String(sm.next || '') } };
@@ -332,9 +337,15 @@
   };
   // Which of the given words have been typed so far (each typed word counts once). Returns an array of booleans.
   L.usedWords = (words, typed) => {
-    let rest = ' ' + L.norm(typed) + ' ';
+    let rest = ' ' + L.norm(typed) + ' ', marks = (String(typed || '').match(/[^\p{L}\p{N}\s']/gu) || []).join(''); // marks: the punctuation you typed
     return words.map((w) => {
-      const needle = ' ' + L.norm(w) + ' ', i = needle.trim() ? rest.indexOf(needle) : -1;
+      const needle = ' ' + L.norm(w) + ' ';
+      if (!needle.trim()) { // a tile that is only punctuation, like "?": used once that mark has been typed
+        const mark = String(w).replace(/\s/g, ''), at = mark ? marks.indexOf(mark) : -1;
+        if (at < 0) return false;
+        marks = marks.slice(0, at) + marks.slice(at + mark.length); return true;
+      }
+      const i = rest.indexOf(needle);
       if (i < 0) return false;
       rest = rest.slice(0, i) + ' ' + rest.slice(i + needle.length);
       return true;
@@ -444,7 +455,7 @@
           const m = nl.match(/[A-Za-zÀ-ÿ']+/g) || [], tok = m.find((t) => forms.includes(t.toLowerCase())); if (!tok) continue;
           const q = nl.replace(new RegExp('\\b' + tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b'), tok[0] + '_'.repeat(Math.max(2, tok.length - 1)));
           if (q === nl) continue;
-          return { type: 'fill', skill: 'vocabulary', q: q, answer: tok, alt: [], why: nl + ' = ' + en };
+          return { type: 'fill', skill: 'vocabulary', q: q, answer: tok, alt: [], why: '', tr: en, clue: en };
         }
         return null;
       },
@@ -459,7 +470,7 @@
         if (!cand.length) return null;
         const [nl, en] = cand[Math.floor(rnd() * cand.length)], ws = wordsOf(nl);
         let sh = shuffle(ws, rnd), k = 0; while (sh.join(' ') === ws.join(' ') && k++ < 8) sh = shuffle(ws, rnd);
-        return { type: 'order', skill: 'word order', q: 'Put in order: ' + sh.join(' / '), answer: ws.join(' '), alt: [], why: nl + ' = ' + en };
+        return { type: 'order', skill: 'word order', q: 'Put in order: ' + sh.join(' / '), answer: ws.join(' '), alt: [], why: '', tr: en };
       },
     };
     const order = shuffle(pool, rnd);
@@ -524,6 +535,17 @@
   // the sentence of a text that contains a word
   L.sentenceWith = (text, word) => { const re = new RegExp('(^|[^A-Za-zÀ-ÿ])' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^A-Za-zÀ-ÿ])', 'i'); return (text.replace(/\n+/g, ' ').match(/[^.!?]+[.!?]*/g) || []).map((s) => s.trim()).find((s) => re.test(s)) || ''; };
 
+  // ---------- daily mix ----------
+  // The three parts of today's mix from today's log entry: flashcards (your daily goal, or done when nothing is due), listening (5 answers), a worksheet (6 answers).
+  L.mixSteps = (t, goal, due) => {
+    t = t || {}; const g = Math.max(3, Math.min(20, goal || 10)), c = t.reviews || 0, li = (t.lOk || 0) + (t.lMiss || 0), sh = (t.sOk || 0) + (t.sMiss || 0);
+    return [
+      { id: 'cards', icon: '🃏', title: 'Flashcards', text: due ? g + ' cards, ' + due + ' due now' : 'nothing due right now', have: c, need: g, done: c >= g || due === 0 },
+      { id: 'listen', icon: '🎧', title: 'Listening', text: '5 real sentences', have: li, need: 5, done: li >= 5 },
+      { id: 'sheet', icon: '📝', title: 'Practice worksheet', text: '6 questions from your trouble words', have: sh, need: 6, done: sh >= 6 },
+    ];
+  };
+
   // ---------- seasons and holidays (from Varken board) ----------
   // winter, spring, summer or autumn (northern hemisphere, local time)
   function seasonOf(d) {
@@ -542,6 +564,8 @@
   // a Sunday), Mother's/Father's Day, Prinsjesdag, Sint-Maarten, Bevrijdingsdag, Sinterklaas 3-5 Dec, New Year 30 Dec-1 Jan, Valentine 12-14 Feb, St Patrick, 4 July, Carnival, birthday 10 May, Thanksgiving (US: 4th Thursday of Nov) and the day before, Easter from Good Friday to Easter Monday.
   // The n-th given weekday (0 = Sunday) of a month, as a day number.
   const nthWeekday = (y, m, weekday, n) => 1 + ((weekday - new Date(y, m, 1).getDay() + 7) % 7) + 7 * (n - 1);
+  let bday = null; // { m: month 0-11, d: day } of your birthday
+  L.setBirthday = (s) => { const x = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(s || '')); bday = x ? { m: +x[1] - 1, d: +x[2] } : null; };
   function holidayOf(d) {
     const date = d || new Date(), y = date.getFullYear(), m = date.getMonth(), day = date.getDate();
     if (m === 11 && day >= 18 && day <= 25) return 'christmas';
@@ -551,7 +575,7 @@
       const fourth = 1 + ((4 - new Date(y, 10, 1).getDay() + 7) % 7) + 21;
       if (day === fourth || day === fourth - 1) return 'thanksgiving';
     }
-    if (m === 4 && day === 10) return 'birthday'; // Lauren's
+    if (bday && m === bday.m && day === bday.d) return 'birthday'; // your birthday, from Settings
     if (m === 4 && day === 5) return 'bevrijding'; // Bevrijdingsdag
     if (m === 4 && day === nthWeekday(y, 4, 0, 2)) return 'mothersday'; // 2nd Sunday of May, the same in NL and the US
     if (m === 5 && day === nthWeekday(y, 5, 0, 3)) return 'fathersday'; // 3rd Sunday of June

@@ -16,7 +16,7 @@ function save() {
 async function load() {
   let d = null;
   try { d = window.vt ? await window.vt.load() : JSON.parse(localStorage.getItem('biggtaal') || 'null'); } catch {}
-  S = L.fixState(d); applyTheme(); if (typeof snapshotToday === 'function') snapshotToday(); if (typeof initXp === 'function') initXp();
+  S = L.fixState(d); applyTheme(); refreshBirthday(); if (typeof snapshotToday === 'function') snapshotToday(); if (typeof initXp === 'function') initXp();
   if (!S.seeded) {
     const w = L.parseVocab(SEED_WORDS); 
     S.words = L.mergeWords(S.words, w).words; S.seeded = true; save();
@@ -136,15 +136,15 @@ function pigLine() {
 
 // ---------- shell ----------
 const NAV = [['home', '🏠', 'Today', '#ff9d8e'], ['cards', '🃏', 'Flashcards', '#7fd4f0'], ['listen', '🎧', 'Listening', '#9ccbff'], ['sheets', '📝', 'Worksheets', '#ffe08a'],
-  ['reading', '📖', 'Reading', '#a8e6cf'], ['words', '🔤', 'Words', '#ffb38a'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['progress', '📈', 'Progress', '#b5b9ff'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
+  ['words', '🔤', 'Words', '#ffb38a'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['progress', '📈', 'Progress', '#b5b9ff'], ['wardrobe', '🎩', 'Wardrobe', '#a8e6cf'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
 function renderSide() {
   const lv = L.levelInfo(S.xp || 0); ui.sideLevel = lv.level;
-  const due = dueList().length, sig = [ui.view, due, lv.level, liveWords().length, pigStage(), currentLook()].join('|');
+  const due = dueList().length, fresh = ((S.wardrobe || {}).fresh || []).length, sig = [ui.view, due, lv.level, liveWords().length, pigStage(), currentLook(), fresh].join('|');
   if (sig === ui.sideSig) return; // nothing in the sidebar changed: leave it alone (redrawing it restarts the logo animation)
   ui.sideSig = sig;
   $('#side').innerHTML = `<div class="logo">${pigSvg('happy', 'pig-logo', { stage: pigStage() })}<div><b>BiggTaal</b><span>Nederlands leren</span></div></div>` +
-    NAV.map(([id, ic, name, col]) => `<button class="nav ${id === 'settings' ? 'nav-bottom ' : ''}${ui.view === id ? 'on' : ''}" data-act="nav" data-v="${id}"><span class="ic" style="background:${col}">${ic}</span><span class="t">${name}</span>` +
-      (id === 'cards' && due ? `<span class="badge">${due}</span>` : '') + '</button>').join('') +
+    NAV.map(([id, ic, name, col]) => `<button class="nav ${id === 'wardrobe' ? 'nav-bottom ' : ''}${ui.view === id ? 'on' : ''}" data-act="nav" data-v="${id}"><span class="ic" style="background:${col}">${ic}</span><span class="t">${name}</span>` +
+      (id === 'cards' && due ? `<span class="badge">${due}</span>` : '') + (id === 'wardrobe' && fresh ? `<span class="badge">${fresh}</span>` : '') + '</button>').join('') +
     `<div class="side-foot"><div class="xp-row"><b>⭐ Level ${lv.level}</b><span>${esc(lv.title[0])}</span></div><div class="xp-bar"><i id="xpfill" style="width:${lv.pct}%"></i></div><div class="xp-sub" id="xpsub">${L.xpText(lv)}</div>${liveWords().length} words</div>`;
 }
 function render() {
@@ -157,7 +157,8 @@ function render() {
   main.scrollTop = keep;
   const f = $('[data-focus]'); if (f) f.focus();
 }
-function go(v) { ui.view = v; ui.say = ''; render(); $('#main').scrollTop = 0; }
+ui.wsScroll = {}; // where you were in each open worksheet, so coming back to it puts you at the same spot
+function go(v) { if (ui.view === 'sheets' && ui.sheetId) ui.wsScroll[ui.sheetId] = $('#main').scrollTop; ui.view = v; ui.say = ''; render(); $('#main').scrollTop = (v === 'sheets' && ui.sheetId && ui.wsScroll[ui.sheetId]) || 0; }
 
 const VIEWS = {};
 
@@ -177,14 +178,8 @@ VIEWS.home = () => {
     <div class="card stat s-mint"><i class="si">🌱</i><b>${m.learned} <small class="muted">/ ${m.total}</small></b><span>words learned (box 4+)</span></div>
   </div>
   <div class="grid g2" style="margin-top:14px">
-    <div class="card"><h2>Start here</h2>
-      <div class="row">
-        <button class="primary" data-act="nav" data-v="cards">🃏 ${due ? `Review ${due} cards` : 'Flashcards'}</button>
-        <button class="ghost" data-act="nav" data-v="listen">🎧 Listening</button>
-        <button class="ghost" data-act="nav" data-v="sheets">📝 Worksheet</button>
-      </div></div>
-    ${levelCard()}
-    ${mistakesCard()}
+    ${typeof mixCard === 'function' ? mixCard() : ''}
+    <div class="stack">${levelCard()}${mistakesCard()}</div>
     <div class="card"><h2>Spreuk van de dag</h2><div style="font-size:18px;font-weight:800">${esc(pv[0])}</div><div class="muted">${esc(pv[1])}</div>
       <button class="ghost" style="margin-top:10px" data-act="say" data-t="${esc(pv[0])}">🔊 Listen</button></div>
   </div>`;
@@ -343,26 +338,39 @@ async function sentenceData() { await loadData('sentences'); if (!SENT_INDEX) SE
 async function examplesFor(nl, pos, n) { const idx = await sentenceData(); return L.sentencesFor(nl, pos, idx, SENTENCES, n); }
 
 // ---------- settings ----------
-const THEMES = [['lagoon', 'Lagoon', '#0b1a28', '#ff8f7e', '#6fd3ee'], ['plum', 'Plum', '#1a1226', '#ff8fb1', '#b79cff'], ['forest', 'Forest', '#0e1c16', '#ff9a85', '#7fe3b4'],
-  ['sunset', 'Sunset', '#221512', '#ff8a70', '#ffc46b'], ['slate', 'Slate', '#14161c', '#ff8f7e', '#8fb4ff'], ['cream', 'Cream (light)', '#fff6ee', '#f2705f', '#1fa3c4']];
-const lookOptions = () => '<option value="">Today\'s look</option><option value="none">No clothes</option>' + Object.keys(LOOK_DEFS).map((id) => `<option value="${id}" ${looksPrefs.preview === id ? 'selected' : ''}>${LOOK_DEFS[id].label}</option>`).join('').replace('<option value="none">', '<option value="none">');
+const THEMES = [['lagoon', 'Lagoon', '#0b1a28', '#ff8f7e', '#6fd3ee'], ['plum', 'Plum', '#1a1226', '#ff8fb1', '#b79cff'], ['midnight', 'Midnight', '#0d1020', '#ffc857', '#7aa2ff'],
+  ['slate', 'Slate', '#14161c', '#ff8f7e', '#8fb4ff'], ['cream', 'Cream (light)', '#fff6ee', '#f2705f', '#1fa3c4'], ['blossom', 'Blossom (light)', '#fff0f5', '#e8588a', '#7a6ad8']];
 document.addEventListener('change', (e) => {
-  if (e.target.id === 's-looks') { S.settings.looks = e.target.checked; save(); ui.sideSig = ''; render(); }
-  else if (e.target.id === 's-look-sel') { looksPrefs.preview = e.target.value; ui.sideSig = ''; ui.say = ''; render(); }
+  if (e.target.id === 's-name' || e.target.id === 's-bday-m' || e.target.id === 's-bday-d') {
+    if (e.target.id === 's-name') S.settings.name = e.target.value.trim();
+    else { // the birthday is saved once both the month and the day are picked (the year is only a placeholder)
+      const bd = (ui.bday = ui.bday || {}), cur = /^\d{4}-(\d{2})-(\d{2})$/.exec(S.settings.birthday || '');
+      if (cur && bd.m == null) { bd.m = +cur[1]; bd.d = +cur[2]; }
+      if (e.target.id === 's-bday-m') bd.m = +e.target.value || 0; else bd.d = +e.target.value || 0;
+      if (bd.m && bd.d) { bd.d = Math.min(bd.d, new Date(2000, bd.m, 0).getDate()); S.settings.birthday = '2000-' + String(bd.m).padStart(2, '0') + '-' + String(bd.d).padStart(2, '0'); } else S.settings.birthday = '';
+    }
+    refreshBirthday(); save(); ui.say = ''; ui.sideSig = ''; if (typeof checkEarned === 'function') checkEarned(); render(); return;
+  }
+  if (e.target.id === 's-gloss') { S.settings.gloss = e.target.checked; save(); render(); }
 });
 function applyTheme() { const t = (S && S.settings && S.settings.theme) || 'lagoon'; document.documentElement.setAttribute('data-theme', THEMES.some((x) => x[0] === t) ? t : 'lagoon'); }
 
 VIEWS.settings = () => {
   const s = S.settings, nl = dutchVoices(), vc = voiceChoice(), cur = vc ? (vc.engine === 'piper' ? 'piper:' + vc.id : 'win:' + vc.voice.name) : '';
   return `<div class="top"><div><h1>Settings</h1></div></div>
-  <div class="card" style="margin-bottom:16px"><h2>Look</h2><p class="muted" style="margin-top:0">Pick the colours you like best.</p>
+  <div class="card" style="margin-bottom:16px"><h2>About you</h2>
+    <div class="row"><label class="f" style="flex:1 1 220px">Your name<input type="text" id="s-name" value="${esc(S.settings.name || '')}" placeholder="What should Bigg call you?" autocomplete="off" maxlength="30"></label>
+      <div class="f bday-row" style="flex:1 1 260px"><span>Your birthday</span><div class="row" style="gap:8px;flex-wrap:nowrap">${(() => {
+        const cur = /^\d{4}-(\d{2})-(\d{2})$/.exec(S.settings.birthday || ''), bd = ui.bday || {}, m = bd.m != null ? bd.m : cur ? +cur[1] : 0, d = bd.d != null ? bd.d : cur ? +cur[2] : 0;
+        const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        return `<select id="s-bday-m"><option value="">Month</option>${MN.map((n, i) => `<option value="${i + 1}" ${m === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select><select id="s-bday-d"><option value="">Day</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${d === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>`;
+      })()}</div></div></div>
+    <p class="muted" style="margin:8px 0 0;font-size:13px">Bigg uses your name, and wears his party hat on your birthday (you earn it by opening BiggTaal that day).</p></div>
+  <div class="card" style="margin-bottom:16px"><h2>Theme</h2>
     <div class="themes">${THEMES.map(([id, name, bg, a, b]) => `<button class="theme ${S.settings.theme === id ? 'on' : ''}" data-act="theme" data-v="${id}"><span class="sw" style="background:${bg}"><i style="background:${a}"></i><i style="background:${b}"></i></span>${name}</button>`).join('')}</div></div>
-  <div class="card" style="margin-bottom:16px"><h2>Seasons &amp; holidays</h2>
-    <p class="muted" style="margin-top:0">Bigg dresses up: a scarf in winter, shades in summer, falling petals in spring and leaves in autumn, and a hat for days like Christmas, King's Day, Easter, Halloween and your birthday.</p>
-    <label class="row"><input type="checkbox" id="s-looks" ${S.settings.looks !== false ? 'checked' : ''}> Dress Bigg up for seasons and holidays</label>
-    <div class="look-row"><label class="f" style="flex:1">Try a look<select id="s-look-sel" style="width:100%">${lookOptions()}</select></label>
-      <div class="look-prev">${pigSvg('happy', 'look-prev-pig', { stage: 1, look: looksPrefs.preview === 'none' ? '' : looksPrefs.preview || (S.settings.looks !== false ? L.lookOf() : '') })}</div></div>
-    <p class="muted" style="margin:6px 0 0;font-size:13px">A look you try here stays until you restart BiggTaal.</p></div>
+  <div class="card" style="margin-bottom:16px"><h2>Hover help</h2>
+    <label class="row"><input type="checkbox" id="s-gloss" ${S.settings.gloss !== false ? 'checked' : ''}> Explain grammar terms when I hover over them</label>
+    <p class="muted" style="margin:6px 0 0;font-size:13px">Words like "main clause" or "conjugated verb" get a dotted underline and a short explanation in worksheets and on the Grammar page.</p></div>
   <div class="grid g2">
   <div class="card"><h2>Daily goals</h2>
     <label class="f">Daily goal (cards)</label><input type="number" id="s-goal" min="3" max="200" value="${s.dailyGoal}" style="width:100px">
@@ -381,7 +389,7 @@ VIEWS.settings = () => {
   <div class="card"><h2>Updates</h2><p class="muted">Version ${esc(APPV || '?')}. ${esc(updateText())}</p>
     <label class="row"><input type="checkbox" id="s-upd" ${s.autoUpdate !== false ? 'checked' : ''}> Look for new versions automatically</label>
     <div class="row" style="margin-top:12px"><button class="ghost" data-act="update-check">🔄 Check for updates</button>${UPD.status === 'ready' ? '<button class="primary" data-act="update-install">Restart to update</button>' : ''}</div></div>
-  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.5.0 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸 Dictionary, word lists and sentences come from Wiktionary, OpenSubtitles and Tatoeba (see the data folder). Reviews are scheduled with FSRS.</p></div></div>`;
+  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.5.0 · Bigg is Varken's little brother, and he thinks you are doing great. 🌸 Dictionary, word lists and sentences come from Wiktionary, OpenSubtitles and Tatoeba (see the data folder). Reviews are scheduled with FSRS.</p></div></div>`;
 };
 function updateText() {
   const u = UPD;
@@ -434,7 +442,7 @@ const ACT = {
   'bulk-add': () => { const t = $('#w-bulk').value; if (!t.trim()) return; if (importText(t)) ui.draftText = ''; render(); },
   'settings-save': saveSettings,
   theme: (el) => { S.settings.theme = el.dataset.v; applyTheme(); save(); render(); },
-  'voice-test': () => { const v = $('#s-voice'); if (v) S.settings.voice = v.value; S.settings.rate = +$('#s-rate').value || 0.9; speak('Hoi Lauren! Welkom bij BiggTaal. Veel plezier met leren!'); },
+  'voice-test': () => { const v = $('#s-voice'); if (v) S.settings.voice = v.value; S.settings.rate = +$('#s-rate').value || 0.9; speak('Hoi' + (userName() ? ' ' + userName() : '') + '! Welkom bij BiggTaal. Veel plezier met leren!'); },
   'data-reveal': () => window.vt && window.vt.reveal(),
   'data-export': async () => { if (!window.vt) return toast('Export works in the installed app.'); const f = await window.vt.exportFile(JSON.stringify(S, null, 1), 'BiggTaal-backup.json'); if (f) toast('Exported'); },
   'data-import': async () => { if (!window.vt) return; const f = await window.vt.importFile(); if (f) { importText(f.text); render(); } },
@@ -463,7 +471,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-load().then(loadPiper).then(async () => {
+load().then(loadPiper).then(() => (document.readyState === 'loading' ? new Promise((r) => document.addEventListener('DOMContentLoaded', r)) : 0)).then(async () => { // wait until every script has run
   if (window.vt && window.vt.version) {
     try { APPV = await window.vt.version(); UPD = await window.vt.updateState(); } catch {}
     window.vt.onUpdate((s) => {
@@ -472,5 +480,5 @@ load().then(loadPiper).then(async () => {
       if ((ui.view === 'home' || ui.view === 'settings') && !typing) render();
     });
   }
-  render();
+  render(); if (typeof checkEarned === 'function') checkEarned();
 });

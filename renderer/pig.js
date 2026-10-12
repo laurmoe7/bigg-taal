@@ -32,7 +32,12 @@ function pigSvg(mood, cls, opts) {
   const CARD = `<g class="card-grp"><g transform="rotate(-6 60 98)"><rect x="33" y="82" width="54" height="36" rx="6" fill="#fffaf0" stroke="#f1d9a6" stroke-width="1.8"/><rect x="33" y="82" width="54" height="9" rx="5" fill="#ffd99a"/>
     <text x="60" y="111" text-anchor="middle" font-size="19" font-weight="900" fill="#ff8f7e" font-family="Nunito, Segoe UI, sans-serif">?</text><path d="M78 97 l1.2 2.6 2.6 1.2 -2.6 1.2 -1.2 2.6 -1.2 -2.6 -2.6 -1.2 2.6 -1.2z" fill="#ffd36e"/></g>
     <ellipse cx="30" cy="97" rx="7.5" ry="9.5" transform="rotate(-24 30 97)" fill="#ffa89b"/><ellipse cx="90" cy="97" rx="7.5" ry="9.5" transform="rotate(24 90 97)" fill="#ffa89b"/></g>`;
-  const note = o.card ? CARD : o.note
+  const BOOK = `<g class="card-grp"><g transform="rotate(-5 60 98)"><rect x="35" y="78" width="50" height="42" rx="5" fill="#7a5cd1"/><rect x="35" y="78" width="9" height="42" rx="4" fill="#5b3fb0"/><rect x="38" y="81" width="44" height="36" rx="3" fill="none" stroke="#a48cf0" stroke-width="1.2" opacity=".7"/>
+    
+    <path d="M71 78 h9 v13.5 l-4.5 -4 l-4.5 4 z" fill="#ff5d6c"/><path d="M71 78 h9 v3 h-9 z" fill="#e03f50"/>
+    <text x="60" y="104" text-anchor="middle" font-size="22" font-weight="900" fill="#ffe7a1" font-family="Nunito, Segoe UI, sans-serif">?</text></g>
+    <ellipse cx="30" cy="97" rx="7.5" ry="9.5" transform="rotate(-24 30 97)" fill="#ffa89b"/><ellipse cx="90" cy="97" rx="7.5" ry="9.5" transform="rotate(24 90 97)" fill="#ffa89b"/></g>`;
+  const note = o.book ? BOOK : o.card ? CARD : o.note
     ? `<g transform="rotate(-6 60 94)"><rect x="32" y="84" width="56" height="32" rx="5" fill="#fff0b8"/><path d="M32 106 q10 -2 18 4 l-18 6 z" fill="#f2d78a"/>
     <path d="M40 94 h26 M40 101 h18" stroke="#d3ad55" stroke-width="2.4" stroke-linecap="round"/><path d="M70 92 l4 4 8 -9" fill="none" stroke="#ff6f5f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></g>
     <ellipse cx="29" cy="95" rx="7.5" ry="9.5" transform="rotate(-24 29 95)" fill="#ffa89b"/><ellipse cx="91" cy="95" rx="7.5" ry="9.5" transform="rotate(24 91 95)" fill="#ffa89b"/>`
@@ -45,11 +50,11 @@ function pigSvg(mood, cls, opts) {
     ${look.earmuffs && !o.cap ? EARMUFFS : ''}
     ${o.cap ? NIGHTCAP : look.hat ? `<g transform="translate(0 -3)">${HATS[look.hat]}</g>` : `<g class="sprout-slot">${sproutSvg(stage)}</g>`}
     <g class="pig-eyes">${eyes}</g>
-    ${look.shades && !o.cap ? `<g transform="translate(0 2)">${SHADES}</g>` : ''}
+    ${look.shades && !o.cap ? SHADES : ''}
     <ellipse cx="29" cy="77" rx="10" ry="6.2" fill="#ff918a" opacity=".8"/><ellipse cx="91" cy="77" rx="10" ry="6.2" fill="#ff918a" opacity=".8"/>
     <g class="snout"><ellipse cx="60" cy="76" rx="9.4" ry="6.4" fill="#f58c82"/><ellipse cx="56.6" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/><ellipse cx="63.4" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/></g>
-    ${note}
     ${look.scarf && !o.cap ? SCARF : ''}
+    ${note}
     ${look.fall && m !== 'sleep' ? FALLS[look.fall] : ''}
     </g>${extra}
   </svg>`;
