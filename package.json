@@ -1,14 +1,15 @@
 {
   "name": "biggtaal",
   "productName": "BiggTaal",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "description": "A cute dark Dutch learning app: flashcards, worksheets, listening, lesson reminders",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "test": "node --test tests/*.test.js",
-    "dist": "electron-builder --win nsis"
+    "dist": "node scripts/get-voices.js && electron-builder --win nsis --publish never",
+    "voices": "node scripts/get-voices.js"
   },
   "build": {
     "appId": "com.laurmoe.biggtaal",
@@ -27,11 +28,33 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    }
+      "createStartMenuShortcut": true,
+      "artifactName": "BiggTaal-Setup-${version}.${ext}"
+    },
+    "extraResources": [
+      {
+        "from": "voices",
+        "to": "voices",
+        "filter": [
+          "piper/**/*",
+          "models/*.onnx",
+          "models/*.onnx.json"
+        ]
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "laurmoe7",
+        "repo": "bigg-taal"
+      }
+    ]
   },
   "devDependencies": {
     "electron": "^44.7.0",
     "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

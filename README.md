@@ -14,14 +14,31 @@ A cute, dark Dutch learning app for Windows (Electron). Same pig and look as Var
 npm install
 npm start          # run the app
 npm test           # logic tests
-npm run dist       # builds dist/BiggTaal Setup x.y.z.exe
+npm run voices     # downloads the Piper engine + Dutch voices into ./voices (checksum-verified)
+npm run dist       # builds dist/BiggTaal Setup x.y.z.exe (fetches voices first if missing)
 ```
 
 Data is saved in `%APPDATA%\biggtaal\data.json` (one backup per day beside it).
 
+## Updates and releases
+
+The installed app checks the GitHub releases of this repo a few seconds after start and every 6 hours, downloads a newer version quietly (only the changed parts), and installs it when you restart. Settings has a switch and a Check now button. Your data lives outside the app and is kept.
+
+To ship a version: bump `version` in package.json, `npm test`, `npm run dist`, then publish the three files electron-updater needs (the installer, its `.blockmap` and `latest.yml`):
+
+```
+gh release create vX.Y.Z dist/BiggTaal-Setup-X.Y.Z.exe dist/BiggTaal-Setup-X.Y.Z.exe.blockmap dist/latest.yml --title "BiggTaal X.Y.Z"
+```
+
+The repo must be public (or the app would need a token) for installed apps to see the release. To test updating without a release, run `npm start` with `VT_UPDATE_URL=http://127.0.0.1:PORT` and a `dev-app-update.yml` (git-ignored) pointing at a folder that serves a newer `latest.yml`.
+
+## Voices
+
+Listening uses natural offline Dutch voices (alex, pim) from [Piper](https://github.com/rhasspy/piper) (MIT) with voice models from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) (CC0). They are not stored in git; `npm run voices` downloads them into `voices/` and the installer bundles them. Audio is generated on demand and cached in the data folder (`tts-cache`). Windows voices still work as a fallback.
+
 ## Files
 
-`main.js` window, tray, reminders, saving. `preload.js` bridge. `renderer/logic.js` pure rules (tested). `renderer/seed.js` starter words, verbs, grammar, pig lines. `renderer/pig.js` the mascot. `renderer/app.js` screens.
+`main.js` window, tray, reminders, saving. `preload.js` bridge. `renderer/logic.js` pure rules (tested). `renderer/seed.js` starter words, verbs, grammar, pig lines. `renderer/pig.js` the mascot. `renderer/app.js` screens. `scripts/get-voices.js` downloads the voices.
 
 ## Claude import format
 

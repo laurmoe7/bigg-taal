@@ -1,3 +1,5 @@
 node_modules/
 dist/
 *.tmp
+voices/
+dev-app-update.yml

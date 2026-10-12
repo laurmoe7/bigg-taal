@@ -9,7 +9,7 @@
   L.uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // ---------- state ----------
-  L.defaultSettings = () => ({ reminderTime: '19:00', remindersOn: true, dailyGoal: 10, newPerDay: 10, rate: 0.9, voice: '', tray: false, login: false, sound: true });
+  L.defaultSettings = () => ({ reminderTime: '19:00', remindersOn: true, dailyGoal: 10, newPerDay: 10, autoUpdate: true, rate: 0.9, voice: '', tray: false, login: false, sound: true });
   L.emptyState = () => ({ v: 1, words: [], lessons: [], log: {}, settings: L.defaultSettings(), seeded: false });
   L.fixState = (s) => {
     const e = L.emptyState();
@@ -80,6 +80,91 @@
     return 'wrong';
   };
   L.stripArticle = (s) => String(s).replace(/^(de|het|een)\s+/i, '');
+
+  // ---------- dictation: word diff, letter diff, confusable sounds ----------
+  // Sounds Dutch learners mix up when writing what they hear. `rules` are [a, b] spelling pairs that sound alike or close; `re` finds practice words.
+  L.SOUNDS = {
+    'ij-ei': { name: 'ij / ei', tip: 'ij and ei sound the same, so you have to learn each word: tijd, rijk, prijs (ij) but klein, trein, reis (ei).', re: /ij|ei/, rules: [['ij', 'ei']] },
+    'eu-ui': { name: 'eu / ui', tip: 'eu is a rounded "uh" (neus); ui is a different sound (huis). Say them slowly with your lips.', re: /eu|ui/, rules: [['eu', 'ui']] },
+    'au-ou': { name: 'au / ou', tip: 'au and ou sound the same (auto, koud). Learn the spelling word by word.', re: /au|ou/, rules: [['au', 'ou']] },
+    'g-ch': { name: 'g / ch', tip: 'Both are throaty "h" sounds. g is voiced (goed), ch is not (toch, nacht).', re: /g|ch/, rules: [['g', 'ch']] },
+    'ie-i': { name: 'ie / i', tip: 'ie is long (niet), i is short (nit). A short i is followed by two consonants or ends a closed syllable.', re: /ie|i/, rules: [['ie', 'i']] },
+    'oe-u': { name: 'oe / u', tip: 'oe is like English "oo" (boek), u is a short rounded sound (bus).', re: /oe|u/, rules: [['oe', 'u']] },
+    'long-short': { name: 'long / short vowel', tip: 'In an open syllable a long vowel is written once (ma-ken), in a closed syllable twice (maan). Check: does the plural keep the long vowel? maan, manen.', re: /aa|ee|oo|uu/, rules: [['aa', 'a'], ['ee', 'e'], ['oo', 'o'], ['uu', 'u']] },
+    'dt': { name: 'final d / t', tip: 'A final d sounds like t (hond). Make the plural to hear it: honden, so it is a d.', re: /[dt]$/, rules: [['d', 't']] },
+    'v-f': { name: 'v / f', tip: 'v and f sound close in Dutch. Try the word in a sentence or its plural to remember which it is.', re: /[vf]/, rules: [['v', 'f']] },
+    'z-s': { name: 'z / s', tip: 'z is voiced, s is not. Many Dutch speakers blur them, so learn the spelling per word.', re: /[zs]/, rules: [['z', 's']] },
+    'dbl': { name: 'double consonants', tip: 'After a short vowel you need two consonants (kappen), after a long vowel one (kapen).', re: /([^aeiou])\1/, collapse: true },
+  };
+  const collapseCons = (s) => s.replace(/([^aeiou' ])\1/g, '$1');
+  // Which known confusions explain why `typed` was written instead of `target`? (both lowercase, no accents)
+  L.soundTags = (target, typed) => {
+    const t = L.norm(target), y = L.norm(typed), tags = [];
+    if (!t || !y || t === y) return tags;
+    for (const [id, s] of Object.entries(L.SOUNDS)) {
+      if (s.collapse) { if (collapseCons(t) === collapseCons(y)) tags.push(id); continue; }
+      let hit = false;
+      for (const [a, b] of s.rules) for (const [from, to] of [[a, b], [b, a]]) {
+        let i = y.indexOf(from);
+        while (i >= 0 && !hit) { if (y.slice(0, i) + to + y.slice(i + from.length) === t) hit = true; i = y.indexOf(from, i + 1); }
+      }
+      if (hit) tags.push(id);
+    }
+    return tags;
+  };
+  // Compare what was heard with what was typed, word by word. Words: { w, status: ok | close | missed, typed }.
+  L.diffWords = (target, typed) => {
+    const T = String(target).replace(/[.!?,;:"]+/g, ' ').split(/\s+/).filter((w) => L.norm(w));
+    const tn = T.map(L.norm), yn = L.norm(typed).split(' ').filter(Boolean);
+    const m = tn.length, n = yn.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = m - 1; i >= 0; i--) for (let j = n - 1; j >= 0; j--) dp[i][j] = tn[i] === yn[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    const matchT = new Array(m).fill(-1), matchY = new Array(n).fill(-1);
+    for (let i = 0, j = 0; i < m && j < n;) { if (tn[i] === yn[j]) { matchT[i] = j; matchY[j] = i; i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; }
+    const words = T.map((w, i) => ({ w, status: matchT[i] >= 0 ? 'ok' : 'missed', typed: matchT[i] >= 0 ? yn[matchT[i]] : '' }));
+    // pair up unmatched words that sit in the same gap, in order: near misses are 'close'
+    const used = new Set();
+    const anchors = [];
+    matchT.forEach((j, i) => { if (j >= 0) anchors.push([i, j]); });
+    anchors.push([m, n]);
+    let pi = 0, pj = 0;
+    for (const [ai, aj] of anchors) {
+      const gt = [], gy = [];
+      for (let k = pi; k < ai; k++) gt.push(k);
+      for (let k = pj; k < aj; k++) gy.push(k);
+      gt.forEach((ti, k) => {
+        if (k >= gy.length) return;
+        words[ti].typed = yn[gy[k]]; used.add(gy[k]);
+        if (L.lev(tn[ti], yn[gy[k]]) <= Math.max(1, Math.floor(tn[ti].length / 3))) words[ti].status = "close";
+      });
+      pi = ai + 1; pj = aj + 1;
+    }
+    const extra = yn.filter((_, k) => matchY[k] < 0 && !used.has(k));
+    const ok = words.filter((x) => x.status === 'ok').length, close = words.filter((x) => x.status === 'close').length;
+    const score = m ? (ok + close * 0.5) / m : 0;
+    return { words, extra, score, result: ok === m && !extra.length ? 'right' : score >= 0.8 ? 'close' : 'wrong' };
+  };
+  // Per-letter marks for the target: [{ c, ok }], plus the typed letters that were not needed.
+  L.letterDiff = (target, typed) => {
+    const strip = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const t = strip(target), y = strip(typed).trim(), m = t.length, n = y.length;
+    const dp = Array.from({ length: m + 1 }, (_, a) => { const r = new Array(n + 1).fill(0); r[0] = a; return r; });
+    for (let b = 0; b <= n; b++) dp[0][b] = b;
+    for (let a = 1; a <= m; a++) for (let b = 1; b <= n; b++) dp[a][b] = Math.min(dp[a - 1][b] + 1, dp[a][b - 1] + 1, dp[a - 1][b - 1] + (t[a - 1] === y[b - 1] ? 0 : 1));
+    const cells = Array.from(String(target), (c) => ({ c, ok: false })), extra = [];
+    let a = m, b = n;
+    while (a > 0 || b > 0) {
+      if (a > 0 && b > 0 && t[a - 1] === y[b - 1] && dp[a][b] === dp[a - 1][b - 1]) { cells[a - 1].ok = true; a--; b--; }
+      else if (a > 0 && b > 0 && dp[a][b] === dp[a - 1][b - 1] + 1) { a--; b--; }
+      else if (a > 0 && dp[a][b] === dp[a - 1][b] + 1) a--;
+      else { extra.unshift(y[b - 1]); b--; }
+    }
+    return { cells, extra };
+  };
+  // Hint text for dictation: level 1 = word lengths, level 2 = lengths plus first letters.
+  L.hintText = (target, level) => String(target).replace(/[.!?,;:"]+/g, '').split(/\s+/).filter(Boolean).map((w) => (level >= 2 ? w[0] : '_') + '_'.repeat(Math.max(0, w.length - 1))).join('  ');
+  // Words to practise a sound with.
+  L.soundWords = (words, id) => { const s = L.SOUNDS[id]; return s ? words.filter((w) => !w.deleted && s.re.test(L.norm(L.stripArticle(w.nl)).replace(/\s+/g, ''))) : []; };
 
   // ---------- random helpers ----------
   L.shuffle = (arr, rnd) => { rnd = rnd || Math.random; const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };

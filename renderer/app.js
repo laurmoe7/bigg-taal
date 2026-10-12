@@ -49,18 +49,51 @@ function confetti() {
     document.body.appendChild(c); setTimeout(() => c.remove(), 3200);
   }
 }
-let VOICES = [];
+let VOICES = [], PIPER = [];
+let UPD = { status: 'idle' }, APPV = '';
 function loadVoices() { try { VOICES = speechSynthesis.getVoices(); } catch { VOICES = []; } }
 if ('speechSynthesis' in window) { loadVoices(); speechSynthesis.onvoiceschanged = () => { loadVoices(); if (ui.view === 'settings' || ui.view === 'listen') render(); }; }
+async function loadPiper() { try { PIPER = window.vt && window.vt.ttsVoices ? await window.vt.ttsVoices() : []; } catch { PIPER = []; } }
 const dutchVoices = () => VOICES.filter((v) => /^nl\b|^nl[-_]/i.test(v.lang));
-function nlVoice() { return VOICES.find((v) => v.name === S.settings.voice && /^nl/i.test(v.lang)) || dutchVoices()[0]; }
-function speak(text, slow) {
-  const v = nlVoice();
-  if (!v) { toast('No Dutch voice found. See Settings > Voice.'); return false; }
-  speechSynthesis.cancel();
+const VOICE_NAMES = { alex: 'Alex', pim: 'Pim', ronnie: 'Ronnie' };
+// settings.voice is 'piper:alex', 'win:<Windows voice name>', a bare Windows voice name (older saves) or '' (best available)
+function voiceChoice() {
+  const v = S.settings.voice || '';
+  if (v.startsWith('piper:') && PIPER.includes(v.slice(6))) return { engine: 'piper', id: v.slice(6) };
+  const wname = v.startsWith('win:') ? v.slice(4) : v.startsWith('piper:') ? '' : v;
+  const w = dutchVoices().find((x) => x.name === wname);
+  if (w) return { engine: 'win', voice: w };
+  if (PIPER.length) return { engine: 'piper', id: PIPER[0] };
+  return dutchVoices()[0] ? { engine: 'win', voice: dutchVoices()[0] } : null;
+}
+const voiceLabel = () => { const c = voiceChoice(); return !c ? '' : c.engine === 'piper' ? (VOICE_NAMES[c.id] || c.id) + ' (natural)' : c.voice.name.replace(/ - .*/, ''); };
+const hasVoice = () => !!voiceChoice();
+const lengthScale = (slow) => Math.min(2.5, Math.max(0.5, 0.9 / Math.max(0.3, S.settings.rate * (slow ? 0.65 : 1))));
+let curAudio = null, speakToken = 0;
+function stopSpeech() { speakToken++; try { speechSynthesis.cancel(); } catch {} if (curAudio) { curAudio.pause(); curAudio = null; } }
+function speakWin(text, slow, voice) {
+  const c = voice ? { voice } : voiceChoice();
+  const v = c && c.voice; if (!v) return false;
   const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = Math.max(0.3, S.settings.rate * (slow ? 0.65 : 1));
   speechSynthesis.speak(u); return true;
 }
+async function speakPiper(text, slow, id) {
+  const my = ++speakToken;
+  try {
+    const bytes = await window.vt.tts(text, id, lengthScale(slow));
+    if (my !== speakToken) return; // a newer request replaced this one
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+    const a = new Audio(url); curAudio = a; a.onended = () => URL.revokeObjectURL(url); await a.play();
+  } catch (e) { if (my === speakToken && !speakWin(text, slow, dutchVoices()[0])) toast('Could not play the voice. See Settings > Voice.'); }
+}
+function speak(text, slow) {
+  const c = voiceChoice();
+  if (!c) { toast('No Dutch voice found. See Settings > Voice.'); return false; }
+  stopSpeech();
+  if (c.engine === 'piper') { speakPiper(text, slow, c.id); return true; }
+  return speakWin(text, slow);
+}
+function warmSpeech(text) { const c = voiceChoice(); if (c && c.engine === 'piper') { window.vt.tts(text, c.id, lengthScale(false)).catch(() => {}); } }
 
 // ---------- activity ----------
 function count(key, n) {
@@ -129,7 +162,8 @@ VIEWS.home = () => {
   const week = L.week(S.log, today()), max = Math.max(5, ...week.map((x) => x.n));
   const open = openLessons(), next = open[0], pv = PROVERBS[Math.floor(Date.now() / 864e5) % PROVERBS.length];
   const dn = (d) => ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][new Date(d + 'T12:00').getDay()];
-  return `<div class="hero">${pigSvg(pigMood(), '', { stage: pigStage(), note: true, cap: isNight() })}<div class="bubble" id="bubble">${esc(ui.say)}</div></div>
+  const upd = UPD.status === 'ready' ? `<div class="card upd"><div class="row"><div class="grow"><b>A new BiggTaal is ready! 🌸</b><div class="muted">Version ${esc(UPD.version)} has been downloaded. It installs when you restart, and your words and progress are safe.</div></div><button class="primary" data-act="update-install">Restart to update</button></div></div>` : '';
+  return `${upd}<div class="hero">${pigSvg(pigMood(), '', { stage: pigStage(), note: true, cap: isNight() })}<div class="bubble" id="bubble">${esc(ui.say)}</div></div>
   <div class="grid g4">
     <div class="card stat s-coral"><i class="si">🎯</i><b>${(t.reviews || 0)} / ${g}</b><span>cards today</span><div class="bar" style="margin-top:8px"><i style="width:${Math.min(100, ((t.reviews || 0) / g) * 100)}%"></i></div></div>
     <div class="card stat s-sun"><i class="si">🔥</i><b>${st}</b><span>day streak</span></div>
@@ -220,55 +254,90 @@ function checkTyped() {
 
 // ---------- listening ----------
 const LMODES = [['word', '✍️ Spell the word', 'Hear a Dutch word and type it'], ['meaning', '🎯 What does it mean?', 'Hear a word and pick the English'], ['article', '🔀 De or het?', 'Hear a noun and pick the article'], ['sentence', '💬 Sentence dictation', 'Hear a whole sentence and type it']];
-function startListen(mode) {
+function startListen(mode, sound) {
   let pool = liveWords();
+  if (sound) pool = L.soundWords(pool, sound);
   if (mode === 'article') pool = pool.filter((w) => w.article);
   if (mode === 'sentence') pool = pool.filter((w) => w.example);
   pool = L.pick(pool, 10);
-  if (pool.length < (mode === 'meaning' ? 4 : 1)) return toast('Not enough words for this mode yet.');
-  ui.listen = { mode, queue: pool, i: 0, res: null, typed: '', n: 0, good: 0, opts: null, picked: '' };
+  if (pool.length < (mode === 'meaning' ? 4 : sound ? 3 : 1)) return toast('Not enough words for this yet. Add some more!');
+  ui.listen = { mode, sound: sound || '', queue: pool, i: 0, res: null, typed: '', n: 0, good: 0, opts: null, picked: '', hint: 0, diff: null, tags: [] };
   prepListen(); render(); setTimeout(listenSay, 150);
 }
 function prepListen() {
   const l = ui.listen, w = l.queue[l.i]; if (!w) return;
+  l.hint = 0; l.diff = null; l.tags = [];
+  warmSpeech(l.mode === 'sentence' ? w.example : w.nl);
+  const nx = l.queue[l.i + 1]; if (nx) warmSpeech(l.mode === 'sentence' ? nx.example : nx.nl);
   if (l.mode === 'meaning') l.opts = L.shuffle([w.en, ...L.pick(liveWords().filter((x) => x.id !== w.id && x.en !== w.en), 3).map((x) => x.en)]);
 }
 function listenSay(slow) {
   const l = ui.listen; if (!l || !l.queue[l.i]) return;
-  const w = l.queue[l.i]; speak(l.mode === 'sentence' ? w.example : (l.mode === 'article' ? w.nl : w.nl), slow);
+  const w = l.queue[l.i]; speak(l.mode === 'sentence' ? w.example : w.nl, slow);
 }
+const soundStats = () => Object.entries(S.sounds || {}).filter(([id, v]) => L.SOUNDS[id] && v.n > 0).sort((a, b) => b[1].n - a[1].n);
 VIEWS.listen = () => {
-  const l = ui.listen, haveVoice = !!nlVoice();
-  const warn = haveVoice ? '' : `<div class="card" style="border-color:var(--butter);margin-bottom:14px"><b class="warn">No Dutch voice found on this PC.</b><br>Windows needs the Dutch language pack for text-to-speech: Settings → Time &amp; language → Language &amp; region → Add a language → Nederlands (Nederland), and tick <i>Text-to-speech</i>. Then restart BiggTaal.</div>`;
-  if (!l) return `<div class="top"><div><h1>Listening</h1><p class="sub">Train your ear with the PC's Dutch voice.</p></div></div>${warn}
+  const l = ui.listen, v = hasVoice();
+  const warn = v ? '' : `<div class="card" style="border-color:var(--butter);margin-bottom:14px"><b class="warn">No Dutch voice found on this PC.</b><br>Windows needs the Dutch language pack for text-to-speech: Settings → Time &amp; language → Language &amp; region → Add a language → Nederlands (Nederland), and tick <i>Text-to-speech</i>. Then restart BiggTaal.</div>`;
+  if (!l) {
+    const st = soundStats().slice(0, 4), r = S.settings.rate;
+    return `<div class="top"><div><h1>Listening</h1><p class="sub">Train your ear with the PC's Dutch voice${v ? ': ' + esc(voiceLabel()) : ''}.</p></div>
+      <div class="row"><span class="muted">Speed</span>${[['Slow', 0.7], ['Normal', 0.9], ['Fast', 1.1]].map(([n, x]) => `<button class="ghost ${Math.abs(r - x) < 0.06 ? 'on' : ''}" data-act="rate" data-r="${x}">${n}</button>`).join('')}</div></div>${warn}
+    ${st.length ? `<div class="card" style="margin-bottom:16px"><h2>Sounds to practise 🎯</h2><p class="muted">From the words you wrote down wrongly. Bigg picked the ones that trip you up most.</p>
+      ${st.map(([id, x]) => `<div class="lesson" style="margin:6px 0"><div class="lt">${esc(L.SOUNDS[id].name)} <span class="pill pink">${x.n} slip${x.n === 1 ? '' : 's'}</span><div class="muted" style="font-weight:600;font-size:13px">${esc(L.SOUNDS[id].tip)}</div></div><button class="primary" data-act="listen-start" data-m="word" data-s="${id}">Practise</button></div>`).join('')}</div>` : ''}
     <div class="grid g2">${LMODES.map(([id, name, d]) => `<div class="card"><h2>${name}</h2><p class="muted">${d}</p><button class="primary" data-act="listen-start" data-m="${id}">Start (10)</button></div>`).join('')}</div>`;
+  }
   const w = l.queue[l.i];
-  if (!w) return `<div class="top"><h1>Klaar! 🎧</h1></div><div class="fc-wrap"><div class="card" style="text-align:center;padding:30px">${pigSvg('happy', '', { note: true, stage: pigStage() })}<h2>${l.good} of ${l.n} right</h2>
-    <div class="row" style="justify-content:center"><button class="primary" data-act="listen-start" data-m="${l.mode}">Again</button><button class="ghost" data-act="listen-exit">Other modes</button></div></div></div>`;
+  if (!w) return `<div class="top"><h1>Klaar! 🎧</h1></div><div class="fc-wrap"><div class="card" style="text-align:center;padding:30px">${pigSvg('happy', '', { note: true, stage: pigStage() })}<h2>${l.good} of ${l.n} right</h2><p class="muted">${l.good === l.n ? 'Perfect! Your ears are getting so good! 💗' : 'Every round trains your ear a little more. 🌸'}</p>
+    <div class="row" style="justify-content:center"><button class="primary" data-act="listen-start" data-m="${l.mode}" data-s="${l.sound}">Again</button><button class="ghost" data-act="listen-exit">Other modes</button></div></div></div>`;
+  const dictation = l.mode === 'word' || l.mode === 'sentence';
   let body;
   if (l.mode === 'meaning') body = `<div class="opts">${l.opts.map((o) => `<button data-act="listen-pick" data-v="${esc(o)}" class="${l.res ? (o === w.en ? 'ok' : o === l.picked ? 'no' : '') : ''}">${esc(o)}</button>`).join('')}</div>`;
   else if (l.mode === 'article') body = `<div class="opts"><button data-act="listen-pick" data-v="de" class="${l.res ? (w.article === 'de' ? 'ok' : l.picked === 'de' ? 'no' : '') : ''}">de</button><button data-act="listen-pick" data-v="het" class="${l.res ? (w.article === 'het' ? 'ok' : l.picked === 'het' ? 'no' : '') : ''}">het</button></div>`;
-  else body = l.res ? '' : `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type what you hear... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="listen-check">Check</button></div>`;
+  else body = l.res ? '' : `${l.hint ? `<div class="hint-line">${esc(L.hintText(l.mode === 'sentence' ? w.example : w.nl, l.hint))}</div>` : ''}<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type what you hear... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="listen-check">Check</button><button class="ghost" data-act="listen-hint">💡 ${l.hint ? (l.hint > 1 ? 'More hint used' : 'More hint') : 'Hint'}</button></div>`;
   let result = '';
   if (l.res) {
     const target = l.mode === 'sentence' ? w.example : l.mode === 'meaning' ? w.en : l.mode === 'article' ? w.article + ' ' + w.nl : (w.article ? w.article + ' ' : '') + w.nl;
-    result = `<div class="card" style="margin-top:14px;text-align:center"><div class="fc-big ans ${l.res}">${l.res === 'right' ? rnd(PIG.right) : l.res === 'close' ? rnd(PIG.close) : rnd(PIG.wrong)}</div><div style="font-size:20px;margin:8px 0">${esc(target)}</div>${l.mode !== 'sentence' && l.mode !== 'meaning' ? '' : `<div class="muted">${esc(l.mode === 'sentence' ? w.exampleEn || w.en : w.nl)}</div>`}${l.typed ? `<div class="muted">You typed: ${esc(l.typed)}</div>` : ''}<button class="primary" style="margin-top:10px" data-act="listen-next" data-focus>Next →</button></div>`;
+    let detail = '';
+    if (l.mode === 'sentence' && l.diff) {
+      detail = `<div class="chips">${l.diff.words.map((x) => `<button class="wchip ${x.status}" data-act="listen-word" data-w="${esc(x.w)}" title="Click to hear this word">${esc(x.w)}${x.status !== 'ok' ? `<small>${x.typed ? 'you: ' + esc(x.typed) : 'missed'}</small>` : ''}</button>`).join('')}</div>${l.diff.extra.length ? `<div class="muted">Extra words: ${esc(l.diff.extra.join(', '))}</div>` : ''}<div class="muted" style="margin-top:6px">${esc(w.exampleEn || w.en)}</div>`;
+    } else if (l.mode === 'word' && l.diff) {
+      detail = `<div class="ltrs">${w.article ? `<span class="fc-art" style="margin-right:8px">${esc(w.article)}</span>` : ''}${l.diff.cells.map((c) => `<span class="ltr ${c.ok ? 'ok' : 'bad'}">${esc(c.c)}</span>`).join('')}</div>${l.diff.extra.length ? `<div class="muted">Extra letters you typed: ${esc(l.diff.extra.join(' '))}</div>` : ''}<div class="muted">${esc(w.en)}</div>`;
+    } else detail = `<div style="font-size:20px;margin:8px 0">${esc(target)}</div>${l.mode === 'meaning' ? `<div class="muted">${esc(w.nl)}</div>` : ''}`;
+    const tip = l.tags.length ? `<div class="tip">💡 <b>${esc(L.SOUNDS[l.tags[0]].name)}:</b> ${esc(L.SOUNDS[l.tags[0]].tip)}</div>` : '';
+    result = `<div class="card" style="margin-top:14px;text-align:center"><div class="fc-big ans ${l.res}">${l.res === 'right' ? rnd(PIG.right) : l.res === 'close' ? rnd(PIG.close) : rnd(PIG.wrong)}</div>${detail}${tip}${l.typed && dictation && l.res !== 'right' ? `<div class="muted" style="margin-top:6px">You typed: ${esc(l.typed)}</div>` : ''}${l.hint && l.res === 'right' ? '<div class="muted">(with a hint)</div>' : ''}
+      <div class="row" style="justify-content:center;margin-top:12px"><button class="ghost" data-act="listen-say">🔊 Again</button><button class="ghost" data-act="listen-slow">🐢 Slow</button><button class="primary" data-act="listen-next" data-focus>Next →</button></div></div>`;
   }
-  return `<div class="top"><div><h1>Listening</h1><p class="sub">${LMODES.find((m) => m[0] === l.mode)[1]} · ${l.i + 1} of ${l.queue.length}</p></div><button class="ghost" data-act="listen-exit">End</button></div>
-    <div class="fc-wrap">${warn}<div class="card" style="text-align:center;padding:26px"><button class="speak big" data-act="listen-say" title="Play">🔊</button><div style="margin-top:12px"><button class="ghost" data-act="listen-slow">🐢 Slow</button></div></div>${body}${result}</div>`;
+  return `<div class="top"><div><h1>Listening</h1><p class="sub">${l.sound ? 'Sound practice: ' + esc(L.SOUNDS[l.sound].name) : LMODES.find((m) => m[0] === l.mode)[1]} · ${l.i + 1} of ${l.queue.length}</p></div><button class="ghost" data-act="listen-exit">End</button></div>
+    <div class="fc-wrap">${warn}<div class="card" style="text-align:center;padding:26px"><button class="speak big" data-act="listen-say" title="Play (P)">🔊</button><div style="margin-top:12px"><button class="ghost" data-act="listen-slow">🐢 Slow</button></div></div>${body}${result}</div>`;
 };
+function noteSlips(pairs) {
+  const l = ui.listen, tags = new Set();
+  for (const [target, typed] of pairs) L.soundTags(target, typed).forEach((t) => tags.add(t));
+  l.tags = [...tags];
+  S.sounds = S.sounds || {};
+  for (const id of l.tags) { const x = S.sounds[id] || (S.sounds[id] = { n: 0 }); x.n++; x.last = today(); }
+}
 function finishListen(res) {
-  const l = ui.listen; l.res = res; l.n++; if (res === 'right') l.good++;
+  const l = ui.listen; l.res = res; l.n++;
+  if (res === 'right' && !l.hint) l.good++;
+  if (res === 'right' && l.sound && S.sounds && S.sounds[l.sound]) S.sounds[l.sound].n = Math.max(0, S.sounds[l.sound].n - 1); // getting it right works the slip off the list
   chime(res === 'wrong' ? 'bad' : 'ok'); count('listen'); render();
 }
 function listenCheck() {
   const l = ui.listen, w = l.queue[l.i]; if (!w || l.res) return;
   l.typed = ($('#typed') || {}).value || '';
   if (l.mode === 'sentence') {
-    const a = L.norm(l.typed).split(' ').filter(Boolean), b = L.norm(w.example).split(' ');
-    const hit = b.filter((x, i) => a[i] === x).length / b.length;
-    finishListen(hit === 1 ? 'right' : hit >= 0.8 ? 'close' : 'wrong');
-  } else finishListen(L.check(l.typed, L.stripArticle(w.nl)) === 'right' || L.check(l.typed, w.nl) === 'right' ? 'right' : L.check(l.typed, w.nl) === 'close' ? 'close' : 'wrong');
+    l.diff = L.diffWords(w.example, l.typed);
+    noteSlips(l.diff.words.filter((x) => x.status !== 'ok' && x.typed).map((x) => [x.w, x.typed]));
+    finishListen(l.diff.result);
+  } else {
+    const typed = L.stripArticle(l.typed.trim()), want = w.nl;
+    const c = L.check(typed, want);
+    l.diff = L.letterDiff(want, typed);
+    if (c !== 'right') noteSlips([[want, typed]]);
+    finishListen(c);
+  }
 }
 
 // ---------- words ----------
@@ -350,7 +419,7 @@ VIEWS.grammar = () => `<div class="top"><div><h1>Grammar cheat sheets</h1><p cla
 
 // ---------- settings ----------
 VIEWS.settings = () => {
-  const s = S.settings, nl = dutchVoices();
+  const s = S.settings, nl = dutchVoices(), vc = voiceChoice(), cur = vc ? (vc.engine === 'piper' ? 'piper:' + vc.id : 'win:' + vc.voice.name) : '';
   return `<div class="top"><div><h1>Settings</h1></div></div>
   <div class="grid g2">
   <div class="card"><h2>Reminders</h2>
@@ -363,19 +432,26 @@ VIEWS.settings = () => {
     <label class="row" style="margin-top:6px"><input type="checkbox" id="s-sound" ${s.sound ? 'checked' : ''}> Sounds</label>
     <div class="row" style="margin-top:12px"><button class="primary" data-act="settings-save">Save</button><button class="ghost" data-act="notify-test">🔔 Test notification</button></div></div>
   <div class="card"><h2>Voice</h2>
-    ${nl.length ? `<select id="s-voice" style="width:100%">${nl.map((v) => `<option value="${esc(v.name)}" ${s.voice === v.name ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select>`
+    ${PIPER.length || nl.length ? `<select id="s-voice" style="width:100%">${PIPER.length ? `<optgroup label="Natural voices (offline)">${PIPER.map((id) => `<option value="piper:${id}" ${cur === 'piper:' + id ? 'selected' : ''}>${VOICE_NAMES[id] || id}</option>`).join('')}</optgroup>` : ''}${nl.length ? `<optgroup label="Windows voices">${nl.map((x) => `<option value="win:${esc(x.name)}" ${cur === 'win:' + x.name ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</optgroup>` : ''}</select>`
       : `<p class="warn">No Dutch voice found. Windows: Settings → Time &amp; language → Language &amp; region → Add a language → Nederlands, include <i>Text-to-speech</i>, then restart this app.</p>`}
     <label class="f">Speed</label><input type="range" id="s-rate" min="0.5" max="1.3" step="0.05" value="${s.rate}">
     <div class="row" style="margin-top:10px"><button class="ghost" data-act="voice-test">🔊 Test voice</button></div></div>
   <div class="card"><h2>Your data</h2><p class="muted">Saved on this PC only${window.vt ? '' : ' (browser storage)'}. A backup copy is made once a day.</p>
     <div class="row"><button class="ghost" data-act="data-reveal">📂 Show data folder</button><button class="ghost" data-act="data-export">⬆ Export everything</button><button class="ghost" data-act="data-import">⬇ Import file</button></div>
     <div class="row" style="margin-top:8px"><button class="ghost" data-act="reseed">Re-add starter words</button></div></div>
-  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.1.2 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸</p></div></div>`;
+  <div class="card"><h2>Updates</h2><p class="muted">Version ${esc(APPV || '?')}. ${esc(updateText())}</p>
+    <label class="row"><input type="checkbox" id="s-upd" ${s.autoUpdate !== false ? 'checked' : ''}> Look for new versions automatically</label>
+    <div class="row" style="margin-top:12px"><button class="ghost" data-act="update-check">🔄 Check for updates</button>${UPD.status === 'ready' ? '<button class="primary" data-act="update-install">Restart to update</button>' : ''}</div></div>
+  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.2.0 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸</p></div></div>`;
 };
+function updateText() {
+  const u = UPD;
+  return { idle: 'Updates are checked a few seconds after BiggTaal starts.', checking: 'Checking for updates...', current: 'You have the newest version. 💗', downloading: `Downloading version ${u.version} (${u.percent || 0}%)...`, ready: `Version ${u.version} is ready. Restart to install it.`, unavailable: 'Updates work in the installed app.', error: 'Could not check just now (' + (u.error || 'no connection') + '). I will try again later.' }[u.status] || '';
+}
 function saveSettings() {
   const s = S.settings;
   s.remindersOn = $('#s-rem').checked; s.reminderTime = $('#s-time').value || '19:00'; s.dailyGoal = Math.max(3, +$('#s-goal').value || 10); s.newPerDay = Math.max(0, +$('#s-new').value);
-  s.tray = $('#s-tray').checked; s.login = $('#s-login').checked; s.sound = $('#s-sound').checked;
+  s.autoUpdate = $('#s-upd').checked; s.tray = $('#s-tray').checked; s.login = $('#s-login').checked; s.sound = $('#s-sound').checked;
   const v = $('#s-voice'); if (v) s.voice = v.value; s.rate = +$('#s-rate').value || 0.9;
   save(); if (window.vt) { window.vt.save(S); window.vt.launchAtLogin(s.login); }
   toast('Saved'); ui.say = ''; render();
@@ -399,7 +475,10 @@ const ACT = {
   cpref: (el) => { const p = cardPrefs(); p[el.dataset.k] = el.dataset.k === 'auto' ? !!el.dataset.v : el.dataset.v; save(); render(); },
   grade: (el) => gradeCard(el.dataset.g), check: checkTyped,
   skip: () => { const c = ui.cards; c.res = 'wrong'; c.typed = ''; c.flipped = true; render(); },
-  'listen-start': (el) => startListen(el.dataset.m), 'listen-exit': () => { ui.listen = null; render(); },
+  'listen-start': (el) => startListen(el.dataset.m, el.dataset.s),
+  rate: (el) => { S.settings.rate = +el.dataset.r; save(); render(); speak('Hoi, dit is de snelheid.'); },
+  'listen-hint': () => { const l = ui.listen; l.hint = Math.min(2, l.hint + 1); const t = ($('#typed') || {}).value || ''; render(); const i = $('#typed'); if (i) { i.value = t; i.focus(); } },
+  'listen-word': (el) => speak(el.dataset.w), 'listen-exit': () => { ui.listen = null; render(); },
   'listen-say': () => listenSay(), 'listen-slow': () => listenSay(true), 'listen-check': listenCheck,
   'listen-pick': (el) => { const l = ui.listen, w = l.queue[l.i]; if (l.res) return; l.picked = el.dataset.v; finishListen(el.dataset.v === (l.mode === 'article' ? w.article : w.en) ? 'right' : 'wrong'); },
   'listen-next': () => { const l = ui.listen; l.i++; l.res = null; l.typed = ''; l.picked = ''; prepListen(); render(); if (l.queue[l.i]) setTimeout(listenSay, 150); },
@@ -433,6 +512,8 @@ const ACT = {
   'data-reveal': () => window.vt && window.vt.reveal(),
   'data-export': async () => { if (!window.vt) return toast('Export works in the installed app.'); const f = await window.vt.exportFile(JSON.stringify(S, null, 1), 'BiggTaal-backup.json'); if (f) toast('Exported'); },
   'data-import': async () => { if (!window.vt) return; const f = await window.vt.importFile(); if (f) { importText(f.text); render(); } },
+  'update-check': () => { if (window.vt) window.vt.checkUpdate(); else toast('Updates work in the installed app.'); },
+  'update-install': () => window.vt && window.vt.installUpdate(),
   reseed: () => { const w = L.parseVocab(SEED_WORDS); w.forEach((x) => { x.lesson = 'Starter B1'; }); const m = L.mergeWords(S.words, w); S.words = m.words; save(); toast(`Added ${m.added} starter words`); render(); },
 };
 document.addEventListener('click', (e) => {
@@ -461,4 +542,14 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-load().then(() => { render(); });
+load().then(loadPiper).then(async () => {
+  if (window.vt && window.vt.version) {
+    try { APPV = await window.vt.version(); UPD = await window.vt.updateState(); } catch {}
+    window.vt.onUpdate((s) => {
+      UPD = s;
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
+      if ((ui.view === 'home' || ui.view === 'settings') && !typing) render();
+    });
+  }
+  render();
+});

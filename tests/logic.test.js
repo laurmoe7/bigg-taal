@@ -110,3 +110,37 @@ test('queue: due reviews plus a capped number of new words', () => {
   assert.equal(L.queue(ws, '2026-10-12', 10, 10).length, 1);
   assert.equal(L.queue(ws, '2026-10-12', 0, 0)[0].nl, 'r1');
 });
+
+test('soundTags finds the confusion behind a misspelling', () => {
+  assert.deepEqual(L.soundTags('tijd', 'teid'), ['ij-ei']);
+  assert.deepEqual(L.soundTags('huis', 'heus'), ['eu-ui']);
+  assert.ok(L.soundTags('hond', 'hont').includes('dt'));
+  assert.ok(L.soundTags('maan', 'man').includes('long-short'));
+  assert.ok(L.soundTags('kappen', 'kapen').includes('dbl'));
+  assert.deepEqual(L.soundTags('boek', 'boek'), []);
+  assert.deepEqual(L.soundTags('appel', 'zebra'), []);
+});
+
+test('diffWords: ok, close, missed and extra words', () => {
+  const d = L.diffWords('Ik heb morgen een afspraak met de dokter.', 'ik heb morgen een afspraek met dokter');
+  const st = Object.fromEntries(d.words.map((w) => [w.w, w.status]));
+  assert.equal(st.Ik, 'ok'); assert.equal(st.afspraak, 'close'); assert.equal(st.de, 'missed'); assert.equal(st.dokter, 'ok');
+  assert.equal(d.result, 'close');
+  assert.equal(L.diffWords('Het huis is groot.', 'het huis is groot').result, 'right');
+  assert.equal(L.diffWords('Het huis is groot.', 'banaan').result, 'wrong');
+  assert.equal(L.diffWords('Het huis is groot.', 'het huis is erg groot').result, 'close');
+});
+
+test('letterDiff marks the letters that were not typed right', () => {
+  const d = L.letterDiff('tijd', 'teid');
+  assert.deepEqual(d.cells.map((c) => c.ok), [true, false, false, true]);
+  assert.deepEqual(L.letterDiff('café', 'cafe').cells.every((c) => c.ok), true);
+  const e = L.letterDiff('huis', 'huiis'); assert.equal(e.extra.join(''), 'i'); assert.ok(e.cells.every((c) => c.ok));
+});
+
+test('hintText and soundWords', () => {
+  assert.equal(L.hintText('Het huis', 1), '___  ____');
+  assert.equal(L.hintText('Het huis', 2), 'H__  h___');
+  const ws = [L.newWord({ nl: 'tijd', en: 't' }), L.newWord({ nl: 'boek', en: 'b' }), L.newWord({ nl: 'de trein', article: 'de', en: 't' })];
+  assert.deepEqual(L.soundWords(ws, 'ij-ei').map((w) => w.nl), ['tijd', 'de trein']);
+});

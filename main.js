@@ -2,6 +2,9 @@
 const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, dialog, shell, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const { spawn } = require('child_process');
+const { autoUpdater } = require('electron-updater');
 
 app.setAppUserModelId('com.laurmoe.biggtaal');
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -91,6 +94,87 @@ function tick() {
   notify(hello[Math.floor(Math.random() * hello.length)], bits.join(' ') || 'Just a few minutes of Dutch today. You can do it! 💗');
 }
 
+// Natural Dutch voices: the Piper engine plus voice models, bundled in ./voices (dev) or resources/voices (installed).
+const voicesDir = () => (app.isPackaged ? path.join(process.resourcesPath, 'voices') : path.join(__dirname, 'voices'));
+const piperExe = () => path.join(voicesDir(), 'piper', 'piper.exe');
+function piperVoices() {
+  try {
+    if (!fs.existsSync(piperExe())) return [];
+    const dir = path.join(voicesDir(), 'models');
+    return fs.readdirSync(dir).filter((f) => /^nl_NL-[a-z0-9]+-medium\.onnx$/.test(f) && fs.existsSync(path.join(dir, f + '.json'))).map((f) => f.split('-')[1]);
+  } catch { return []; }
+}
+ipcMain.handle('tts:voices', () => piperVoices());
+const ttsInflight = new Map(); // identical requests share one piper run
+function synth(text, voice, ls) {
+  const cache = path.join(app.getPath("userData"), "tts-cache");
+  fs.mkdirSync(cache, { recursive: true });
+  const out = path.join(cache, crypto.createHash("sha1").update(voice + "|" + ls.toFixed(2) + "|" + text).digest("hex") + ".wav");
+  if (fs.existsSync(out)) { const now = new Date(); try { fs.utimesSync(out, now, now); } catch {} return Promise.resolve(fs.readFileSync(out)); }
+  if (ttsInflight.has(out)) return ttsInflight.get(out);
+  const job = new Promise((resolve, reject) => {
+    const tmp = out + ".tmp";
+    const p = spawn(piperExe(), ["--model", path.join(voicesDir(), "models", `nl_NL-${voice}-medium.onnx`), "--output_file", tmp, "--length_scale", String(ls)], { cwd: path.dirname(piperExe()), windowsHide: true });
+    let err = "";
+    p.stderr.on("data", (d) => { err += d; });
+    p.on("error", reject);
+    p.on("close", (code) => {
+      if (code === 0 && fs.existsSync(tmp)) { fs.renameSync(tmp, out); resolve(fs.readFileSync(out)); }
+      else reject(new Error("piper failed (" + code + "): " + err.slice(-200)));
+    });
+    p.stdin.end(text + '\n');
+  }).finally(() => ttsInflight.delete(out));
+  ttsInflight.set(out, job);
+  return job;
+}
+ipcMain.handle("tts:speak", (_e, text, voice, lengthScale) => {
+  text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 600);
+  if (!text) return Promise.reject(new Error("empty text"));
+  if (!piperVoices().includes(voice)) return Promise.reject(new Error("unknown voice"));
+  return synth(text, voice, Math.min(2.5, Math.max(0.5, Number(lengthScale) || 1)));
+});
+function trimCache() { // keep the audio cache from growing forever: drop clips not used for a month
+  try {
+    const dir = path.join(app.getPath('userData'), 'tts-cache');
+    for (const f of fs.readdirSync(dir)) { const fp = path.join(dir, f); if (Date.now() - fs.statSync(fp).atimeMs > 30 * 864e5) fs.unlinkSync(fp); }
+  } catch {}
+}
+
+// Updates: checks the GitHub releases of laurmoe7/bigg-taal (build.publish in package.json), downloads quietly, installs on restart.
+const updateState = { status: 'idle', version: '', percent: 0, error: '' };
+function setUpdate(patch) {
+  Object.assign(updateState, patch);
+  if (win && !win.isDestroyed()) win.webContents.send('update:state', updateState);
+}
+let updaterOn = false;
+function initUpdater() {
+  // Installed app: use the release feed. Dev run: only when VT_UPDATE_URL points at a test server (never in the installed app).
+  if (app.isPackaged) updaterOn = true;
+  else if (process.env.VT_UPDATE_URL) { autoUpdater.forceDevUpdateConfig = true; autoUpdater.setFeedURL({ provider: 'generic', url: process.env.VT_UPDATE_URL }); updaterOn = true; }
+  if (!updaterOn) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('checking-for-update', () => setUpdate({ status: 'checking', error: '' }));
+  autoUpdater.on('update-available', (i) => setUpdate({ status: 'downloading', version: i.version, percent: 0 }));
+  autoUpdater.on('update-not-available', () => setUpdate({ status: 'current' }));
+  autoUpdater.on('download-progress', (p) => setUpdate({ status: 'downloading', percent: Math.round(p.percent) }));
+  autoUpdater.on('update-downloaded', (i) => {
+    setUpdate({ status: 'ready', version: i.version, percent: 100 });
+    notify('A new BiggTaal is ready! 🌸', `Version ${i.version} will install when you restart.`);
+  });
+  autoUpdater.on('error', (e) => setUpdate({ status: 'error', error: String((e && e.message) || e).slice(0, 200) }));
+}
+function checkUpdates(manual) {
+  if (!updaterOn) return;
+  if (!manual && cache && cache.settings && cache.settings.autoUpdate === false) return;
+  if (updateState.status === 'downloading' || updateState.status === 'ready') return;
+  autoUpdater.checkForUpdates().catch(() => {});
+}
+ipcMain.handle('update:state', () => updateState);
+ipcMain.handle('update:check', () => { if (!updaterOn) setUpdate({ status: 'unavailable' }); else checkUpdates(true); });
+ipcMain.handle('update:install', () => { quitting = true; autoUpdater.quitAndInstall(false, true); });
+ipcMain.handle('app:version', () => app.getVersion());
+
 ipcMain.handle('data:load', () => { cache = readData(); return cache; });
 ipcMain.handle('data:save', (_e, state) => { cache = state; writeData(state); return true; });
 ipcMain.handle('data:where', () => dataFile());
@@ -123,11 +207,15 @@ ipcMain.handle('print:sheet', async (_e, html) => { // save a worksheet as a PDF
 app.on('second-instance', showWin);
 app.whenReady().then(() => {
   migrate();
+  trimCache();
   cache = readData();
   createWindow();
   createTray();
   setInterval(tick, 30000);
   setTimeout(tick, 5000);
+  initUpdater();
+  setTimeout(() => checkUpdates(false), 8000);
+  setInterval(() => checkUpdates(false), 6 * 3600 * 1000);
 });
 app.on('before-quit', () => { quitting = true; });
 app.on('window-all-closed', () => { if (!(cache && cache.settings && cache.settings.tray)) app.quit(); });
