@@ -235,7 +235,7 @@ test('coachMoment: calm after a miss, bigger cheers at streaks, halfway and last
   assert.equal(m({ streak: 3 }).kind, 'streak3'); assert.equal(m({ streak: 5 }).act, 'spin'); assert.equal(m({ streak: 8 }).kind, 'streak8'); assert.equal(m({ streak: 9 }).kind, 'right'); assert.equal(m({ streak: 12 }).kind, 'streak8');
   assert.equal(m({ done: 9, total: 10 }).kind, 'last'); assert.equal(m({ done: 5, total: 10 }).kind, 'half'); assert.equal(m({ done: 2, total: 4 }).kind, 'right'); // too short a session for a halfway cheer
   assert.equal(m({ streak: 3, done: 9, total: 10 }).kind, 'streak3'); // streaks win over the last-card line
-  const r = m({}); assert.equal(r.kind, 'right'); assert.ok(['hop', 'wiggle', 'nod'].includes(r.act));
+  const r = m({}); assert.equal(r.kind, 'right'); assert.ok(['hop', 'wiggle', 'nod', 'bounce', 'twirl', 'wave'].includes(r.act));
 });
 test('every coach moment has lines to say', () => {
   const src = require('fs').readFileSync(__dirname + '/../renderer/seed.js', 'utf8');
@@ -266,4 +266,79 @@ test('dictionary lookup: word, plural, past tense and English', () => {
   assert.deepEqual(find('to go'), ['gaan:english']); assert.deepEqual(find('doctor'), ['huisarts:english']);
   assert.deepEqual(L.dictToWord(D[0]), { nl: 'huis', en: 'house, home', article: 'het', pos: 'noun' });
   assert.equal(L.dictToWord(['dag', 'n', 'de/het', '', 'day']).article, '');
+});
+
+test('worksheets built from the downloaded data', () => {
+  const dict = [['werken', 'v', '', 'werkte,gewerkt,hebben', 'to work'], ['huis', 'n', 'het', 'huizen', 'house'], ['fiets', 'n', 'de', 'fietsen', 'bicycle'], ['boek', 'n', 'het', 'boeken', 'book'], ['stad', 'n', 'de', 'steden', 'city'], ['water', 'n', 'het', '', 'water']];
+  const sentences = [['Ik werk elke dag in de stad.', 'I work every day in the city.'], ['Het huis is erg groot.', 'The house is very big.'], ['Wij werken samen op kantoor.', 'We work together.']];
+  const dix = L.buildDictIndex(dict), six = L.buildSentenceIndex(sentences);
+  const pool = [{ nl: 'werken', en: 'to work', article: '', pos: 'verb' }, { nl: 'huis', en: 'house', article: 'het', pos: 'noun' }];
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const sheet = L.buildLocalSheet({ pool, count: 10, dict, dix, sentences, six, rnd });
+  assert.ok(sheet && sheet.items.length >= 5);
+  const by = (ty, sk) => sheet.items.filter((i) => i.type === ty && (!sk || i.skill === sk));
+  assert.ok(by('mc', 'vocabulary').length && by('mc', 'vocabulary')[0].options.includes(by('mc', 'vocabulary')[0].answer));
+  assert.ok(by('mc', 'de/het').every((i) => i.answer === 'het'));
+  const cl = sheet.items.find((i) => i.type === 'fill' && /_{2,}/.test(i.q)); assert.ok(cl && /^(werk|werken|huis)$/.test(cl.answer), 'cloze blanks out the word as used'); assert.ok(!/[=(]/.test(cl.q) && cl.q.includes(cl.answer[0] + '_'), 'no translation in the question, just the first letter');
+  const fo = sheet.items.find((i) => i.skill === 'past tense'); assert.ok(fo && ['werkte', 'gewerkt'].includes(fo.answer));
+  const or = sheet.items.find((i) => i.type === 'order'); assert.ok(or && L.orderParts(or.q).words.length >= 4 && L.autoMark(or, or.answer).verdict === 'right');
+  assert.equal(L.autoMark(by('mc')[0], by('mc')[0].answer).verdict, 'right');
+  assert.equal(L.buildLocalSheet({ pool: [], count: 5, dict, dix, sentences, six }), null);
+});
+test('recent and trouble words', () => {
+  const ws = [L.newWord({ nl: 'a', en: 'a', reps: 3, last: '2026-10-10', box: 3 }), L.newWord({ nl: 'b', en: 'b', reps: 5, last: '2026-08-01', box: 1, lapses: 2, created: 1 }), L.newWord({ nl: 'c', en: 'c', reps: 4, last: '2026-08-01', box: 5, created: 1 })];
+  assert.deepEqual(L.recentWords(ws, '2026-10-12', 7).map((w) => w.nl), ['a']);
+  assert.deepEqual(L.troubleWords(ws).map((w) => w.nl), ['b']);
+});
+test('separable verbs: example sentences need the little word too, and it gets underlined', () => {
+  const S = [['Ik vraag me af of hij komt.', 'I wonder if he is coming.'], ['Dat is een goede vraag.', 'That is a good question.']];
+  const idx = L.buildSentenceIndex(S);
+  assert.deepEqual(L.sepSplit('zich afvragen'), { prefix: 'af', rest: 'vragen' }); assert.equal(L.sepSplit('werken'), null);
+  assert.deepEqual(L.sentencesFor('zich afvragen', 'verb', idx, S, 5).map((p) => p[0]), ['Ik vraag me af of hij komt.']);
+  const f = L.exampleForms('zich afvragen', 'verb'); assert.ok(f.includes('vraag') && f.includes('af'));
+});
+
+test('mistakes review: words missed in the last week, most missed first', () => {
+  const ws = [L.newWord({ nl: 'huis', en: 'house', reps: 2 }), L.newWord({ nl: 'boek', en: 'book', reps: 2 }), L.newWord({ nl: 'fiets', en: 'bike', reps: 2 })];
+  const log = [{ nl: 'boek', d: '2026-10-11', s: 'cards' }, { nl: 'Boek', d: '2026-10-12', s: 'listen' }, { nl: 'huis', d: '2026-10-10', s: 'cards' }, { nl: 'fiets', d: '2026-09-01', s: 'cards' }];
+  assert.deepEqual(L.missedWords(ws, log, '2026-10-12', 7).map((w) => w.nl), ['boek', 'huis']);
+});
+test('progress counters: week sums, accuracy, snapshots', () => {
+  const log = { '2026-10-12': { reviews: 10, cOk: 8, cMiss: 2, lOk: 5 }, '2026-10-05': { reviews: 7, cOk: 3, cMiss: 3 } };
+  assert.equal(L.weekSum(log, '2026-10-12', ['reviews'], 0), 10); assert.equal(L.weekSum(log, '2026-10-12', ['reviews'], 1), 7);
+  assert.equal(L.dayAccuracy(log['2026-10-12']), 13 / 15); assert.equal(L.dayAccuracy({}), null); assert.equal(L.weekAccuracy(log, '2026-10-12', 1), 0.5);
+  const snap = {}; L.takeSnapshot(snap, [L.newWord({ box: 5, reps: 3 }), L.newWord({ box: 1, reps: 1 }), L.newWord({})], '2026-10-12');
+  assert.deepEqual(snap['2026-10-12'], { learned: 1, started: 2, total: 3 });
+});
+test('reading texts: parse Claude reply or plain text, tokenize, find the sentence', () => {
+  const reply = '```json\n{"reading":{"title":"Een dag","text":"Ik werk elke dag.\\n\\nHet is leuk.","questions":[{"q":"Wat doet hij?","options":["werken","slapen"],"answer":"werken","why":"x"},{"q":"bad","options":["a"],"answer":"z"}]}}\n```';
+  const r = L.parseReading(reply);
+  assert.equal(r.reading.title, 'Een dag'); assert.equal(r.reading.questions.length, 1); assert.ok(r.reading.text.includes('Het is leuk'));
+  assert.equal(L.parseReading('Dit is een gewone Nederlandse tekst.').reading.text, 'Dit is een gewone Nederlandse tekst.'); assert.ok(L.parseReading('hoi').error);
+  assert.deepEqual(L.tokenize("Ik ben d'r, ja!").filter((x) => x.w).map((x) => x.w), ['Ik', 'ben', "d'r", 'ja']);
+  assert.equal(L.sentenceWith('Ik werk hier. Wij wonen daar!', 'wonen'), 'Wij wonen daar!');
+  assert.ok(L.readingPrompt({ level: 'B1', length: 'short', topic: 'de dokter', words: [{ nl: 'afspraak' }] }).includes('afspraak'));
+});
+
+test('seasons and holidays (ported from Varken board)', () => {
+  const d = (y, m, day) => new Date(y, m - 1, day);
+  assert.equal(L.holidayOf(d(2026, 12, 20)), 'christmas'); assert.equal(L.holidayOf(d(2026, 10, 31)), 'halloween'); assert.equal(L.holidayOf(d(2026, 4, 27)), 'kingsday');
+  assert.equal(L.holidayOf(d(2026, 4, 5)), 'easter'); assert.equal(L.holidayOf(d(2026, 5, 10)), 'birthday'); assert.equal(L.holidayOf(d(2026, 12, 4)), 'sinterklaas');
+  assert.equal(L.holidayOf(d(2026, 1, 1)), 'newyear'); assert.equal(L.holidayOf(d(2026, 2, 14)), 'valentine'); assert.equal(L.holidayOf(d(2026, 7, 4)), 'fourth'); assert.equal(L.holidayOf(d(2026, 8, 20)), '');
+  assert.equal(L.seasonOf(d(2026, 1, 15)), 'winter'); assert.equal(L.seasonOf(d(2026, 4, 15)), 'spring'); assert.equal(L.seasonOf(d(2026, 7, 15)), 'summer'); assert.equal(L.seasonOf(d(2026, 10, 15)), 'autumn');
+  assert.equal(L.lookOf(d(2026, 12, 20)), 'christmas'); assert.equal(L.lookOf(d(2026, 8, 20)), 'summer');
+  assert.equal(L.easterSunday(2026).getMonth(), 3); assert.equal(L.easterSunday(2026).getDate(), 5);
+});
+
+test('levels: 99 levels shaped like RuneScape, names spread out, start from old history', () => {
+  assert.equal(L.XP_TO[2], 151); assert.equal(L.levelInfo(0).level, 1); assert.equal(L.levelInfo(150).level, 1); assert.equal(L.levelInfo(151).level, 2); assert.equal(L.levelInfo(151).into, 0);
+  const total = L.XP_TO[99];
+  assert.ok(total > 120000 && total < 170000, 'about 145,000 XP in all');
+  assert.ok(L.XP_TO[92] / total > 0.48 && L.XP_TO[92] / total < 0.58, 'level 92 is about halfway');
+  assert.ok(L.XP_TO[90] < total / 2 && L.XP_TO[92] >= total / 2, 'the halfway point sits at level 91-92');
+  for (let n = 2; n < 99; n++) assert.ok(L.levelNeed(n) >= L.levelNeed(n - 1), 'every level costs at least as much as the last');
+  assert.equal(L.levelInfo(total).level, 99); assert.equal(L.levelInfo(total).max, true); assert.equal(L.levelInfo(total * 3).level, 99); assert.equal(L.levelInfo(total - 1).level, 98);
+  assert.equal(L.levelTitle(1)[0], 'Zaadje'); assert.equal(L.levelTitle(4)[0], 'Zaadje'); assert.equal(L.levelTitle(5)[0], 'Kiem'); assert.equal(L.levelTitle(92)[0], 'Taalkoning'); assert.equal(L.levelTitle(98)[0], 'Taalfee'); assert.equal(L.levelTitle(99)[0], 'Taallegende');
+  assert.equal(L.levelInfo(75).pct, 50); assert.ok(/MAX/.test(L.xpText(L.levelInfo(total))));
+  assert.equal(L.xpFromHistory({ a: { reviews: 10, listen: 5, sheets: 1 }, b: { reviews: 99, xp: 40 } }, [L.newWord({ reps: 2 }), L.newWord({}), L.newWord({ deleted: true, reps: 3 })]), 40 + 20 + 15 + 40 + 1);
 });

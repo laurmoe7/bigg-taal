@@ -9,13 +9,13 @@
   L.uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // ---------- state ----------
-  L.defaultSettings = () => ({ dailyGoal: 10, newPerDay: 10, autoUpdate: true, rate: 0.9, voice: '', login: false, sound: true, theme: 'lagoon' });
+  L.defaultSettings = () => ({ dailyGoal: 10, newPerDay: 10, autoUpdate: true, rate: 0.9, voice: '', login: false, sound: true, theme: 'lagoon', looks: true });
   L.emptyState = () => ({ v: 1, words: [], lessons: [], log: {}, settings: L.defaultSettings(), seeded: false });
   L.fixState = (s) => {
     const e = L.emptyState();
     s = Object.assign(e, s || {});
     s.settings = Object.assign(L.defaultSettings(), s.settings || {});
-    s.words = s.words || []; s.lessons = s.lessons || []; s.log = s.log || {}; s.sheets = s.sheets || []; s.skills = s.skills || {}; s.knownFreq = s.knownFreq || []; s.knownFreq = s.knownFreq || [];
+    s.words = s.words || []; s.lessons = s.lessons || []; s.log = s.log || {}; s.sheets = s.sheets || []; s.skills = s.skills || {}; s.knownFreq = s.knownFreq || []; s.missLog = s.missLog || []; s.snap = s.snap || {}; s.reads = s.reads || []; s.presets = s.presets || []; s.knownFreq = s.knownFreq || [];
     return s;
   };
 
@@ -350,10 +350,19 @@
     return idx;
   };
   // the forms a word might show up in: verbs by their stem (werken -> werk, werkt, werkte, gewerkt...), nouns with s/en/e
+  // separable verbs: afvragen = af + vragen ("Ik vraag me af")
+  L.sepSplit = (nl) => { const m = nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '').trim().match(/^(af|aan|op|uit|in|mee|na|om|onder|over|toe|terug|weg|door|voor|bij|samen|vast|neer|rond|los|binnen|buiten|mis|thuis|weer)(.{4,}en)$/); return m ? { prefix: m[1], rest: m[2] } : null; };
   L.wordForms = (nl, pos) => {
-    const w = nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '').trim(); if (!w || w.includes(' ')) return [w];
+    const w0 = nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '').trim(); if (!w0 || w0.includes(' ')) return [w0];
+    const sep = (pos === 'verb' || /en$/.test(w0)) && L.sepSplit(w0), w = sep ? sep.rest : w0;
     const forms = new Set([w]);
-    if (pos === 'verb' || /en$/.test(w)) { const st = w.replace(/en$/, ''); if (st.length >= 2) [st, st + 't', st + 'e', st + 'en', st + 'te', st + 'ten', 'ge' + st + 't', 'ge' + st + 'd', 'ge' + st + 'en'].forEach((f) => forms.add(f)); }
+    if (sep) forms.add(w0);
+    if (pos === 'verb' || /en$/.test(w)) {
+      const st0 = w.replace(/en$/, ''), stems = new Set([st0]); // spelling changes: vrag -> vraag, lez -> lees, leev -> leef
+      if (/[^aeiou][aeiou][^aeiou]$/.test(st0)) stems.add(st0.replace(/([aeiou])([^aeiou])$/, '$1$1$2'));
+      for (const s of [...stems]) { if (/z$/.test(s)) stems.add(s.slice(0, -1) + 's'); if (/v$/.test(s)) stems.add(s.slice(0, -1) + 'f'); }
+      for (const st of stems) if (st.length >= 2) [st, st + 't', st + 'e', st + 'en', st + 'te', st + 'ten', 'ge' + st + 't', 'ge' + st + 'd', 'ge' + st + 'en'].forEach((f) => forms.add(f));
+    }
     if (pos !== 'verb') [w + 's', w + 'en', w + 'e', w + 't'].forEach((f) => forms.add(f));
     return [...forms];
   };
@@ -362,8 +371,12 @@
     const forms = L.wordForms(nl, pos), hit = new Set();
     if (forms.length === 1 && forms[0].includes(' ')) sentences.forEach((p, i) => { if (p[0].toLowerCase().includes(forms[0])) hit.add(i); });
     else for (const f of forms) for (const i of idx.get(f) || []) hit.add(i);
+    const sep = L.sepSplit(nl); // a separable verb needs its little word in the sentence too ("... af")
+    if (sep) for (const i of [...hit]) if (!(toks(sentences[i][0]).includes(sep.prefix) || toks(sentences[i][0]).includes(nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '')))) hit.delete(i);
     return [...hit].sort((a, b) => sentences[a][0].length - sentences[b][0].length).slice(0, n || 5).map((i) => sentences[i]);
   };
+  // the words to underline in an example sentence (all forms of the word, and the little word of a separable verb)
+  L.exampleForms = (nl, pos) => { const f = L.wordForms(nl, pos), sep = L.sepSplit(nl); return sep ? f.concat(sep.prefix) : f; };
   // Words from the frequency list (FREQ = [[dutch, english, rank], ...]) that are not in your list yet, within a rank band.
   L.suggestWords = (freq, words, known, lo, hi) => {
     const have = new Set(words.filter((w) => !w.deleted).map((w) => w.nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '')));
@@ -402,6 +415,185 @@
   // an entry as a ready-to-add word
   L.dictToWord = (e) => ({ nl: e[0], en: e[4].split('; ').slice(0, 2).join('; '), article: e[2] === 'de' || e[2] === 'het' ? e[2] : '', pos: e[1] === 'n' ? 'noun' : e[1] === 'v' ? 'verb' : 'other' });
 
+  // ---------- worksheets built from the downloaded data (no Claude needed) ----------
+  L.LOCAL_TYPES = [['meaning', '🎯 Meanings'], ['article', '🔀 De / het'], ['cloze', '✏️ Fill the gap'], ['forms', '🔧 Verb forms'], ['order', '🧩 Word order']];
+  const shuffle = (a, rnd) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor((rnd || Math.random)() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const shortEn = (en) => String(en || '').split(/[;,]/)[0].replace(/^to\s+/, 'to ').trim();
+  // words you started or reviewed in the last few days
+  L.recentWords = (words, today, days) => words.filter((w) => !w.deleted && ((w.reps > 0 && w.last && L.daysBetween(w.last, today) <= days) || (w.created && L.daysBetween(L.ymd(new Date(w.created)), today) <= days)));
+  // words you miss: lapses first, then the lowest levels
+  L.troubleWords = (words) => words.filter((w) => !w.deleted && w.reps > 0 && ((w.lapses || 0) > 0 || (w.box || 0) <= 1)).sort((a, b) => (b.lapses || 0) - (a.lapses || 0) || (a.box || 0) - (b.box || 0));
+  // o: { pool: [{nl,en,article,pos}], types, count, dict, dix, sentences, six, rnd }. Returns a sheet in the same shape Claude's worksheets use.
+  L.buildLocalSheet = (o) => {
+    const rnd = o.rnd || Math.random, pool = o.pool || [], types = o.types && o.types.length ? o.types : L.LOCAL_TYPES.map((t) => t[0]), items = [], seenQ = new Set();
+    if (!pool.length) return null;
+    const entry = (w) => { const r = L.dictSearch(o.dict, o.dix, w.nl, 6).filter((x) => x.how === 'word'); return (r.find((x) => (w.pos === 'verb' ? x.e[1] === 'v' : w.pos === 'noun' ? x.e[1] === 'n' : true)) || r[0] || {}).e || null; };
+    const wordsOf = (s) => s.replace(/[.!?]+$/, '').split(/\s+/);
+    const make = {
+      meaning: (w) => {
+        const ans = shortEn(w.en); if (!ans) return null;
+        const en0 = entry(w), ty = en0 ? en0[1] : w.pos === 'verb' ? 'v' : w.pos === 'noun' ? 'n' : null, opts = new Set([ans]); let tries = 0;
+        while (opts.size < 4 && tries++ < 60) { const e = o.dict[Math.floor(rnd() * o.dict.length)]; const m = shortEn(e[4]); if (m && m.length < 30 && m.toLowerCase() !== ans.toLowerCase() && (!ty || e[1] === ty)) opts.add(m); }
+        if (opts.size < 4) return null;
+        return { type: 'mc', skill: 'vocabulary', q: 'What does "' + w.nl + '" mean?', options: shuffle([...opts], rnd), answer: ans, why: (w.article ? w.article + ' ' : '') + w.nl + ' = ' + w.en };
+      },
+      article: (w) => { const e = entry(w), art = /^(de|het)$/.test(w.article) ? w.article : e && /^(de|het)$/.test(e[2]) ? e[2] : ''; if (!art) return null; return { type: 'mc', skill: 'de/het', q: '___ ' + w.nl, options: ['de', 'het'], answer: art, why: art + ' ' + w.nl }; },
+      cloze: (w) => {
+        const forms = L.wordForms(w.nl, w.pos), cand = L.sentencesFor(w.nl, w.pos, o.six, o.sentences, 8);
+        for (const [nl, en] of shuffle(cand, rnd)) {
+          const m = nl.match(/[A-Za-zÀ-ÿ']+/g) || [], tok = m.find((t) => forms.includes(t.toLowerCase())); if (!tok) continue;
+          const q = nl.replace(new RegExp('\\b' + tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b'), tok[0] + '_'.repeat(Math.max(2, tok.length - 1)));
+          if (q === nl) continue;
+          return { type: 'fill', skill: 'vocabulary', q: q, answer: tok, alt: [], why: nl + ' = ' + en };
+        }
+        return null;
+      },
+      forms: (w) => {
+        const e = entry(w); if (!e || e[1] !== 'v' || !e[3]) return null; const f = e[3].split(','), past = f[0], part = f[1];
+        if (past && (!part || rnd() < 0.5)) return { type: 'fill', skill: 'past tense', q: 'Past tense (ik): ' + e[0] + ' → ___', answer: past, alt: [], why: e[0] + ' – ' + past + ' – ' + (part || '?') + (f[2] ? ' (' + f[2] + ')' : '') };
+        if (part) return { type: 'fill', skill: 'past tense', q: 'Past participle of "' + e[0] + '":  ik heb/ben ___', answer: part, alt: [], why: e[0] + ' – ' + (past || '?') + ' – ' + part + (f[2] ? ' (' + f[2] + ')' : '') };
+        return null;
+      },
+      order: (w) => {
+        const cand = L.sentencesFor(w.nl, w.pos, o.six, o.sentences, 12).filter((p) => { const n = wordsOf(p[0]).length; return n >= 4 && n <= 8; });
+        if (!cand.length) return null;
+        const [nl, en] = cand[Math.floor(rnd() * cand.length)], ws = wordsOf(nl);
+        let sh = shuffle(ws, rnd), k = 0; while (sh.join(' ') === ws.join(' ') && k++ < 8) sh = shuffle(ws, rnd);
+        return { type: 'order', skill: 'word order', q: 'Put in order: ' + sh.join(' / '), answer: ws.join(' '), alt: [], why: nl + ' = ' + en };
+      },
+    };
+    const order = shuffle(pool, rnd);
+    for (let i = 0; i < o.count * 6 && items.length < o.count; i++) {
+      const w = order[i % order.length];
+      for (let t = 0; t < types.length; t++) {
+        const it = make[types[(i + t) % types.length]](w); if (!it || seenQ.has(it.q)) continue;
+        seenQ.add(it.q); items.push(Object.assign(it, { id: String(items.length + 1), alt: it.alt || [], word: w.nl })); break;
+      }
+    }
+    return items.length ? { title: 'Quick practice (' + items.length + ' items)', items, skipped: 0 } : null;
+  };
+
+  // ---------- mistakes review, reading texts and progress ----------
+  // Words you missed in the last few days (flashcards, listening, worksheets), most missed first. log: [{ nl, d, s }]
+  L.missedWords = (words, log, today, days) => {
+    const cnt = new Map();
+    for (const m of log || []) if (L.daysBetween(m.d, today) >= 0 && L.daysBetween(m.d, today) < (days || 7)) cnt.set(m.nl.toLowerCase(), (cnt.get(m.nl.toLowerCase()) || 0) + 1);
+    return words.filter((w) => !w.deleted && cnt.has(w.nl.toLowerCase())).sort((a, b) => cnt.get(b.nl.toLowerCase()) - cnt.get(a.nl.toLowerCase()) || (a.box || 0) - (b.box || 0));
+  };
+  // sums a few counters over the 7 days ending today (offset 0) or the 7 days before that (offset 1)
+  L.weekSum = (log, today, keys, offset) => {
+    let n = 0; const end = -7 * (offset || 0);
+    for (let i = 0; i < 7; i++) { const d = log[L.addDays(today, end - i)] || {}; for (const k of keys) n += d[k] || 0; }
+    return n;
+  };
+  // right answers out of all answers recorded in a day (flashcards, listening and worksheets together); null if nothing recorded
+  L.dayAccuracy = (d) => { d = d || {}; const ok = (d.cOk || 0) + (d.lOk || 0) + (d.sOk || 0), bad = (d.cMiss || 0) + (d.lMiss || 0) + (d.sMiss || 0); return ok + bad ? ok / (ok + bad) : null; };
+  L.weekAccuracy = (log, today, offset) => {
+    const ok = L.weekSum(log, today, ['cOk', 'lOk', 'sOk'], offset), bad = L.weekSum(log, today, ['cMiss', 'lMiss', 'sMiss'], offset);
+    return ok + bad ? ok / (ok + bad) : null;
+  };
+  // today's snapshot of how many words you know (box 4+), started and own; one per day
+  L.takeSnapshot = (snap, words, today) => { const live = words.filter((w) => !w.deleted); snap[today] = { learned: live.filter((w) => (w.box || 0) >= 4).length, started: live.filter((w) => w.reps > 0).length, total: live.length }; return snap[today]; };
+  L.readingPrompt = (o) => {
+    const len = { short: 'about 80 words', medium: 'about 150 words', long: 'about 250 words' }[o.length] || 'about 150 words';
+    const lines = ['I am learning Dutch (A2 done, working on B1) with NT2school. Write me a Dutch reading text, ' + len + ', at ' + (o.level || 'B1') + ' level' + (o.topic ? ' about: ' + o.topic : ' on an everyday topic') + '.'];
+    if (o.words && o.words.length) lines.push('Try to use these words naturally (I am learning them): ' + o.words.slice(0, 15).map((w) => w.nl).join(', ') + '.');
+    if (o.note) lines.push('Also: ' + o.note);
+    lines.push('Natural, real-sounding Dutch; split it into short paragraphs; no English inside the text; no word lists.');
+    lines.push('Also write 3 multiple-choice comprehension questions IN DUTCH about the text, each with 3 options, and the correct answer must be one of the options exactly.');
+    lines.push('Reply with ONLY this JSON in a code block, nothing else: {"reading":{"title":"Short Dutch title","text":"First paragraph.\\n\\nSecond paragraph.","questions":[{"q":"Vraag?","options":["A","B","C"],"answer":"B","why":"One short English sentence."}]}}');
+    return lines.join('\n');
+  };
+  // Reads Claude's reply (or a plain pasted text). Returns { reading: { title, text, questions } } or { error }.
+  L.parseReading = (raw) => {
+    // some replies have real line breaks inside the quoted text: turn those into \n so the JSON can be read
+    const fix = (x) => String(x || '').replace(/"(?:[^"\\]|\\.)*"/g, (m) => m.split('\r').join('').split('\n').join('\\n'));
+    const j = [raw, fix(raw)].map((x) => L.extractJson(x)).find((c) => c && typeof (c.reading || c).text === 'string') || null, r = j && (j.reading || j);
+    if (r && typeof r.text === 'string' && r.text.trim().length >= 20) {
+      const questions = (Array.isArray(r.questions) ? r.questions : []).map((q, i) => ({ id: String(i + 1), type: 'mc', skill: 'vocabulary', q: String(q.q || q.question || '').trim(), options: (q.options || []).map(String), answer: String(q.answer == null ? '' : q.answer).trim(), alt: [], why: String(q.why || '').trim() }))
+        .filter((q) => q.q && q.options.length >= 2 && q.options.includes(q.answer));
+      return { reading: { title: String(r.title || 'Reading text').slice(0, 80), text: r.text.trim(), questions } };
+    }
+    const t = String(raw || '').trim();
+    if (/^\s*(```[a-z]*\s*)?[{[]/.test(t) && /"(text|reading)"/.test(t)) return { error: 'That looks like JSON but I could not read it. Ask Claude to reply with the JSON again.' };
+    if (t.length < 20) return { error: 'Paste a Dutch text first (at least a sentence or two).' };
+    return { reading: { title: '', text: t.replace(/^```[a-z]*\n?|```$/g, '').trim(), questions: [] } };
+  };
+  // the words of a reading text as [{ w, i }] tokens plus plain text pieces, so the reader can make each word tappable
+  L.tokenize = (text) => { const out = [], re = /[A-Za-zÀ-ÿ]+(?:['’-][A-Za-zÀ-ÿ]+)*/g; let last = 0, m; while ((m = re.exec(text))) { if (m.index > last) out.push({ t: text.slice(last, m.index) }); out.push({ w: m[0] }); last = m.index + m[0].length; } if (last < text.length) out.push({ t: text.slice(last) }); return out; };
+  // the sentence of a text that contains a word
+  L.sentenceWith = (text, word) => { const re = new RegExp('(^|[^A-Za-zÀ-ÿ])' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^A-Za-zÀ-ÿ])', 'i'); return (text.replace(/\n+/g, ' ').match(/[^.!?]+[.!?]*/g) || []).map((s) => s.trim()).find((s) => re.test(s)) || ''; };
+
+  // ---------- seasons and holidays (from Varken board) ----------
+  // winter, spring, summer or autumn (northern hemisphere, local time)
+  function seasonOf(d) {
+    const m = (d || new Date()).getMonth();
+    return m === 11 || m < 2 ? 'winter' : m < 5 ? 'spring' : m < 8 ? 'summer' : 'autumn';
+  }
+  // Easter Sunday by the usual Gregorian computus.
+  function easterSunday(y) {
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const n = h + l - 7 * m + 114;
+    return new Date(y, Math.floor(n / 31) - 1, (n % 31) + 1);
+  }
+  // A holiday look for the day, or ''. Christmas 18-25 Dec, Halloween 25-31 Oct, King's Day 27 Apr (26 if that is
+  // a Sunday), Mother's/Father's Day, Prinsjesdag, Sint-Maarten, Bevrijdingsdag, Sinterklaas 3-5 Dec, New Year 30 Dec-1 Jan, Valentine 12-14 Feb, St Patrick, 4 July, Carnival, birthday 10 May, Thanksgiving (US: 4th Thursday of Nov) and the day before, Easter from Good Friday to Easter Monday.
+  // The n-th given weekday (0 = Sunday) of a month, as a day number.
+  const nthWeekday = (y, m, weekday, n) => 1 + ((weekday - new Date(y, m, 1).getDay() + 7) % 7) + 7 * (n - 1);
+  function holidayOf(d) {
+    const date = d || new Date(), y = date.getFullYear(), m = date.getMonth(), day = date.getDate();
+    if (m === 11 && day >= 18 && day <= 25) return 'christmas';
+    if (m === 9 && day >= 25) return 'halloween';
+    if (m === 3 && day === (new Date(y, 3, 27).getDay() === 0 ? 26 : 27)) return 'kingsday';
+    if (m === 10) {
+      const fourth = 1 + ((4 - new Date(y, 10, 1).getDay() + 7) % 7) + 21;
+      if (day === fourth || day === fourth - 1) return 'thanksgiving';
+    }
+    if (m === 4 && day === 10) return 'birthday'; // Lauren's
+    if (m === 4 && day === 5) return 'bevrijding'; // Bevrijdingsdag
+    if (m === 4 && day === nthWeekday(y, 4, 0, 2)) return 'mothersday'; // 2nd Sunday of May, the same in NL and the US
+    if (m === 5 && day === nthWeekday(y, 5, 0, 3)) return 'fathersday'; // 3rd Sunday of June
+    if (m === 8 && day === nthWeekday(y, 8, 2, 3)) return 'prinsjesdag'; // 3rd Tuesday of September
+    if (m === 10 && day === 11) return 'sintmaarten';
+    if (m === 11 && day >= 3 && day <= 5) return 'sinterklaas';
+    if ((m === 11 && day >= 30) || (m === 0 && day === 1)) return 'newyear';
+    if (m === 1 && day >= 12 && day <= 14) return 'valentine';
+    if (m === 2 && day === 17) return 'stpatrick';
+    if (m === 6 && (day === 3 || day === 4)) return 'fourth';
+    const diff = Math.round((new Date(y, m, day) - easterSunday(y)) / 86400000);
+    if (diff >= -50 && diff <= -47) return 'carnival'; // Saturday to Tuesday before Ash Wednesday
+    return diff >= -2 && diff <= 1 ? 'easter' : '';
+  }
+  const lookOf = (d) => holidayOf(d) || seasonOf(d);
+  L.seasonOf = seasonOf; L.holidayOf = holidayOf; L.lookOf = lookOf; L.easterSunday = easterSunday;
+
+  // ---------- levels (XP) ----------
+  // 99 levels, shaped like RuneScape: each level costs a little more than the last, and the cost doubles about every 7 levels, so the
+  // last levels take most of the XP (level 92 is roughly halfway to 99). Cost of level n -> n+1 = 150 + 0.75 x 2^(n/7).
+  L.MAX_LEVEL = 99;
+  L.XP_TO = (() => { const t = [0, 0]; for (let n = 1; n < 99; n++) t[n + 1] = t[n] + Math.round(150 + 0.75 * Math.pow(2, n / 7)); return t; })(); // XP_TO[n] = total XP to reach level n
+  // Dutch names spread over the 99 levels: [first level, Dutch name, English hint]
+  L.LEVEL_NAMES = [[1, 'Zaadje', 'little seed'], [5, 'Kiem', 'sprout'], [10, 'Spruit', 'shoot'], [16, 'Scheut', 'new growth'], [22, 'Knop', 'bud'], [29, 'Bloempje', 'little flower'], [36, 'Boompje', 'little tree'], [43, 'Bosje', 'little grove'],
+    [50, 'Taalvriend', 'language friend'], [57, 'Prater', 'chatterbox'], [64, 'Woordenheld', 'word hero'], [71, 'Taalheld', 'language hero'], [78, 'Taalridder', 'language knight'], [85, 'Taalmeester', 'language master'], [92, 'Taalkoning', 'language king'],
+    [96, 'Taalfee', 'language fairy'], [99, 'Taallegende', 'language legend']];
+  L.levelNeed = (level) => (level >= L.MAX_LEVEL ? 0 : L.XP_TO[level + 1] - L.XP_TO[level]); // XP to get from this level to the next
+  L.levelTitle = (level) => { let n = L.LEVEL_NAMES[0]; for (const x of L.LEVEL_NAMES) if (level >= x[0]) n = x; return [n[1], n[2]]; };
+  L.levelInfo = (xp) => {
+    xp = Math.max(0, Math.floor(xp || 0)); let level = 1;
+    while (level < L.MAX_LEVEL && xp >= L.XP_TO[level + 1]) level++;
+    const max = level >= L.MAX_LEVEL, into = xp - L.XP_TO[level], need = L.levelNeed(level);
+    return { level, into, need, pct: max ? 100 : Math.round((into / need) * 100), total: xp, title: L.levelTitle(level), max };
+  };
+  L.xpText = (info) => (info.max ? 'MAX LEVEL · ' + info.total.toLocaleString() + ' XP' : info.into.toLocaleString() + ' / ' + info.need.toLocaleString() + ' XP');
+  // starting XP for someone who already practised: a bit for every card, listening answer and worksheet so far, plus every word you have
+  L.xpFromHistory = (log, words) => {
+    let xp = 0; // days since levels began count their real XP; older days get a small allowance for what you did
+    for (const d of Object.values(log || {})) xp += d.xp != null ? d.xp : (d.reviews || 0) * 4 + (d.listen || 0) * 4 + (d.sheets || 0) * 15;
+    return Math.round(xp + (words || []).filter((w) => !w.deleted && w.reps > 0).length); // a little for every word you have started
+  };
+
   // How Bigg reacts after a flashcard is graded. grade: 'again' | 'good' | 'easy'; streak = right answers in a row (this one included);
   // done = cards graded so far; total = cards in the session now. Returns { kind (a COACH list), act (an animation), burst (emoji to float up) }.
   L.coachMoment = ({ grade, streak, done, total, rnd }) => {
@@ -413,7 +605,7 @@
     if (streak >= 8 && streak % 4 === 0) return { kind: 'streak8', act: 'cheer', burst: '🎉' };
     if (total - done === 1) return { kind: 'last', act: 'hop', burst: '' };
     if (total >= 6 && done === Math.floor(total / 2)) return { kind: 'half', act: 'wiggle', burst: '✨' };
-    return { kind: 'right', act: pick(['hop', 'wiggle', 'nod']), burst: rnd() < 0.35 ? '💗' : '' };
+    return { kind: 'right', act: pick(['hop', 'wiggle', 'nod', 'bounce', 'twirl', 'wave']), burst: rnd() < 0.35 ? '💗' : '' };
   };
 
   // Rough size of a prompt in Claude tokens (about 3.6 characters each for mixed Dutch and English). An estimate, not a count.

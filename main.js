@@ -10,7 +10,7 @@ app.setAppUserModelId('com.laurmoe.biggtaal');
 if (!app.requestSingleInstanceLock()) app.quit();
 
 const dataFile = () => path.join(app.getPath('userData'), 'data.json');
-const icon = () => path.join(__dirname, 'build', 'icon.png');
+const icon = () => path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 let win = null, quitting = false;
 let cache = null; // last saved state (the updater reads the autoUpdate setting from it)
 
@@ -47,11 +47,16 @@ function setZoom(z) {
 function createWindow() {
   const wa = screen.getPrimaryDisplay().workAreaSize; // a good part of the screen (15% less than before)
   win = new BrowserWindow({
-    width: Math.min(1500, Math.round(wa.width * 0.82)), height: Math.min(950, Math.round(wa.height * 0.82)), minWidth: 820, minHeight: 560,
+    width: Math.min(1500, Math.round(wa.width * 0.82)), height: Math.min(1064, Math.round(wa.height * 0.92)), minWidth: 820, minHeight: 560,
     backgroundColor: '#0f1c2b', title: 'BiggTaal', autoHideMenuBar: true, icon: icon(),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
   win.removeMenu();
+  // Run from the project folder, Windows would show the generic Electron icon on the taskbar: give the window the pig icon and
+  // tell the taskbar which shortcut to use when you pin it (the same one as the desktop shortcut).
+  if (process.platform === 'win32' && !app.isPackaged) {
+    try { win.setAppDetails({ appId: 'com.laurmoe.biggtaal', appIconPath: path.join(__dirname, 'build', 'icon.ico'), appIconIndex: 0, relaunchDisplayName: 'BiggTaal', relaunchCommand: '"' + process.execPath + '" "' + app.getAppPath() + '"' }); } catch {}
+  }
   win.webContents.on('before-input-event', (e, input) => {
     if (input.type !== 'keyDown') return;
     const k = String(input.key || '').toLowerCase();

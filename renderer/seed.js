@@ -132,7 +132,7 @@ const PIG = {
   due: ['{n} cards are ready, and I think you are going to do wonderfully! 💗', 'Yay, {n} cards! Just a few minutes is perfect. 🌸', 'Every card you review makes my little plant grow. {n} to go! 🌱', 'I saved {n} cards for you. We can do this together! ✨'],
   nothingDue: ['All caught up! You are amazing. Maybe a little listening for fun? 🎧', 'Nothing due right now. How about a worksheet? Or a rest, you earned it! 💗', 'You are all done for now. I am so proud of you! 🌸'],
   goal: ['You reached your goal! I am doing a happy wiggle! 🎉', 'Goed gedaan! That is today done, and anything extra is a lovely bonus. 💗', 'Wheee! Daily goal complete! Varken will be so proud of you! ✨'],
-  streak: ['{s} days in a row! You are wonderful! 🔥', 'A {s}-day streak! Look how far you have come! 💗', '{s} days of Dutch! My plant is blooming because of you! 🌼'],
+  level: ['You are level {n}! Look how far you have come! 🌟', '{x} XP to level {m}. You can do it! 💗', 'Level {n} already? I am so proud of you! ✨', 'My plant is blooming because of you, level {n}! 🌼'],
   night: ['It is late. Sweet dreams, we will learn more tomorrow! 🌙', 'Zzz.. you did lovely today. Sleep well! 💤'],
   right: ['Goed zo!', 'Precies! 🌸', 'Yay, you got it!', 'Lekker bezig!', 'Wonderful!', 'Super!'],
   close: ['So close! You almost had it! 💗', 'Nearly perfect, just a tiny spelling thing!', 'Bijna! Great try!'],

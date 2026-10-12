@@ -16,7 +16,7 @@ function save() {
 async function load() {
   let d = null;
   try { d = window.vt ? await window.vt.load() : JSON.parse(localStorage.getItem('biggtaal') || 'null'); } catch {}
-  S = L.fixState(d); applyTheme();
+  S = L.fixState(d); applyTheme(); if (typeof snapshotToday === 'function') snapshotToday(); if (typeof initXp === 'function') initXp();
   if (!S.seeded) {
     const w = L.parseVocab(SEED_WORDS); 
     S.words = L.mergeWords(S.words, w).words; S.seeded = true; save();
@@ -104,7 +104,7 @@ function count(key, n) {
   const before = (S.log[today()] || {}).reviews || 0;
   L.bump(S.log, today(), key, n);
   const after = (S.log[today()] || {}).reviews || 0;
-  if (key === 'reviews' && before < S.settings.dailyGoal && after >= S.settings.dailyGoal) { chime('goal'); confetti(); toast('Daily goal reached! Yay! 🎉'); ui.say = rnd(PIG.goal); }
+  if (key === 'reviews' && before < S.settings.dailyGoal && after >= S.settings.dailyGoal) { chime('goal'); confetti(); toast('Daily goal reached! Yay! 🎉'); ui.say = rnd(PIG.goal); if (typeof gainXp === 'function') gainXp(XP.goal); }
   save();
 }
 const dueList = () => L.queue(S.words, today(), S.settings.newPerDay, todayStats().newWords);
@@ -120,28 +120,32 @@ function pigMood() {
 }
 function pigStage() { const r = todayStats().reviews || 0, g = S.settings.dailyGoal; return r >= g ? 3 : r >= g * 0.6 ? 2 : r >= g * 0.3 ? 1 : 0; }
 function pigLine() {
-  const due = dueList().length, st = L.streak(S.log, today()), t = todayStats();
+  const due = dueList().length, lv = L.levelInfo(S.xp || 0), t = todayStats();
   if (isNight()) return rnd(PIG.night);
   if (!liveWords().length) return rnd(PIG.welcome);
-  if ((t.reviews || 0) >= S.settings.dailyGoal) return st > 2 && Math.random() < 0.5 ? fill(rnd(PIG.streak), { s: st }) : rnd(PIG.goal);
+  if ((t.reviews || 0) >= S.settings.dailyGoal) return Math.random() < 0.5 ? fill(rnd(PIG.level), { n: lv.level, x: lv.need - lv.into, m: lv.level + 1 }) : rnd(PIG.goal);
   const pool = [];
   if (due) pool.push(...PIG.due.map((x) => fill(x, { n: due })));
   else pool.push(...PIG.nothingDue);
-  if (st > 1) pool.push(...PIG.streak.map((x) => fill(x, { s: st })));
+  if (lv.max) pool.push('You are max level! A real language legend! 👑');
+  else if (lv.level > 1 || lv.into > 20) pool.push(...PIG.level.map((x) => fill(x, { n: lv.level, x: lv.need - lv.into, m: lv.level + 1 })));
+  const ctx = contextLines(); // special days and seasons sneak in
+  if (ctx.length && Math.random() < (L.holidayOf() ? 0.6 : 0.25)) return rnd(ctx);
   return rnd(pool);
 }
 
 // ---------- shell ----------
 const NAV = [['home', '🏠', 'Today', '#ff9d8e'], ['cards', '🃏', 'Flashcards', '#7fd4f0'], ['listen', '🎧', 'Listening', '#9ccbff'], ['sheets', '📝', 'Worksheets', '#ffe08a'],
-  ['words', '🔤', 'Words', '#ffb38a'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
+  ['reading', '📖', 'Reading', '#a8e6cf'], ['words', '🔤', 'Words', '#ffb38a'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['progress', '📈', 'Progress', '#b5b9ff'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
 function renderSide() {
-  const due = dueList().length, sig = [ui.view, due, L.streak(S.log, today()), liveWords().length, pigStage()].join('|');
+  const lv = L.levelInfo(S.xp || 0); ui.sideLevel = lv.level;
+  const due = dueList().length, sig = [ui.view, due, lv.level, liveWords().length, pigStage(), currentLook()].join('|');
   if (sig === ui.sideSig) return; // nothing in the sidebar changed: leave it alone (redrawing it restarts the logo animation)
   ui.sideSig = sig;
-  $('#side').innerHTML = `<div class="logo">${pigSvg('happy', '', { stage: pigStage() })}<div><b>BiggTaal</b><span>Nederlands leren</span></div></div>` +
-    NAV.map(([id, ic, name, col]) => `<button class="nav ${ui.view === id ? 'on' : ''}" data-act="nav" data-v="${id}"><span class="ic" style="background:${col}">${ic}</span><span class="t">${name}</span>` +
+  $('#side').innerHTML = `<div class="logo">${pigSvg('happy', 'pig-logo', { stage: pigStage() })}<div><b>BiggTaal</b><span>Nederlands leren</span></div></div>` +
+    NAV.map(([id, ic, name, col]) => `<button class="nav ${id === 'settings' ? 'nav-bottom ' : ''}${ui.view === id ? 'on' : ''}" data-act="nav" data-v="${id}"><span class="ic" style="background:${col}">${ic}</span><span class="t">${name}</span>` +
       (id === 'cards' && due ? `<span class="badge">${due}</span>` : '') + '</button>').join('') +
-    `<div class="side-foot">🔥 ${L.streak(S.log, today())}-day streak<br>${liveWords().length} words</div>`;
+    `<div class="side-foot"><div class="xp-row"><b>⭐ Level ${lv.level}</b><span>${esc(lv.title[0])}</span></div><div class="xp-bar"><i id="xpfill" style="width:${lv.pct}%"></i></div><div class="xp-sub" id="xpsub">${L.xpText(lv)}</div>${liveWords().length} words</div>`;
 }
 function render() {
   renderSide();
@@ -159,7 +163,7 @@ const VIEWS = {};
 
 // ---------- home ----------
 VIEWS.home = () => {
-  const t = todayStats(), g = S.settings.dailyGoal, due = dueList().length, m = L.mastery(S.words), st = L.streak(S.log, today());
+  const t = todayStats(), g = S.settings.dailyGoal, due = dueList().length, m = L.mastery(S.words), lv = L.levelInfo(S.xp || 0);
   if (!ui.say) ui.say = pigLine();
   const week = L.week(S.log, today()), max = Math.max(5, ...week.map((x) => x.n));
   const pv = PROVERBS[Math.floor(Date.now() / 864e5) % PROVERBS.length];
@@ -168,7 +172,7 @@ VIEWS.home = () => {
   return `${upd}<div class="hero">${pigSvg(pigMood(), '', { stage: pigStage(), note: true, cap: isNight() })}<div class="bubble" id="bubble">${esc(ui.say)}</div></div>
   <div class="grid g4">
     <div class="card stat s-coral"><i class="si">🎯</i><b>${(t.reviews || 0)} / ${g}</b><span>cards today</span><div class="bar" style="margin-top:8px"><i style="width:${Math.min(100, ((t.reviews || 0) / g) * 100)}%"></i></div></div>
-    <div class="card stat s-sun"><i class="si">🔥</i><b>${st}</b><span>day streak</span></div>
+    <div class="card stat s-sun"><i class="si">⭐</i><b>Lv ${lv.level}</b><span>${esc(lv.title[0])}</span></div>
     <div class="card stat s-aqua"><i class="si">🃏</i><b>${due}</b><span>cards due now</span></div>
     <div class="card stat s-mint"><i class="si">🌱</i><b>${m.learned} <small class="muted">/ ${m.total}</small></b><span>words learned (box 4+)</span></div>
   </div>
@@ -179,28 +183,30 @@ VIEWS.home = () => {
         <button class="ghost" data-act="nav" data-v="listen">🎧 Listening</button>
         <button class="ghost" data-act="nav" data-v="sheets">📝 Worksheet</button>
       </div></div>
-    <div class="card"><h2>Last 7 days</h2><div class="week">${week.map((x, i) => `<div class="${i === 6 ? 'today' : ''}"><i style="height:${Math.round((x.n / max) * 44)}px"></i>${dn(x.d)}</div>`).join('')}</div></div>
+    ${levelCard()}
+    ${mistakesCard()}
     <div class="card"><h2>Spreuk van de dag</h2><div style="font-size:18px;font-weight:800">${esc(pv[0])}</div><div class="muted">${esc(pv[1])}</div>
       <button class="ghost" style="margin-top:10px" data-act="say" data-t="${esc(pv[0])}">🔊 Listen</button></div>
   </div>`;
 };
 
 // ---------- listening ----------
-const LMODES = [['word', '✍️ Spell the word', 'Hear a Dutch word and type it'], ['meaning', '🎯 What does it mean?', 'Hear a word and pick the English'], ['article', '🔀 De or het?', 'Hear a noun and pick the article'], ['sentence', '💬 Sentence dictation', 'Hear a whole sentence and type it'], ['real', '🌍 Real sentences', 'Dictation with real Dutch sentences that use your words']];
+const LISTEN_ASK = ['Listen closely, I am right here! 🎧', 'Take your time, press 🔊 as often as you like!', 'Ready? Here comes the next one! 🌸', 'You can do it! 💗', 'Use the turtle if you want it slower! 🐢'];
+const LMODES = [['word', '✍️ Spell the word', 'Hear a Dutch word and type it'], ['meaning', '🎯 What does it mean?', 'Hear a word and pick the English'], ['article', '🔀 De or het?', 'Hear a noun and pick the article'], ['sentence', '💬 Sentence dictation', 'Hear a real Dutch sentence that uses one of your words and type it']];
 async function startReal() { // sentences from Tatoeba that use words you are learning
   toast('Finding real sentences...');
   let pool = [];
   try {
     const idx = await sentenceData(), mine = L.pick(liveWords().filter((w) => !w.example || true), 60), seen = new Set();
-    for (const w of mine) { const f = L.sentencesFor(w.nl, w.pos, idx, SENTENCES, 4).find((p) => !seen.has(p[0])); if (f) { seen.add(f[0]); pool.push(Object.assign({}, w, { id: 'tat' + pool.length, example: f[0], en: f[1], article: '' })); } if (pool.length >= 10) break; }
+    for (const w of mine) { const own = w.example && w.exampleEn && !seen.has(w.example) ? [w.example, w.exampleEn] : null, f = own || L.sentencesFor(w.nl, w.pos, idx, SENTENCES, 4).find((p) => !seen.has(p[0])); if (f) { seen.add(f[0]); pool.push(Object.assign({}, w, { id: 'tat' + pool.length, example: f[0], en: f[1], article: '' })); } if (pool.length >= 10) break; }
   } catch { return toast('Could not load the sentences.'); }
   if (!pool.length) return toast('No sentences found for your words yet. Add some more words!');
   ui.listen = { mode: 'sentence', real: true, sound: '', queue: pool, i: 0, res: null, typed: '', n: 0, good: 0, opts: null, picked: '', hint: 0, diff: null, tags: [] };
   prepListen(); render(); setTimeout(listenSay, 150);
 }
 function startListen(mode, sound) {
-  if (mode === 'real') { startReal(); return; }
-  let pool = liveWords();
+  if (mode === 'sentence') { startReal(); return; }
+  let pool = ui.listenPool || liveWords(); ui.listenPool = null;
   if (sound) pool = L.soundWords(pool, sound);
   if (mode === 'article') pool = pool.filter((w) => w.article);
   if (mode === 'sentence') pool = pool.filter((w) => w.example);
@@ -211,7 +217,7 @@ function startListen(mode, sound) {
 }
 function prepListen() {
   const l = ui.listen, w = l.queue[l.i]; if (!w) return;
-  l.hint = 0; l.diff = null; l.tags = [];
+  l.hint = 0; l.diff = null; l.tags = []; l.mean = null; l.showTr = false; l.ex = null;
   warmSpeech(l.mode === 'sentence' ? w.example : w.nl);
   const nx = l.queue[l.i + 1]; if (nx) warmSpeech(l.mode === 'sentence' ? nx.example : nx.nl);
   if (l.mode === 'meaning') l.opts = L.shuffle([w.en, ...L.pick(liveWords().filter((x) => x.id !== w.id && x.en !== w.en), 3).map((x) => x.en)]);
@@ -237,25 +243,56 @@ VIEWS.listen = () => {
     <div class="row" style="justify-content:center"><button class="primary" data-act="listen-start" data-m="${l.mode}" data-s="${l.sound}">Again</button><button class="ghost" data-act="listen-exit">Other modes</button></div></div></div>`;
   const dictation = l.mode === 'word' || l.mode === 'sentence';
   let body;
-  if (l.mode === 'meaning') body = `<div class="opts">${l.opts.map((o) => `<button data-act="listen-pick" data-v="${esc(o)}" class="${l.res ? (o === w.en ? 'ok' : o === l.picked ? 'no' : '') : ''}">${esc(o)}</button>`).join('')}</div>`;
-  else if (l.mode === 'article') body = `<div class="opts"><button data-act="listen-pick" data-v="de" class="${l.res ? (w.article === 'de' ? 'ok' : l.picked === 'de' ? 'no' : '') : ''}">de</button><button data-act="listen-pick" data-v="het" class="${l.res ? (w.article === 'het' ? 'ok' : l.picked === 'het' ? 'no' : '') : ''}">het</button></div>`;
-  else body = l.res ? '' : `${l.hint ? `<div class="hint-line">${esc(L.hintText(l.mode === 'sentence' ? w.example : w.nl, l.hint))}</div>` : ''}<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type what you hear... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="listen-check">Check</button><button class="ghost" data-act="listen-hint">💡 ${l.hint ? (l.hint > 1 ? 'More hint used' : 'More hint') : 'Hint'}</button></div>`;
+  if (l.mode === 'meaning') body = `<div class="opts">${l.opts.map((o) => `<button data-act="listen-pick" data-v="${esc(o)}" class="${l.res ? (o === w.en ? 'ok' : o === l.picked ? 'no' : '') : ''}">${esc(o)}</button>`).join('')}</div>${l.res ? '' : '<div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="listen-skip">🤷 I don\'t know</button></div>'}`;
+  else if (l.mode === 'article') body = `<div class="opts"><button data-act="listen-pick" data-v="de" class="${l.res ? (w.article === 'de' ? 'ok' : l.picked === 'de' ? 'no' : '') : ''}">de</button><button data-act="listen-pick" data-v="het" class="${l.res ? (w.article === 'het' ? 'ok' : l.picked === 'het' ? 'no' : '') : ''}">het</button></div><div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="listen-skip">🤷 I don't know</button></div>`;
+  else body = l.res ? '' : `${l.hint ? `<div class="hint-line">${esc(L.hintText(l.mode === 'sentence' ? w.example : w.nl, l.hint))}</div>` : ''}<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type what you hear... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="listen-check">Check</button><button class="ghost" data-act="listen-hint">💡 ${l.hint ? (l.hint > 1 ? 'More hint used' : 'More hint') : 'Hint'}</button><button class="ghost" data-act="listen-skip">🤷 I don't know</button></div>`;
   let result = '';
   if (l.res) {
     const target = l.mode === 'sentence' ? w.example : l.mode === 'meaning' ? w.en : l.mode === 'article' ? w.article + ' ' + w.nl : (w.article ? w.article + ' ' : '') + w.nl;
     let detail = '';
     if (l.mode === 'sentence' && l.diff) {
-      detail = `<div class="chips">${l.diff.words.map((x) => `<button class="wchip ${x.status}" data-act="listen-word" data-w="${esc(x.w)}" title="Click to hear this word">${esc(x.w)}${x.status !== 'ok' ? `<small>${x.typed ? 'you: ' + esc(x.typed) : 'missed'}</small>` : ''}</button>`).join('')}</div>${l.diff.extra.length ? `<div class="muted">Extra words: ${esc(l.diff.extra.join(', '))}</div>` : ''}<div class="muted" style="margin-top:6px">${esc(w.exampleEn || w.en)}</div>`;
+      detail = `<div class="chips">${l.diff.words.map((x) => `<button class="wchip ${x.status}" data-act="listen-word" data-w="${esc(x.w)}" title="Click to hear this word">${esc(x.w)}${x.status !== 'ok' ? `<small>${x.typed ? 'you: ' + esc(x.typed) : 'missed'}</small>` : ''}</button>`).join('')}</div>${l.diff.extra.length ? `<div class="muted">Extra words: ${esc(l.diff.extra.join(', '))}</div>` : ''}${l.showTr ? `<div class="muted" style="margin-top:6px">${esc(w.exampleEn || w.en)}</div>` : '<div style="margin-top:6px"><button class="ghost" data-act="listen-tr">👁 Show translation</button></div>'}<div class="muted tapnote">Tap a word to hear it and see its meaning</div>`;
     } else if (l.mode === 'word' && l.diff) {
-      detail = `<div class="ltrs">${w.article ? `<span class="fc-art" style="margin-right:8px">${esc(w.article)}</span>` : ''}${l.diff.cells.map((c) => `<span class="ltr ${c.ok ? 'ok' : 'bad'}">${esc(c.c)}</span>`).join('')}</div>${l.diff.extra.length ? `<div class="muted">Extra letters you typed: ${esc(l.diff.extra.join(' '))}</div>` : ''}<div class="muted">${esc(w.en)}</div>`;
+      detail = `<button class="wordbtn" data-act="listen-mean" data-w="${esc(w.nl)}" title="Tap for the meaning"><div class="ltrs">${w.article ? `<span class="fc-art" style="margin-right:8px">${esc(w.article)}</span>` : ''}${l.diff.cells.map((c) => `<span class="ltr ${c.ok ? 'ok' : 'bad'}">${esc(c.c)}</span>`).join('')}</div></button>${l.diff.extra.length ? `<div class="muted">Extra letters you typed: ${esc(l.diff.extra.join(' '))}</div>` : ''}`;
     } else detail = `<div style="font-size:20px;margin:8px 0">${esc(target)}</div>${l.mode === 'meaning' ? `<div class="muted">${esc(w.nl)}</div>` : ''}`;
+    const exBox = l.ex ? `<div class="exbox"><button class="ghost mini" data-act="say" data-t="${esc(l.ex.nl)}" title="Hear the sentence">🔊</button><div><div class="exnl">${exHtml(l.ex.nl, w)}</div>${l.ex.en ? (l.showTr ? `<div class="muted">${esc(l.ex.en)}</div>` : '<button class="ghost mini" data-act="listen-tr">👁 Show translation</button>') : ''}</div></div>` : '';
+    const meanBox = l.mean ? `<div class="meaning">${meaningHtml(l.mean, w)}</div>` : '';
     const tip = l.tags.length ? `<div class="tip">💡 <b>${esc(L.SOUNDS[l.tags[0]].name)}:</b> ${esc(L.SOUNDS[l.tags[0]].tip)}</div>` : '';
-    result = `<div class="card" style="margin-top:14px;text-align:center"><div class="fc-big ans ${l.res}">${l.res === 'right' ? rnd(PIG.right) : l.res === 'close' ? rnd(PIG.close) : rnd(PIG.wrong)}</div>${detail}${tip}${l.typed && dictation && l.res !== 'right' ? `<div class="muted" style="margin-top:6px">You typed: ${esc(l.typed)}</div>` : ''}${l.hint && l.res === 'right' ? '<div class="muted">(with a hint)</div>' : ''}
+    result = `<div class="card rcard" style="text-align:center">${detail}${meanBox}${exBox}${tip}${l.typed && dictation && l.res !== 'right' ? `<div class="muted" style="margin-top:6px">You typed: ${esc(l.typed)}</div>` : ''}${l.hint && l.res === 'right' ? '<div class="muted">(with a hint)</div>' : ''}
       <div class="row" style="justify-content:center;margin-top:12px"><button class="ghost" data-act="listen-say">🔊 Again</button><button class="ghost" data-act="listen-slow">🐢 Slow</button><button class="primary" data-act="listen-next" data-focus>Next →</button></div></div>`;
   }
+  const co = l.coach || (l.coach = { kind: 'start', act: 'in', line: rnd(COACH.start), played: false }), actCls = co.played ? '' : 'act-' + co.act;
+  co.played = true;
+  const coachBar = `<div class="coach">${pigSvg('happy', actCls, { stage: pigStage(), card: true })}<div class="cbub"><span>${esc(co.line || '')}</span></div></div>`;
   return `<div class="top"><div><h1>Listening</h1><p class="sub">${l.sound ? 'Sound practice: ' + esc(L.SOUNDS[l.sound].name) : LMODES.find((m) => m[0] === l.mode)[1]} · ${l.i + 1} of ${l.queue.length}</p></div><button class="ghost" data-act="listen-exit">End</button></div>
-    <div class="fc-wrap">${warn}<div class="card" style="text-align:center;padding:26px"><button class="speak big" data-act="listen-say" title="Play (P)">🔊</button><div style="margin-top:12px"><button class="ghost" data-act="listen-slow">🐢 Slow</button></div></div>${body}${result}</div>`;
+    <div class="fc-wrap lis">${coachBar}${warn}<div class="card lcard"><button class="speak big" data-act="listen-say" title="Play (P)">🔊</button><button class="ghost" data-act="listen-slow">🐢 Slow</button></div>${body}${result}</div>`;
 };
+// an example sentence for the word you just heard: your own, or a real one from Tatoeba
+async function findExample() {
+  const l = ui.listen, w = l && l.queue[l.i]; if (!w || l.mode === 'sentence' || l.ex) return;
+  const i = l.i;
+  if (w.example) { l.ex = { nl: w.example, en: w.exampleEn || '' }; render(); return; }
+  try {
+    const p = (await examplesFor(w.nl, w.pos, 4))[0]; if (!p) return;
+    if (ui.listen === l && l.i === i && l.res) { l.ex = { nl: p[0], en: p[1] }; render(); }
+  } catch {}
+}
+// the sentence with the word you practised in bold
+function exHtml(sentence, w) {
+  const forms = L.exampleForms(w.nl, w.pos);
+  return esc(sentence).replace(/[A-Za-zÀ-ÿ']+/g, (t) => (forms.includes(t.toLowerCase()) ? '<u>' + t + '</u>' : t));
+}
+// what a word means: your own list first, then the dictionary
+function meaningHtml(word, cur) {
+  const key = word.toLowerCase().replace(/[.,!?;:"]/g, '').replace(/^(de|het|een)\s+/, '');
+  const mine = liveWords().find((x) => x.nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '') === key) || (cur && cur.nl.toLowerCase() === key ? cur : null);
+  if (mine && mine.en && mine.id && !String(mine.id).startsWith('tat')) return `<b>${mine.article ? esc(mine.article) + ' ' : ''}${esc(mine.nl)}</b> = ${esc(mine.en)}`;
+  if (typeof DICT === 'undefined') return '<span class="muted">Looking it up...</span>';
+  const r = L.dictSearch(DICT, dictIndex(), key, 1)[0];
+  if (!r) return `<b>${esc(word)}</b> <span class="muted">is not in the dictionary</span>`;
+  const e = r.e, fl = formsLine(e);
+  return `<b>${e[2] === 'de' || e[2] === 'het' ? e[2] + ' ' : ''}${esc(e[0])}</b> <span class="muted">${L.POS_NAMES[e[1]] || ''}</span> = ${esc(e[4].split('; ').slice(0, 3).join('; '))}${fl ? `<div class="muted" style="font-size:13px">${esc(fl)}</div>` : ''}${r.how === 'form' ? '<div class="muted" style="font-size:13px">(a form of this word)</div>' : ''}`;
+}
 function noteSlips(pairs) {
   const l = ui.listen, tags = new Set();
   for (const [target, typed] of pairs) L.soundTags(target, typed).forEach((t) => tags.add(t));
@@ -267,7 +304,14 @@ function finishListen(res) {
   const l = ui.listen; l.res = res; l.n++;
   if (res === 'right' && !l.hint) l.good++;
   if (res === 'right' && l.sound && S.sounds && S.sounds[l.sound]) S.sounds[l.sound].n = Math.max(0, S.sounds[l.sound].n - 1); // getting it right works the slip off the list
-  chime(res === 'wrong' ? 'bad' : 'ok'); count('listen'); render();
+  l.streak = res === 'right' ? (l.streak || 0) + 1 : 0;
+  const mo = L.coachMoment({ grade: res === 'wrong' ? 'again' : 'good', streak: l.streak, done: l.n, total: l.queue.length });
+  l.coach = res === 'close' ? { kind: 'close', act: 'nod', line: rnd(PIG.close), played: false } : { kind: mo.kind, act: mo.act, line: res === 'wrong' ? rnd(PIG.wrong) : rnd(COACH[mo.kind]), played: false, burst: mo.burst };
+  if (l.mode === 'word') { l.mean = l.queue[l.i].nl; if (typeof DICT === 'undefined') loadData('dict').then(render).catch(() => {}); }
+  gainXp(res === 'right' ? (l.hint ? 8 : XP.listenRight) : res === 'close' ? XP.listenClose : XP.listenWrong);
+  bumpDay(res === 'right' ? 'lOk' : 'lMiss'); if (res !== 'right' && l.queue[l.i]) noteMiss(l.queue[l.i].nl, 'listen');
+  chime(res === 'wrong' ? 'bad' : 'ok'); count('listen'); render(); findExample();
+  if (l.coach.burst) burstBits(l.coach.burst);
 }
 function listenCheck() {
   const l = ui.listen, w = l.queue[l.i]; if (!w || l.res) return;
@@ -301,6 +345,11 @@ async function examplesFor(nl, pos, n) { const idx = await sentenceData(); retur
 // ---------- settings ----------
 const THEMES = [['lagoon', 'Lagoon', '#0b1a28', '#ff8f7e', '#6fd3ee'], ['plum', 'Plum', '#1a1226', '#ff8fb1', '#b79cff'], ['forest', 'Forest', '#0e1c16', '#ff9a85', '#7fe3b4'],
   ['sunset', 'Sunset', '#221512', '#ff8a70', '#ffc46b'], ['slate', 'Slate', '#14161c', '#ff8f7e', '#8fb4ff'], ['cream', 'Cream (light)', '#fff6ee', '#f2705f', '#1fa3c4']];
+const lookOptions = () => '<option value="">Today\'s look</option><option value="none">No clothes</option>' + Object.keys(LOOK_DEFS).map((id) => `<option value="${id}" ${looksPrefs.preview === id ? 'selected' : ''}>${LOOK_DEFS[id].label}</option>`).join('').replace('<option value="none">', '<option value="none">');
+document.addEventListener('change', (e) => {
+  if (e.target.id === 's-looks') { S.settings.looks = e.target.checked; save(); ui.sideSig = ''; render(); }
+  else if (e.target.id === 's-look-sel') { looksPrefs.preview = e.target.value; ui.sideSig = ''; ui.say = ''; render(); }
+});
 function applyTheme() { const t = (S && S.settings && S.settings.theme) || 'lagoon'; document.documentElement.setAttribute('data-theme', THEMES.some((x) => x[0] === t) ? t : 'lagoon'); }
 
 VIEWS.settings = () => {
@@ -308,6 +357,12 @@ VIEWS.settings = () => {
   return `<div class="top"><div><h1>Settings</h1></div></div>
   <div class="card" style="margin-bottom:16px"><h2>Look</h2><p class="muted" style="margin-top:0">Pick the colours you like best.</p>
     <div class="themes">${THEMES.map(([id, name, bg, a, b]) => `<button class="theme ${S.settings.theme === id ? 'on' : ''}" data-act="theme" data-v="${id}"><span class="sw" style="background:${bg}"><i style="background:${a}"></i><i style="background:${b}"></i></span>${name}</button>`).join('')}</div></div>
+  <div class="card" style="margin-bottom:16px"><h2>Seasons &amp; holidays</h2>
+    <p class="muted" style="margin-top:0">Bigg dresses up: a scarf in winter, shades in summer, falling petals in spring and leaves in autumn, and a hat for days like Christmas, King's Day, Easter, Halloween and your birthday.</p>
+    <label class="row"><input type="checkbox" id="s-looks" ${S.settings.looks !== false ? 'checked' : ''}> Dress Bigg up for seasons and holidays</label>
+    <div class="look-row"><label class="f" style="flex:1">Try a look<select id="s-look-sel" style="width:100%">${lookOptions()}</select></label>
+      <div class="look-prev">${pigSvg('happy', 'look-prev-pig', { stage: 1, look: looksPrefs.preview === 'none' ? '' : looksPrefs.preview || (S.settings.looks !== false ? L.lookOf() : '') })}</div></div>
+    <p class="muted" style="margin:6px 0 0;font-size:13px">A look you try here stays until you restart BiggTaal.</p></div>
   <div class="grid g2">
   <div class="card"><h2>Daily goals</h2>
     <label class="f">Daily goal (cards)</label><input type="number" id="s-goal" min="3" max="200" value="${s.dailyGoal}" style="width:100px">
@@ -355,10 +410,19 @@ const ACT = {
   'listen-start': (el) => startListen(el.dataset.m, el.dataset.s),
   rate: (el) => { S.settings.rate = +el.dataset.r; save(); render(); speak('Hoi, dit is de snelheid.'); },
   'listen-hint': () => { const l = ui.listen; l.hint = Math.min(2, l.hint + 1); const t = ($('#typed') || {}).value || ''; render(); const i = $('#typed'); if (i) { i.value = t; i.focus(); } },
-  'listen-word': (el) => speak(el.dataset.w), 'listen-exit': () => { ui.listen = null; render(); },
+  'listen-word': (el) => { speak(el.dataset.w); ui.listen.mean = el.dataset.w; if (typeof DICT === 'undefined') loadData('dict').then(render).catch(() => {}); render(); }, 'listen-exit': () => { ui.listen = null; render(); },
   'listen-say': () => listenSay(), 'listen-slow': () => listenSay(true), 'listen-check': listenCheck,
+  'listen-skip': () => {
+    const l = ui.listen, w = l.queue[l.i]; if (!w || l.res) return;
+    l.typed = ''; l.picked = '';
+    if (l.mode === 'sentence') l.diff = L.diffWords(w.example, '');
+    else if (l.mode === 'word') l.diff = L.letterDiff(w.nl, '');
+    finishListen('wrong');
+  },
+  'listen-mean': (el) => { const l = ui.listen; l.mean = el.dataset.w; if (typeof DICT === 'undefined') loadData('dict').then(render).catch(() => {}); render(); },
+  'listen-tr': () => { ui.listen.showTr = true; render(); },
   'listen-pick': (el) => { const l = ui.listen, w = l.queue[l.i]; if (l.res) return; l.picked = el.dataset.v; finishListen(el.dataset.v === (l.mode === 'article' ? w.article : w.en) ? 'right' : 'wrong'); },
-  'listen-next': () => { const l = ui.listen; l.i++; l.res = null; l.typed = ''; l.picked = ''; prepListen(); render(); if (l.queue[l.i]) setTimeout(listenSay, 150); },
+  'listen-next': () => { const l = ui.listen; l.i++; if (!l.queue[l.i]) gainXp(XP.session); l.coach = { kind: 'ask', act: '', line: rnd(LISTEN_ASK), played: true }; l.res = null; l.typed = ''; l.picked = ''; prepListen(); render(); if (l.queue[l.i]) setTimeout(listenSay, 150); },
   'word-save': () => {
     const nl = $('#w-nl').value.trim(), en = $('#w-en').value.trim(); if (!nl || !en) return toast('Need both Dutch and English');
     const o = { nl, en, article: $('#w-art').value, example: $('#w-ex').value.trim() }; o.pos = o.article ? 'noun' : guessPos(nl);

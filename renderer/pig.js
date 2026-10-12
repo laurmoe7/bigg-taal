@@ -15,6 +15,7 @@ const NIGHTCAP = `<g class="nightcap"><path d="M30 42 Q34 14 64 12 Q90 12 96 28 
 
 function pigSvg(mood, cls, opts) {
   const m = mood || 'happy', o = opts || {}, stage = o.stage == null ? 1 : o.stage;
+  const lookId = o.look === undefined ? currentLook() : o.look, look = LOOK_DEFS[lookId] || {}; // what he wears today (hats sit about 3px higher on his rounder head)
   const eye = (x, dx, big) => `<ellipse cx="${x}" cy="64" rx="${big ? 5.8 : 5.2}" ry="${big ? 6.6 : 6}" fill="${PIG_INK}"/><circle cx="${x - 1.6 + dx}" cy="61.6" r="2.3" fill="#fff"/><circle cx="${x + 2 + dx}" cy="66.6" r="1.1" fill="#fff" opacity=".85"/>`;
   const eyes = {
     happy: eye(43, 0, 1) + eye(77, 0, 1),
@@ -36,16 +37,20 @@ function pigSvg(mood, cls, opts) {
     <path d="M40 94 h26 M40 101 h18" stroke="#d3ad55" stroke-width="2.4" stroke-linecap="round"/><path d="M70 92 l4 4 8 -9" fill="none" stroke="#ff6f5f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></g>
     <ellipse cx="29" cy="95" rx="7.5" ry="9.5" transform="rotate(-24 29 95)" fill="#ffa89b"/><ellipse cx="91" cy="95" rx="7.5" ry="9.5" transform="rotate(24 91 95)" fill="#ffa89b"/>`
     : '<ellipse cx="11" cy="86" rx="7.5" ry="10.5" transform="rotate(20 11 86)" fill="#ffa89b"/><ellipse cx="109" cy="86" rx="7.5" ry="10.5" transform="rotate(-20 109 86)" fill="#ffa89b"/>';
-  return `<svg class="pig bigg ${cls || ''} pig-${m}" viewBox="0 0 120 120" aria-hidden="true"><g class="pig-all">
+  return `<svg class="pig bigg ${cls || ''} pig-${m}${lookId ? ' look-' + lookId : ''}" viewBox="0 0 120 120" aria-hidden="true"><g class="pig-all">
     <ellipse cx="42" cy="106" rx="11" ry="6.4" fill="#ff9d91"/><ellipse cx="78" cy="106" rx="11" ry="6.4" fill="#ff9d91"/>
     <g class="ear ear-l"><path d="M24 50 Q14 26 32 20 Q50 20 54 38 Z" fill="#ffa89b"/><path d="M29 44 Q23 30 34 26 Q45 27 48 38 Z" fill="#f28f86"/></g><g class="ear ear-r"><path d="M96 50 Q106 26 88 20 Q70 20 66 38 Z" fill="#ffa89b"/><path d="M91 44 Q97 30 86 26 Q75 27 72 38 Z" fill="#f28f86"/></g>
     <ellipse cx="60" cy="70" rx="52" ry="40" fill="#ffb5a8"/>
     <ellipse cx="60" cy="84" rx="34" ry="22" fill="#ffdcd3" opacity=".6"/>
-    ${o.cap ? NIGHTCAP : `<g class="sprout-slot">${sproutSvg(stage)}</g>`}
+    ${look.earmuffs && !o.cap ? EARMUFFS : ''}
+    ${o.cap ? NIGHTCAP : look.hat ? `<g transform="translate(0 -3)">${HATS[look.hat]}</g>` : `<g class="sprout-slot">${sproutSvg(stage)}</g>`}
     <g class="pig-eyes">${eyes}</g>
+    ${look.shades && !o.cap ? `<g transform="translate(0 2)">${SHADES}</g>` : ''}
     <ellipse cx="29" cy="77" rx="10" ry="6.2" fill="#ff918a" opacity=".8"/><ellipse cx="91" cy="77" rx="10" ry="6.2" fill="#ff918a" opacity=".8"/>
     <g class="snout"><ellipse cx="60" cy="76" rx="9.4" ry="6.4" fill="#f58c82"/><ellipse cx="56.6" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/><ellipse cx="63.4" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/></g>
     ${note}
+    ${look.scarf && !o.cap ? SCARF : ''}
+    ${look.fall && m !== 'sleep' ? FALLS[look.fall] : ''}
     </g>${extra}
   </svg>`;
 }

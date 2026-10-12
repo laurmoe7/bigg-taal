@@ -69,12 +69,12 @@ const dirChip = (d, label) => `<button class="ghost ${cardPrefs().dir === d ? 'o
 
 VIEWS.cards = () => {
   const p = cardPrefs(), c = ui.cards, due = dueList().length, strict = isStrict();
-  const MODE_INFO = { flip: 'See the card, flip it, then rate how well you knew it.', type: 'Type your answer in the direction you pick. The app checks it, then you rate yourself.', strict: 'Strict: English to Dutch only. A card only counts when you type the Dutch right; a miss means typing it once more. Hints available.' };
+  const MODE_INFO = { flip: 'See the card, flip it, then rate how well you knew it.', type: 'Type your answer; the app checks it, then you rate yourself.', strict: 'Strict: English → Dutch, counts only if typed right. A miss means retyping it once.' };
   const dirBtn = (d, label) => strict ? `<button class="ghost ${d === 'en-nl' ? 'on' : ''}" disabled>${label}</button>` : dirChip(d, label);
-  const prefs = `<div class="opts">
-    <div class="og"><span class="muted">Mode</span>${modeChip('flip', 'Flip')}${modeChip('type', '⌨️ Type')}<button class="ghost ${strict ? 'on' : ''}" data-act="cpref" data-k="strict" data-v="${strict ? '' : '1'}" ${p.mode === 'type' ? '' : 'disabled'} title="Only counts when you type the Dutch right">✍️ Strict</button></div>
-    <div class="og"><span class="muted">Direction</span>${dirBtn('nl-en', 'NL → EN')}${dirBtn('en-nl', 'EN → NL')}${dirBtn('mixed', 'Mixed')}</div>
-    <div class="og"><span class="muted">Sound</span><button class="ghost ${p.auto ? 'on' : ''}" data-act="cpref" data-k="auto" data-v="${p.auto ? '' : '1'}">🔊 Auto-speak</button></div>
+  const sw = (on, k, label, off, tip) => `<button class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" data-act="cpref" data-k="${k}" data-v="${on ? '' : '1'}" ${off ? 'disabled' : ''} title="${tip}"><i></i>${label}</button>`;
+  const prefs = `<div class="fopts compact">
+    <div class="og"><span class="muted">Mode</span>${modeChip('flip', 'Flip')}${modeChip('type', '⌨️ Type')}<span class="sep"></span>${sw(strict, 'strict', 'Strict', p.mode !== 'type', 'Only counts when you type the Dutch right (Type mode)')}</div>
+    <div class="og"><span class="muted">Direction</span>${dirBtn('nl-en', 'NL → EN')}${dirBtn('en-nl', 'EN → NL')}${dirBtn('mixed', 'Mixed')}<span class="sep"></span>${sw(p.auto, 'auto', '🔊 Auto-speak', false, 'Say each word out loud when it appears')}</div>
     <div class="og hint muted">${strict ? MODE_INFO.strict : MODE_INFO[p.mode] || MODE_INFO.flip}</div></div>`;
   if (!c) {
     return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${due} due today. Spaced repetition shows hard words more often.</p></div></div><div class="fc-wrap">${prefs}
@@ -95,7 +95,7 @@ VIEWS.cards = () => {
   // the coach: Bigg holds a flashcard at the top; his animation plays once, right after something happened
   const co = c.coach || {}, act = co.played ? '' : 'act-' + co.act;
   co.played = true;
-  const coach = `<div class="coach">${pigSvg('happy', act, { stage: pigStage(), card: true })}<div class="bubble coach-b"><span>${esc(co.line || '')}</span>${c.last ? `<small class="lastw">${c.last.ok ? '✓' : '→'} ${esc(wordLabel(c.last.w))} = ${esc(c.last.w.en)}</small>` : ''}</div></div>`;
+  const coach = `<div class="coach">${pigSvg('happy', act, { stage: pigStage(), card: true })}<div class="cbub"><span>${esc(co.line || '')}</span>${c.last ? `<small class="lastw">${c.last.ok ? '✓' : '→'} ${esc(wordLabel(c.last.w))} = ${esc(c.last.w.en)}</small>` : ''}</div></div>`;
   const frontHtml = nlFront
     ? `${w.article ? `<div class="fc-art">${esc(w.article)}</div>` : ''}<div class="fc-big">${esc(w.nl)}</div><button class="speak" data-act="say" data-t="${esc(wordLabel(w))}" title="Listen">🔊</button>`
     : `<div class="fc-big">${esc(w.en)}</div><div class="muted">in Dutch</div>${strict ? `<div class="fc-hint" id="fc-hint">${c.hint ? esc(L.hintText(w.nl, c.hint)) : ''}</div>` : ''}`;
@@ -139,13 +139,15 @@ function gradeCard(g) {
   c.n++; if (g !== 'again' && !cur.q.again) c.good++;
   if (g === 'again' && !cur.q.again) c.queue.push({ id: cur.q.id, dir: cur.q.dir, again: true });
   chime(g === 'again' ? 'bad' : 'ok');
+  gainXp(g === 'again' ? XP.cardAgain : g === 'easy' ? XP.cardEasy : XP.cardGood);
+  bumpDay(g === 'again' ? 'cMiss' : 'cOk'); if (g === 'again') noteMiss(cur.w.nl, 'cards');
   if (!isStrict()) c.last = { ok: g !== 'again', w: cur.w }; // (strict mode sets it itself, before grading)
   c.i++; c.flipped = false; c.res = null; c.typed = ''; c.phase = 'ask'; c.hint = 0;
   c.streak = g === 'again' ? 0 : c.streak + 1;
   const mo = L.coachMoment({ grade: g, streak: c.streak, done: c.i, total: c.queue.length });
   c.coach = { kind: mo.kind, act: mo.act, line: rnd(COACH[mo.kind]), played: false, burst: mo.burst };
   count('reviews'); autoSpeak();
-  if (!curCard()) { c.coach = { kind: 'done', act: 'cheer', line: rnd(COACH.done), played: true }; chime('goal'); confetti(); }
+  if (!curCard()) { c.coach = { kind: 'done', act: 'cheer', line: rnd(COACH.done), played: true }; chime('goal'); confetti(); gainXp(XP.session); }
   render();
   if (c.coach.burst) burstBits(c.coach.burst);
 }
@@ -190,3 +192,26 @@ Object.assign(ACT, {
   'copy-ok': () => copyContinue(false), 'copy-skip': () => copyContinue(true),
 });
 document.addEventListener('change', (e) => { if (e.target.id === 'fc-n') { cardPrefs().more = +e.target.value; save(); } });
+
+// ---------- little helpers that make Bigg lively wherever he coaches (flashcards, listening, worksheets) ----------
+const ACTS = ['in', 'hop', 'wiggle', 'nod', 'sway', 'spin', 'cheer', 'bounce', 'twirl', 'wave'];
+// change what Bigg says and does without redrawing the page (for typing, where a redraw would be annoying)
+function coachSay(line, act, burst) {
+  const host = document.querySelector('.coach'); if (!host) return;
+  const sp = host.querySelector('.cbub > span'); if (sp && line) sp.textContent = line;
+  const pig = host.querySelector('svg.pig'); if (pig && act) { ACTS.forEach((x) => pig.classList.remove('act-' + x)); void pig.getBoundingClientRect(); pig.classList.add('act-' + act); }
+  if (burst) burstBits(burst);
+}
+// when an animation ends he goes back to his gentle idle bob
+document.addEventListener('animationend', (e) => { const t = e.target; if (t && t.matches && t.matches('.coach svg.pig')) ACTS.forEach((x) => t.classList.remove('act-' + x)); });
+// poke him and he giggles
+const POKES = ['Hehe, that tickles! 💗', 'Boop! 🌸', 'I am here, keep going! ✨', 'Hi hi! 🌱', 'You are doing so well! 💗', 'Wheee! 🎈'];
+document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('.coach svg.pig')) coachSay(rnd(POKES), rnd(['bounce', 'twirl', 'wave', 'wiggle', 'hop']), rnd(['💗', '✨', '🌸', ''])); });
+// safety net: whatever the animation events do, he settles back to his idle bob soon after a move starts
+new MutationObserver(() => {
+  const pig = document.querySelector('.coach svg.pig');
+  if (pig && ACTS.some((x) => pig.classList.contains('act-' + x)) && !pig.dataset.settle) {
+    pig.dataset.settle = '1';
+    setTimeout(() => { ACTS.forEach((x) => pig.classList.remove('act-' + x)); delete pig.dataset.settle; }, 1400);
+  }
+}).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });

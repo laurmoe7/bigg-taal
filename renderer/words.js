@@ -27,7 +27,12 @@ const wordCard = (w) => `<div class="wcard"><div class="wtop"><div class="wt">${
 VIEWS.words = () => {
   const f = ui.words, all = liveWords(), m = L.mastery(S.words);
   const head = `<div class="top"><div><h1>Words</h1><p class="sub">${all.length} words · ${m.learned} learned · ${m.fresh} not started yet</p></div></div>`;
-  const tabs = `<div class="tabs">${WORD_TABS.map(([id, ic, name, fn]) => `<button class="tab ${f.tab === id ? 'on' : ''}" data-act="wt-tab" data-t="${id}">${ic} ${name} <small>${all.filter(fn).length}</small></button>`).join('')}<button class="tab ${f.tab === 'dict' ? 'on' : ''}" data-act="wt-tab" data-t="dict">📖 Dictionary</button><button class="tab ${f.tab === 'suggest' ? 'on' : ''}" data-act="wt-tab" data-t="suggest">💡 Suggested</button><button class="tab ${f.tab === 'add' ? 'on' : ''}" data-act="wt-tab" data-t="add">➕ Add words</button></div>`;
+  const sec = f.tab === 'dict' || f.tab === 'suggest' ? 'dict' : 'mine';
+  const secBar = `<div class="seg"><button class="${sec === 'mine' ? 'on' : ''}" data-act="wt-sec" data-v="mine">📚 My words <small>${all.length}</small></button><button class="${sec === 'dict' ? 'on' : ''}" data-act="wt-sec" data-v="dict">📖 Dictionary</button></div>`;
+  const tabBtn = (id, label) => `<button class="tab ${f.tab === id ? 'on' : ''}" data-act="wt-tab" data-t="${id}">${label}</button>`;
+  const tabs = secBar + (sec === 'mine'
+    ? `<div class="tabs">${WORD_TABS.map(([id, ic, name, fn]) => tabBtn(id, `${ic} ${name} <small>${all.filter(fn).length}</small>`)).join('')}${tabBtn('add', '➕ Add manually')}</div>`
+    : `<div class="tabs">${tabBtn('dict', '🔎 Look up')}${tabBtn('suggest', '💡 Suggested')}</div>`);
   if (f.tab === 'add') return head + tabs + addWordsTab();
   if (f.tab === 'suggest') return head + tabs + suggestTab();
   if (f.tab === 'dict') return head + tabs + dictTab();
@@ -82,11 +87,12 @@ async function addSuggested(words) { // words: [dutch, ...]; adds them with real
     const pos = ty === 'n' ? 'noun' : ty === 'v' ? 'verb' : 'other', ex = idx ? L.sentencesFor(nl, pos, idx, SENTENCES, 1)[0] : null;
     S.words.push(L.newWord({ nl, en, pos, article: artOf(art), example: ex ? ex[0] : '', exampleEn: ex ? ex[1] : '' }));
   }
-  save(); toast(items.length === 1 ? 'Added ' + items[0][0] : 'Added ' + items.length + ' words'); render();
+  gainXp(Math.min(12, items.length * XP.addWord)); save(); toast(items.length === 1 ? 'Added ' + items[0][0] : 'Added ' + items.length + ' words'); render();
 }
 
 // Dictionary: Dutch to English or English to Dutch, from Wiktionary
 let DICT_IX = null;
+const haveWord = (nl) => liveWords().some((x) => x.nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '') === nl.toLowerCase());
 const dictIndex = () => (DICT_IX = DICT_IX || L.buildDictIndex(DICT));
 const formsLine = (e) => { const f = e[3] ? e[3].split(',') : []; return e[1] === 'n' && f[0] ? 'plural: ' + f[0] : e[1] === 'v' && f.length ? 'past: ' + (f[0] || '') + (f[1] ? ' · participle: ' + f[1] : '') + (f[2] ? ' · ' + f[2] : '') : e[1] === 'a' && f.length ? f.join(', ') : ''; };
 function dictResults(q) {
@@ -95,11 +101,11 @@ function dictResults(q) {
   if (!res.length) return '<div class="empty">Nothing found for that word.</div>';
   return '<div class="wgrid">' + res.map(({ e, how }) => `<div class="wcard"><div class="wtop"><div class="wt">${artOf(e[2]) ? `<span class="art-${e[2]}">${e[2]}</span> ` : e[2] === 'de/het' ? '<span class="muted">de/het</span> ' : ''}<b>${esc(e[0])}</b> <span class="muted" style="font-size:12px">${L.POS_NAMES[e[1]] || ''}</span></div><button class="ghost mini" data-act="say" data-t="${esc((artOf(e[2]) ? e[2] + ' ' : '') + e[0])}" title="Listen">🔊</button></div>
     <div class="we">${esc(e[4])}</div>${formsLine(e) ? `<div class="wex">${esc(formsLine(e))}</div>` : ''}
-    <div class="wf"><span class="muted" style="font-size:12px">${how === 'form' ? 'form of this word' : how === 'english' ? 'English match' : ''}</span><button class="primary mini" data-act="dict-add" data-w="${esc(e[0])}" data-t="${e[1]}">➕ Add</button></div></div>`).join('') + '</div>';
+    <div class="wf"><span class="muted" style="font-size:12px">${how === 'form' ? 'form of this word' : how === 'english' ? 'English match' : ''}</span>${haveWord(e[0]) ? '<span class="have">✓ In My words</span>' : `<button class="primary mini" data-act="dict-add" data-w="${esc(e[0])}" data-t="${e[1]}">➕ Add</button>`}</div></div>`).join('') + '</div>';
 }
 function dictTab() {
   if (typeof DICT === 'undefined') { loadData('dict').then(() => { if (ui.view === 'words' && ui.words.tab === 'dict') render(); }).catch(() => {}); return '<div class="empty">Loading the dictionary...</div>'; }
-  return `<p class="muted" style="margin:0 0 10px">${DICT.length.toLocaleString()} Dutch entries from Wiktionary, with de/het, plurals and verb forms.</p>
+  return `<p class="muted" style="margin:0 0 10px">${DICT.length.toLocaleString()} Dutch entries from Wiktionary. Find a word, then press Add to put it in My words.</p>
     <div class="row wbar"><input type="text" class="grow" id="d-q" data-focus placeholder="Look up a Dutch or English word..." value="${esc(ui.words.dq || '')}"></div><div id="d-res">${dictResults(ui.words.dq || '')}</div>`;
 }
 
@@ -125,7 +131,7 @@ Object.assign(ACT, {
     const e = DICT.find((x) => x[0] === el.dataset.w && x[1] === el.dataset.t); if (!e) return;
     const o = L.dictToWord(e); let ex = null; try { ex = (await examplesFor(o.nl, o.pos, 1))[0]; } catch {}
     if (S.words.some((x) => !x.deleted && x.nl.toLowerCase() === o.nl.toLowerCase())) return toast(o.nl + ' is already in your list');
-    S.words.push(L.newWord(Object.assign(o, { example: ex ? ex[0] : '', exampleEn: ex ? ex[1] : '' }))); save(); toast('Added ' + o.nl);
+    S.words.push(L.newWord(Object.assign(o, { example: ex ? ex[0] : '', exampleEn: ex ? ex[1] : '' }))); gainXp(XP.addWord); save(); toast('Added ' + o.nl + ' to My words'); render();
   },
   'dict-fill': async () => {
     const nl = $('#w-nl').value.trim(); if (!nl) return toast('Type the Dutch word first.');
@@ -145,7 +151,8 @@ Object.assign(ACT, {
     const l = $('#ex-list'); if (l) l.innerHTML = exList();
   },
   'ex-use': (el) => { const p = ui.exFound && ui.exFound[+el.dataset.i]; if (!p) return; $('#w-ex').value = p[0]; ui.exEn = p; toast('Using that sentence'); },
-  'wt-tab': (el) => { const f = ui.words; f.tab = el.dataset.t; f.page = 0; f.letter = ''; if (f.tab !== 'add') { ui.edit = null; f.back = f.tab; } render(); $('#main').scrollTop = 0; },
+  'wt-sec': (el) => { const f = ui.words; f.tab = el.dataset.v === 'mine' ? (f.lastMine || 'all') : (f.lastDict || 'dict'); f.page = 0; ui.edit = null; render(); $('#main').scrollTop = 0; },
+  'wt-tab': (el) => { const f = ui.words; f.tab = el.dataset.t; if (f.tab === 'dict' || f.tab === 'suggest') f.lastDict = f.tab; else f.lastMine = f.tab; f.page = 0; f.letter = ''; if (f.tab !== 'add') { ui.edit = null; f.back = f.tab; } render(); $('#main').scrollTop = 0; },
   'wt-letter': (el) => { ui.words.letter = el.dataset.v; ui.words.page = 0; render(); },
   'wt-art': (el) => { ui.words.art = el.dataset.v; ui.words.page = 0; render(); },
   'wt-page': (el) => { ui.words.page = Math.max(0, ui.words.page + +el.dataset.d); render(); $('#main').scrollTop = 0; },
