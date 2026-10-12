@@ -14,5 +14,4 @@ contextBridge.exposeInMainWorld('vt', {
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   onUpdate: (cb) => ipcRenderer.on('update:state', (_e, s) => cb(s)),
-  printSheet: (html) => ipcRenderer.invoke('print:sheet', html),
 });

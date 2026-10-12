@@ -1,6 +1,6 @@
 // BiggTaal page code. State S is saved whole through window.vt (Electron) or localStorage (fallback).
 let S = L.emptyState();
-const ui = { view: 'home', cards: null, listen: null, say: '', words: { q: '', sort: 'new' }, sheet: null, edit: null, draftText: '' };
+const ui = { view: 'home', cards: null, listen: null, say: '', words: { q: '', sort: 'new' }, edit: null, draftText: '' };
 const $ = (s, r) => (r || document).querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const today = () => L.ymd();
@@ -135,7 +135,9 @@ function pigLine() {
 const NAV = [['home', '🏠', 'Today', '#ff9d8e'], ['cards', '🃏', 'Flashcards', '#7fd4f0'], ['listen', '🎧', 'Listening', '#9ccbff'], ['sheets', '📝', 'Worksheets', '#ffe08a'],
   ['words', '🔤', 'Words', '#ffb38a'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
 function renderSide() {
-  const due = dueList().length;
+  const due = dueList().length, sig = [ui.view, due, L.streak(S.log, today()), liveWords().length, pigStage()].join('|');
+  if (sig === ui.sideSig) return; // nothing in the sidebar changed: leave it alone (redrawing it restarts the logo animation)
+  ui.sideSig = sig;
   $('#side').innerHTML = `<div class="logo">${pigSvg('happy', '', { stage: pigStage() })}<div><b>BiggTaal</b><span>Nederlands leren</span></div></div>` +
     NAV.map(([id, ic, name, col]) => `<button class="nav ${ui.view === id ? 'on' : ''}" data-act="nav" data-v="${id}"><span class="ic" style="background:${col}">${ic}</span><span class="t">${name}</span>` +
       (id === 'cards' && due ? `<span class="badge">${due}</span>` : '') + '</button>').join('') +
@@ -145,6 +147,8 @@ function render() {
   renderSide();
   const v = VIEWS[ui.view] || VIEWS.home;
   const main = $('#main'), keep = main.scrollTop;
+  main.classList.toggle('still', ui.rendered === ui.view); // same page again: no entrance animations, so nothing flashes
+  ui.rendered = ui.view;
   main.innerHTML = v();
   main.scrollTop = keep;
   const f = $('[data-focus]'); if (f) f.focus();
@@ -188,18 +192,39 @@ const bestCheck = (typed, w, dir) => {
   return a === 'right' || b === 'right' ? 'right' : a === 'close' || b === 'close' ? 'close' : 'wrong';
 };
 const cardPrefs = () => (S.cardPrefs = S.cardPrefs || { mode: 'flip', dir: 'nl-en', auto: false });
-function startCards(extra) {
+// Starts a session from a list of words. label shows under the title.
+function launchCards(pool, label) {
   const p = cardPrefs();
-  let pool = dueList();
-  if (extra || !pool.length) pool = L.pick(liveWords(), 10);
-  pool = pool.slice(0, 40);
   if (!pool.length) return toast('Add some words first!');
-  ui.cards = { queue: pool.map((w) => ({ id: w.id, dir: p.dir === 'mixed' ? rnd(['nl-en', 'en-nl']) : p.dir, again: false })), i: 0, flipped: false, res: null, typed: '', n: 0, good: 0, extra: !!extra };
+  ui.cards = { queue: pool.map((w) => ({ id: w.id, dir: p.dir === 'mixed' ? rnd(['nl-en', 'en-nl']) : p.dir, again: false })), i: 0, flipped: false, res: null, typed: '', n: 0, good: 0, label: label || '' };
   if (p.auto) autoSpeak();
   render();
 }
+function startCards() { // today's cards: everything due, plus the day's new words
+  const pool = dueList();
+  if (!pool.length) return toast('Nothing is due. Use "Do more cards" below!');
+  launchCards(pool.slice(0, 300), '');
+}
+// Do more than the daily amount: new words, earlier words ahead of schedule, or a random mix.
+function startMore(kind) {
+  const n = cardPrefs().more || 20, live = liveWords();
+  let pool, label;
+  if (kind === 'new') { pool = live.filter((w) => !w.reps).slice(0, n); label = 'new words'; if (!pool.length) return toast('No unseen words left. Add more on the Words page!'); }
+  else if (kind === 'review') { pool = live.filter((w) => w.reps > 0 && !L.isDue(w, today())).sort((x, y) => (x.due || '').localeCompare(y.due || '')).slice(0, n); label = 'review ahead'; if (!pool.length) return toast('Nothing else to review yet.'); }
+  else { pool = L.pick(live, n); label = 'random mix'; }
+  launchCards(pool, label);
+}
 function curCard() { const c = ui.cards; if (!c || c.i >= c.queue.length) return null; const q = c.queue[c.i]; return { q, w: S.words.find((x) => x.id === q.id) }; }
 function autoSpeak() { const c = curCard(); if (c && c.q.dir === 'nl-en' && cardPrefs().auto) speak(c.w.nl); }
+// "Do more cards" block shown before and after a session.
+const moreCards = () => {
+  const live = liveWords(), fresh = live.filter((w) => !w.reps).length, ahead = live.filter((w) => w.reps > 0 && !L.isDue(w, today())).length;
+  return `<div class="more"><div class="muted" style="margin-bottom:8px">Want to do more?</div>
+    <div class="row" style="justify-content:center"><label class="muted">Cards <select id="fc-n">${[10, 20, 30, 50, 100].map((n) => `<option ${(cardPrefs().more || 20) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <button class="ghost" data-act="cards-more" data-k="new" ${fresh ? '' : 'disabled'}>🌱 New words <span class="muted">(${fresh} unseen)</span></button>
+      <button class="ghost" data-act="cards-more" data-k="review" ${ahead ? '' : 'disabled'}>🔁 Review ahead <span class="muted">(${ahead})</span></button>
+      <button class="ghost" data-act="cards-more" data-k="random" ${live.length ? '' : 'disabled'}>🎲 Random mix</button></div></div>`;
+};
 VIEWS.cards = () => {
   const p = cardPrefs(), c = ui.cards, due = dueList().length;
   const prefs = `<div class="row" style="margin-bottom:6px">
@@ -210,13 +235,15 @@ VIEWS.cards = () => {
     return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${due} due today. Spaced repetition shows hard words more often.</p></div></div><div class="fc-wrap">${prefs}
       <div class="card" style="text-align:center;padding:30px">${pigSvg(due ? 'happy' : 'sleep', 'pig-sm', { stage: pigStage() })}
       <p>${due ? `<b>${due}</b> cards are ready.` : 'Nothing is due right now. Nice!'}</p>
-      <div class="row" style="justify-content:center"><button class="primary" data-act="cards-start">${due ? 'Start' : 'Practice 10 random words'}</button>${due ? '<button class="ghost" data-act="cards-extra">Practice 10 random instead</button>' : ''}</div></div></div>`;
+      ${due ? '<div class="row" style="justify-content:center"><button class="primary" data-act="cards-start">Start</button></div>' : ''}
+      ${moreCards()}</div></div>`;
   }
   const cur = curCard();
   if (!cur) {
     return `<div class="top"><h1>Klaar! 🎉</h1></div><div class="fc-wrap"><div class="card" style="text-align:center;padding:30px">${pigSvg('happy', 'pig-sm', { stage: pigStage(), note: true })}
       <h2>${c.n} cards reviewed</h2><p class="muted">${c.good} remembered first time (${c.n ? Math.round((c.good / c.n) * 100) : 0}%). ${rnd(PIG.right)}</p>
-      <div class="row" style="justify-content:center"><button class="primary" data-act="cards-done">Back to today</button><button class="ghost" data-act="cards-start">More cards</button></div></div></div>`;
+      <div class="row" style="justify-content:center"><button class="primary" data-act="cards-done">Back to today</button></div>
+      ${moreCards()}</div></div>`;
   }
   const { q, w } = cur, nlFront = q.dir === 'nl-en', type = p.mode === 'type';
   const frontHtml = nlFront ? `${w.article ? `<div class="fc-art">${esc(w.article)}</div>` : ''}<div class="fc-big">${esc(w.nl)}</div><button class="speak" data-act="say" data-t="${esc((w.article ? w.article + ' ' : '') + w.nl)}" title="Listen">🔊</button>` : `<div class="fc-big">${esc(w.en)}</div><div class="muted">in Dutch</div>`;
@@ -224,7 +251,7 @@ VIEWS.cards = () => {
   const backHtml = `<div class="fc-big ${c.res ? 'ans ' + c.res : ''}">${ans}</div>${!nlFront ? `<button class="speak" data-act="say" data-t="${esc((w.article ? w.article + ' ' : '') + w.nl)}">🔊</button>` : ''}${w.example ? `<div class="fc-ex">${esc(w.example)}${w.exampleEn ? '<br>' + esc(w.exampleEn) : ''}</div>` : ''}${c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : ''}${c.res === 'wrong' ? `<div class="warn">You typed: ${esc(c.typed)}</div>` : ''}`;
   const sug = c.res === 'wrong' ? 'again' : 'good';
   const gradeBtns = `<div class="grades"><button class="g-again ${sug === 'again' ? 'on' : ''}" data-act="grade" data-g="again">Again<small>1 · today</small></button><button class="g-good" data-act="grade" data-g="good">Good<small>2 · ${L.INTERVALS[Math.min(7, w.box + 1)]}d</small></button><button class="g-easy" data-act="grade" data-g="easy">Easy<small>3 · ${L.INTERVALS[Math.min(7, w.box + 2)]}d</small></button></div>`;
-  return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${c.i + 1} of ${c.queue.length}${c.extra ? ' · practice' : ''}</p></div><button class="ghost" data-act="cards-done">End session</button></div>
+  return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${c.i + 1} of ${c.queue.length}${c.label ? ' · ' + c.label : ''}</p></div><button class="ghost" data-act="cards-done">End session</button></div>
     <div class="fc-wrap"><div class="bar"><i style="width:${(c.i / c.queue.length) * 100}%"></i></div>
     <div class="fc ${c.flipped ? 'flip' : ''}" ${!type && !c.flipped ? 'data-act="flip"' : ''}><div class="fc-in"><div class="fc-face">${frontHtml}${!type ? '<div class="muted">click or press Space to flip</div>' : ''}</div><div class="fc-face back">${backHtml}</div></div></div>
     ${c.flipped ? gradeBtns : type ? `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type the ${nlFront ? 'English' : 'Dutch'}... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button><button class="ghost" data-act="skip">I don't know</button></div>` : '<div class="row" style="justify-content:center"><button class="primary" data-act="flip">Show answer</button></div>'}
@@ -347,7 +374,7 @@ VIEWS.words = () => {
     <div class="row" style="margin-top:8px"><input type="text" class="grow" id="w-ex" placeholder="Example sentence (optional but great for worksheets)" value="${esc(ed ? ed.example : '')}">
     <button class="primary" data-act="word-save">${ed ? 'Save' : 'Add'}</button>${ed ? '<button class="ghost" data-act="word-cancel">Cancel</button>' : ''}</div>
     <details style="margin-top:12px"><summary>Paste a list or import from Claude</summary>
-      <p class="muted">One word per line, like <code>de afspraak = appointment | Ik heb een afspraak.</code> (also <code>;</code>, tab, or <code>-</code>). Or paste the JSON Claude gave you.</p>
+      <p class="muted">Paste in any of these: one word per line like <code>de afspraak = appointment | Ik heb een afspraak.</code> (also <code>;</code>, tab or <code>-</code>); a list copied from a course page, where each word is followed by a blank line and its English (with or without a <code>Start</code> in front); or the JSON Claude gave you.</p>
       <textarea id="w-bulk" placeholder="de afspraak = appointment">${esc(ui.draftText)}</textarea><div class="row" style="margin-top:8px"><button class="primary" data-act="bulk-add">Import</button></div></details></div>
   <div class="row" style="margin:14px 0"><input type="text" class="grow" id="w-search" placeholder="Search..." value="${esc(f.q)}">
     
@@ -357,33 +384,6 @@ VIEWS.words = () => {
     <td><span class="lvl">${[1, 2, 3, 4, 5].map((i) => `<i class="${w.box >= i ? 'on' : ''}"></i>`).join('')}</span></td>
     <td style="white-space:nowrap"><button class="ghost" data-act="say" data-t="${esc((w.article ? w.article + ' ' : '') + w.nl)}">🔊</button> <button class="ghost" data-act="word-edit" data-id="${w.id}">✎</button> <button class="ghost" data-act="word-del" data-id="${w.id}">🗑</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty">No words match.</td></tr>'}</table>${ws.length > 300 ? `<p class="muted" style="padding:8px">Showing 300 of ${ws.length}. Use search.</p>` : ''}</div>`;
 };
-
-// ---------- worksheets ----------
-const SHEET_KINDS = [['article', 'De or het?'], ['blank', 'Fill in the blank'], ['nl-en', 'Dutch → English'], ['en-nl', 'English → Dutch'], ['order', 'Word order'], ['verbs', 'Verb forms (present / past / perfect)']];
-VIEWS.sheets = () => {
-  const o = (ui.sheetOpts = ui.sheetOpts || { kinds: ['article', 'blank', 'nl-en', 'order', 'verbs'], count: 8, key: true });
-  return `<div class="top"><div><h1>Worksheets</h1><p class="sub">Made from your own words. A fresh sheet every time, with an answer key on the last page.</p></div></div>
-  <div class="card"><h2>What should it include?</h2>
-    <div class="row">${SHEET_KINDS.map(([k, n]) => `<button class="ghost ${o.kinds.includes(k) ? 'on' : ''}" data-act="sheet-kind" data-k="${k}">${o.kinds.includes(k) ? '✓ ' : ''}${n}</button>`).join('')}</div>
-    <div class="row" style="margin-top:12px"><label class="muted">Questions per section <input type="number" id="s-count" min="3" max="20" value="${o.count}" style="width:80px"></label>
-      
-      <button class="ghost ${o.key ? 'on' : ''}" data-act="sheet-key">${o.key ? '✓ ' : ''}Answer key</button>
-      <button class="primary" data-act="sheet-make">✨ Generate</button></div></div>
-  ${ui.sheet ? `<div class="row" style="margin:14px 0"><button class="primary" data-act="sheet-pdf">💾 Save as PDF (to print)</button><span class="muted">${ui.sheet.n} questions</span></div><div class="sheet-prev" id="sheet-prev"></div>` : ''}`;
-};
-function makeSheet() {
-  const o = ui.sheetOpts;
-  o.count = Math.max(3, Math.min(20, +($('#s-count') || {}).value || o.count));
-  const words = liveWords();
-  const sections = L.makeWorksheet(words, SEED_VERBS, o.kinds, o.count);
-  if (!sections.length) return toast('Nothing to build. Add words (with examples for blanks and word order).');
-  const title = 'Dutch practice';
-  ui.sheet = { html: L.worksheetHtml(sections, o.key, title), n: sections.reduce((a, s) => a + s.items.length, 0) };
-  render();
-  const body = new DOMParser().parseFromString(ui.sheet.html, 'text/html').body;
-  $('#sheet-prev').innerHTML = body.innerHTML.replace(/<script[\s\S]*?<\/script>/gi, '');
-  count('sheets');
-}
 
 // ---------- grammar ----------
 VIEWS.grammar = () => `<div class="top"><div><h1>Grammar cheat sheets</h1><p class="sub">B1 essentials, short and practical.</p></div></div><div class="grid g2 gram">${GRAMMAR.map((g) => `<div class="card"><h3>${g.t}</h3>${g.b.map((p) => `<p>${p}</p>`).join('')}</div>`).join('')}</div>`;
@@ -437,7 +437,7 @@ const ACT = {
   nav: (el) => { ui.cards = ui.cards && ui.view === 'cards' ? ui.cards : null; go(el.dataset.v); },
   say: (el) => speak(el.dataset.t),
   flip: () => { ui.cards.flipped = true; render(); },
-  'cards-start': () => startCards(false), 'cards-extra': () => startCards(true), 'cards-done': () => { ui.cards = null; go('home'); },
+  'cards-start': () => startCards(), 'cards-more': (el) => startMore(el.dataset.k), 'cards-done': () => { ui.cards = null; go('home'); },
   cpref: (el) => { const p = cardPrefs(); p[el.dataset.k] = el.dataset.k === 'auto' ? !!el.dataset.v : el.dataset.v; save(); render(); },
   grade: (el) => gradeCard(el.dataset.g), check: checkTyped,
   skip: () => { const c = ui.cards; c.res = 'wrong'; c.typed = ''; c.flipped = true; render(); },
@@ -457,9 +457,6 @@ const ACT = {
   'word-edit': (el) => { ui.edit = el.dataset.id; render(); $('#w-nl').focus(); }, 'word-cancel': () => { ui.edit = null; render(); },
   'word-del': (el) => { const w = S.words.find((x) => x.id === el.dataset.id); w.deleted = true; save(); toast('Deleted ' + w.nl); render(); },
   'bulk-add': () => { const t = $('#w-bulk').value; if (!t.trim()) return; if (importText(t)) ui.draftText = ''; render(); },
-  'sheet-kind': (el) => { const k = ui.sheetOpts.kinds, i = k.indexOf(el.dataset.k); if (i < 0) k.push(el.dataset.k); else k.splice(i, 1); render(); },
-  'sheet-key': () => { ui.sheetOpts.key = !ui.sheetOpts.key; render(); }, 'sheet-make': makeSheet,
-  'sheet-pdf': async () => { if (!window.vt) return toast('PDF saving works in the installed app.'); const f = await window.vt.printSheet(ui.sheet.html); if (f) toast('Saved PDF'); },
   'settings-save': saveSettings,
   'voice-test': () => { const v = $('#s-voice'); if (v) S.settings.voice = v.value; S.settings.rate = +$('#s-rate').value || 0.9; speak('Hoi Lauren! Welkom bij BiggTaal. Veel plezier met leren!'); },
   'data-reveal': () => window.vt && window.vt.reveal(),
@@ -473,6 +470,7 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]'); if (el && ACT[el.dataset.act]) { e.preventDefault(); ACT[el.dataset.act](el); return; }
   const p = e.target.closest('.hero .pig'); if (p) { p.classList.remove('hop'); void p.offsetWidth; p.classList.add('hop'); ui.say = rnd([...PIG.poke, pigLine()]); const b = $('#bubble'); if (b) b.textContent = ui.say; chime('ok'); }
 });
+document.addEventListener('change', (e) => { if (e.target.id === 'fc-n') { cardPrefs().more = +e.target.value; save(); } });
 document.addEventListener('input', (e) => {
   const id = e.target.id;
   if (id === 'w-search') { ui.words.q = e.target.value; const pos = e.target.selectionStart; render(); const s = $('#w-search'); s.focus(); s.setSelectionRange(pos, pos); }

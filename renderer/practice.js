@@ -2,10 +2,12 @@
 // the app marks what it can, Claude marks the rest, and every result feeds a running record of your weak spots.
 // Loads after app.js and shares its scope.
 S.sheets = S.sheets || []; S.skills = S.skills || {};
-const printableSheets = VIEWS.sheets; // the old print-and-write generator stays as a tab
 Object.assign(ui, { wsTab: 'practice', sheetId: '', askReply: '', fbText: '' });
 // What to ask Claude for (remembered between visits): how many items, topics, grammar, weak spots, your own words.
-const askPrefs = () => (S.askPrefs = Object.assign({ count: 12, weak: true, useWords: true, topics: [], grammar: [], note: '' }, S.askPrefs || {}));
+const askPrefs = () => (S.askPrefs = Object.assign({ count: 12, weak: true, useWords: true, topics: [], custom: '', grammar: [], note: '' }, S.askPrefs || {}));
+const ownTopics = (a) => String(a.custom || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+const previewText = (list) => (list.length ? list.slice(0, 3).join(', ') + (list.length > 3 ? ' +' + (list.length - 3) : '') : 'none picked: a mix');
+Object.assign(ui, { pickOpen: {} });
 const GRAMMAR_CHOICES = L.SKILLS.filter((k) => k !== 'other');
 
 const sheetById = (id) => S.sheets.find((s) => s.id === id);
@@ -22,8 +24,7 @@ function sheetState(sh) {
 
 VIEWS.sheets = () => {
   const tab = (id, label) => `<button class="tab ${ui.wsTab === id ? 'on' : ''}" data-act="ws-tab" data-t="${id}">${label}</button>`;
-  const head = `<div class="tabs">${tab('practice', '✨ Practice with Claude')}${tab('mistakes', '🎯 My mistakes')}${tab('print', '🖨 Printable sheets')}</div>`;
-  if (ui.wsTab === 'print') return head + printableSheets();
+  const head = `<div class="tabs">${tab('practice', '✨ Practice with Claude')}${tab('mistakes', '🎯 My mistakes')}</div>`;
   if (ui.wsTab === 'mistakes') return head + mistakesTab();
   const open = sheetById(ui.sheetId);
   return head + (open ? sheetPage(open) : practiceHome());
@@ -32,27 +33,45 @@ VIEWS.sheets = () => {
 // ---------- make one ----------
 function practiceHome() {
   ensureSheetData();
-  const a = askPrefs(), weak = L.weakSkills(S.skills, 3);
+  const a = askPrefs(), weak = L.weakSkills(S.skills, 3), topics = a.topics.concat(ownTopics(a)), grammar = a.grammar.map((k) => L.SKILL_NAMES[k]);
   const sheets = S.sheets.slice().sort((x, y) => y.created - x.created);
-  const chip = (act, v, label, on) => `<button class="chip ${on ? 'on' : ''}" data-act="${act}" data-v="${esc(v)}">${on ? '✓ ' : ''}${esc(label)}</button>`;
-  return `<div class="top"><div><h1>Practice worksheets</h1><p class="sub">Claude writes a worksheet for you, you do it right here, then Claude marks it and tells you what to improve.</p></div></div>
-  <div class="card"><h2>1 · Ask Claude for a worksheet</h2>
-    <div class="row"><label class="muted">Items <select id="ws-count">${[8, 12, 16, 20].map((n) => `<option ${a.count === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
-    <label class="f">Topics: pick any you would like included</label>
-    <div class="chips2">${L.TOPICS.map((t) => chip('ws-topic', t, t, a.topics.includes(t))).join('')}</div>
-    <label class="f">Grammar to include</label>
-    <div class="chips2">${GRAMMAR_CHOICES.map((k) => chip('ws-gram', k, L.SKILL_NAMES[k], a.grammar.includes(k))).join('')}</div>
-    <label class="row" style="margin-top:14px"><input type="checkbox" id="ws-weak" ${a.weak ? 'checked' : ''}> Focus on my weak spots ${weak.length ? '<span class="muted">(' + weak.map((w) => esc(skillName(w.skill))).join(', ') + ')</span>' : '<span class="muted">(none yet)</span>'}</label>
-    <label class="row" style="margin-top:6px"><input type="checkbox" id="ws-words" ${a.useWords ? 'checked' : ''}> Use words from my list <span class="muted">(the ones I know least)</span></label>
-    <label class="f">Anything else?</label>
-    <textarea id="ws-note" class="big-note" placeholder="Tell Claude whatever you like: a situation to practise (a phone call to the doctor), a style, things to avoid, how hard it should be...">${esc(a.note)}</textarea>
-    <div class="row" style="margin-top:12px"><button class="primary" data-act="ws-copy">📋 Copy prompt for Claude</button><button class="ghost" data-act="ws-clear">Clear my choices</button></div>
-    <p class="muted" style="margin-bottom:0">${a.topics.length || a.grammar.length ? `Picked: ${[...a.topics, ...a.grammar.map((k) => L.SKILL_NAMES[k])].map(esc).join(', ')}. ` : 'Nothing picked means a mix. '}Paste the prompt into our chat and Claude replies with the worksheet.</p></div>
-  <div class="card" style="margin-top:16px"><h2>2 · Paste the worksheet here</h2>
-    <textarea id="ws-reply" class="big-paste" placeholder="Paste Claude's whole reply here...">${esc(ui.askReply)}</textarea>
-    <div class="row" style="margin-top:8px"><button class="primary" data-act="ws-make">Make my worksheet</button></div></div>
-  <h2 style="margin-top:22px">My worksheets</h2>
-  ${sheets.map((sh) => { const st = sheetState(sh); return `<div class="lesson"><div class="lt">${esc(sh.title)}<div class="muted" style="font-weight:600;font-size:13px">${sh.items.length} items · ${new Date(sh.created).toLocaleDateString()}</div></div><span class="pill ${st.cls}">${esc(st.label)}</span><button class="primary" data-act="ws-open" data-id="${sh.id}">${sh.checkedAt ? 'Review' : 'Do it'}</button><button class="ghost" data-act="ws-del" data-id="${sh.id}">🗑</button></div>`; }).join('') || '<div class="empty">No worksheets yet. Ask Claude for your first one!</div>'}`;
+  const chip = (act, v, label, on) => `<button class="chip ${on ? 'on' : ''}" data-act="${act}" data-v="${esc(v)}" data-l="${esc(label)}">${on ? '✓ ' : ''}${esc(label)}</button>`;
+  const section = (id, title, list, body) => `<details class="pick" id="${id}" ${ui.pickOpen[id] ? 'open' : ''}><summary><b>${title}</b><span class="pill ${list.length ? 'sky' : ''}" id="${id}-n">${list.length}</span><span class="muted pv" id="${id}-pv">${esc(previewText(list))}</span></summary>${body}</details>`;
+  return `<div class="top"><div><h1>Worksheets</h1><p class="sub">Claude writes it, you do it here, Claude marks it.</p></div></div>
+  <div class="ws-grid">
+    <div class="card"><h2>1 · Ask Claude for a worksheet</h2>
+      <div class="row opts-row"><label class="muted">Items <select id="ws-count">${[8, 12, 16, 20].map((n) => `<option ${a.count === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label title="Add my weakest skills${weak.length ? ': ' + weak.map((w) => skillName(w.skill)).join(', ') : ' (none yet)'}"><input type="checkbox" id="ws-weak" ${a.weak ? 'checked' : ''}> My weak spots</label>
+        <label title="Use the words I know least from my list"><input type="checkbox" id="ws-words" ${a.useWords ? 'checked' : ''}> My words</label></div>
+      ${section('pk-topics', 'Topics', topics, `<div class="chips2">${L.TOPICS.map((t) => chip('ws-topic', t, t, a.topics.includes(t))).join('')}</div>
+        <div class="inner"><label class="f" style="margin-top:4px">Your own topics</label><input type="text" id="ws-custom" value="${esc(a.custom)}" placeholder="e.g. cycling, my cat, the dentist (separate with commas)"></div>`)}
+      ${section('pk-gram', 'Grammar', grammar, `<div class="chips2">${GRAMMAR_CHOICES.map((k) => chip('ws-gram', k, L.SKILL_NAMES[k], a.grammar.includes(k))).join('')}</div>`)}
+      <label class="f">Anything else?</label>
+      <textarea id="ws-note" class="big-note" placeholder="A situation to practise (a phone call to the doctor), a style, things to avoid, how hard it should be...">${esc(a.note)}</textarea>
+      <div class="row" style="margin-top:12px"><button class="primary" data-act="ws-copy">📋 Copy prompt for Claude</button><button class="ghost" data-act="ws-clear">Clear my choices</button></div></div>
+    <div class="ws-side">
+      <div class="card"><h2>2 · Paste Claude's reply</h2>
+        <textarea id="ws-reply" class="big-paste" placeholder="Paste the whole reply here...">${esc(ui.askReply)}</textarea>
+        <div class="row" style="margin-top:8px"><button class="primary" data-act="ws-make">Make my worksheet</button></div></div>
+      <div class="card"><h2>My worksheets</h2>
+        ${sheets.map((sh) => { const st = sheetState(sh); return `<div class="ws-row"><span class="t" title="${esc(sh.title)}">${esc(sh.title)}</span><span class="pill ${st.cls}">${esc(st.label)}</span><button class="primary" data-act="ws-open" data-id="${sh.id}">${sh.checkedAt ? 'Review' : 'Do it'}</button><button class="ghost" data-act="ws-del" data-id="${sh.id}" title="Delete">🗑</button></div>`; }).join('') || '<p class="muted" style="margin:0">None yet. Your first one will show up here.</p>'}</div>
+    </div>
+  </div>`;
+}
+// Update the counts and previews without redrawing the page (a redraw would flash).
+function refreshPicked() {
+  const a = askPrefs(), topics = a.topics.concat(ownTopics(a)), grammar = a.grammar.map((k) => L.SKILL_NAMES[k]);
+  for (const [id, list] of [['pk-topics', topics], ['pk-gram', grammar]]) {
+    const n = $('#' + id + '-n'), pv = $('#' + id + '-pv');
+    if (n) { n.textContent = list.length; n.className = 'pill ' + (list.length ? 'sky' : ''); }
+    if (pv) pv.textContent = previewText(list);
+  }
+}
+function toggleChip(el, list) {
+  const a = askPrefs(), arr = a[list], i = arr.indexOf(el.dataset.v), on = i < 0;
+  if (on) arr.push(el.dataset.v); else arr.splice(i, 1);
+  el.classList.toggle('on', on); el.textContent = (on ? '✓ ' : '') + el.dataset.l;
+  save(); refreshPicked();
 }
 
 // ---------- do one ----------
@@ -129,11 +148,11 @@ Object.assign(ACT, {
   'ws-copy': () => {
     const a = askPrefs(); a.count = +readField('ws-count') || 12; a.weak = $('#ws-weak').checked; a.useWords = $('#ws-words').checked; a.note = readField('ws-note').trim(); save();
     const words = a.useWords ? liveWords().slice().sort((x, y) => x.box - y.box).slice(0, 30) : [];
-    copyText(L.sheetPrompt({ count: a.count, topics: a.topics, grammar: a.grammar, words, weak: a.weak ? L.weakSkills(S.skills, 3) : [], note: a.note }));
+    copyText(L.sheetPrompt({ count: a.count, topics: a.topics.concat(ownTopics(a)), grammar: a.grammar, words, weak: a.weak ? L.weakSkills(S.skills, 3) : [], note: a.note }));
   },
-  'ws-topic': (el) => { const a = askPrefs(), i = a.topics.indexOf(el.dataset.v); if (i < 0) a.topics.push(el.dataset.v); else a.topics.splice(i, 1); save(); render(); },
-  'ws-gram': (el) => { const a = askPrefs(), i = a.grammar.indexOf(el.dataset.v); if (i < 0) a.grammar.push(el.dataset.v); else a.grammar.splice(i, 1); save(); render(); },
-  'ws-clear': () => { const a = askPrefs(); a.topics = []; a.grammar = []; a.note = ''; save(); render(); },
+  'ws-topic': (el) => toggleChip(el, 'topics'),
+  'ws-gram': (el) => toggleChip(el, 'grammar'),
+  'ws-clear': () => { const a = askPrefs(); a.topics = []; a.grammar = []; a.custom = ''; a.note = ''; save(); render(); },
   'ws-make': () => {
     const text = readField('ws-reply'); ui.askReply = text;
     if (!text.trim()) return toast('Paste Claude\'s reply first');
@@ -188,8 +207,11 @@ document.addEventListener('input', (e) => {
   if (id.startsWith('wa-')) { const sh = sheetById(ui.sheetId); if (sh) { sh.answers[id.slice(3)] = t.value; save(); } }
   else if (id === 'ws-reply') ui.askReply = t.value;
   else if (id === 'ws-note') { askPrefs().note = t.value; save(); }
+  else if (id === 'ws-custom') { askPrefs().custom = t.value; save(); refreshPicked(); }
   else if (id === 'ws-fb') ui.fbText = t.value;
 });
+// remember which pickers are open, so a redraw keeps them open
+document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.classList && d.classList.contains('pick')) ui.pickOpen[d.id] = d.open; }, true);
 document.addEventListener('change', (e) => {
   const id = e.target.id;
   if (id === 'ws-count') { askPrefs().count = +e.target.value; save(); } else if (id === 'ws-weak') { askPrefs().weak = e.target.checked; save(); } else if (id === 'ws-words') { askPrefs().useWords = e.target.checked; save(); }

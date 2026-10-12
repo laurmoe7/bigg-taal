@@ -78,34 +78,6 @@ behalve = except, besides | Iedereen is er, behalve Anna.
 gelukkig = fortunately; happy | Gelukkig was niemand gewond.
 `;
 
-// [infinitive, English, ik, hij/zij, past singular, past plural, perfect]
-const SEED_VERBS = [
-  ['zijn', 'to be', 'ben', 'is', 'was', 'waren', 'is geweest'],
-  ['hebben', 'to have', 'heb', 'heeft', 'had', 'hadden', 'heeft gehad'],
-  ['gaan', 'to go', 'ga', 'gaat', 'ging', 'gingen', 'is gegaan'],
-  ['komen', 'to come', 'kom', 'komt', 'kwam', 'kwamen', 'is gekomen'],
-  ['doen', 'to do', 'doe', 'doet', 'deed', 'deden', 'heeft gedaan'],
-  ['zien', 'to see', 'zie', 'ziet', 'zag', 'zagen', 'heeft gezien'],
-  ['geven', 'to give', 'geef', 'geeft', 'gaf', 'gaven', 'heeft gegeven'],
-  ['nemen', 'to take', 'neem', 'neemt', 'nam', 'namen', 'heeft genomen'],
-  ['kunnen', 'can, to be able', 'kan', 'kan', 'kon', 'konden', 'heeft gekund'],
-  ['willen', 'to want', 'wil', 'wil', 'wilde', 'wilden', 'heeft gewild'],
-  ['schrijven', 'to write', 'schrijf', 'schrijft', 'schreef', 'schreven', 'heeft geschreven'],
-  ['spreken', 'to speak', 'spreek', 'spreekt', 'sprak', 'spraken', 'heeft gesproken'],
-  ['begrijpen', 'to understand', 'begrijp', 'begrijpt', 'begreep', 'begrepen', 'heeft begrepen'],
-  ['vinden', 'to find; to think', 'vind', 'vindt', 'vond', 'vonden', 'heeft gevonden'],
-  ['werken', 'to work', 'werk', 'werkt', 'werkte', 'werkten', 'heeft gewerkt'],
-  ['wonen', 'to live', 'woon', 'woont', 'woonde', 'woonden', 'heeft gewoond'],
-  ['blijven', 'to stay', 'blijf', 'blijft', 'bleef', 'bleven', 'is gebleven'],
-  ['beginnen', 'to begin', 'begin', 'begint', 'begon', 'begonnen', 'is begonnen'],
-  ['helpen', 'to help', 'help', 'helpt', 'hielp', 'hielpen', 'heeft geholpen'],
-  ['brengen', 'to bring', 'breng', 'brengt', 'bracht', 'brachten', 'heeft gebracht'],
-  ['denken', 'to think', 'denk', 'denkt', 'dacht', 'dachten', 'heeft gedacht'],
-  ['weten', 'to know', 'weet', 'weet', 'wist', 'wisten', 'heeft geweten'],
-  ['laten', 'to let; to make', 'laat', 'laat', 'liet', 'lieten', 'heeft gelaten'],
-  ['leren', 'to learn; to teach', 'leer', 'leert', 'leerde', 'leerden', 'heeft geleerd'],
-].map(([inf, en, ik, hij, sg, pl, perf]) => ({ inf, en, ik, hij, sg, pl, perf }));
-
 // Cheat sheets for the Grammar page.
 const GRAMMAR = [
   { t: 'De or het?', b: [

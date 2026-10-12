@@ -73,23 +73,6 @@ test('parseImport: JSON from Claude, bare array, plain text fallback', () => {
   assert.equal(L.parseImport('huis = house').words.length, 1);
 });
 
-test('worksheet: article, blank, verbs, order; key shows answers', () => {
-  const words = L.parseVocab('de afspraak = appointment | Ik heb morgen een afspraak met de dokter.\nhet huis = house | Het huis is erg groot.\nde buurman = neighbour | Mijn buurman is vriendelijk.');
-  const verbs = [{ inf: 'gaan', en: 'to go', ik: 'ga', hij: 'gaat', sg: 'ging', pl: 'gingen', perf: 'is gegaan' }];
-  const s = L.makeWorksheet(words, verbs, ['article', 'blank', 'nl-en', 'en-nl', 'order', 'verbs'], 5, () => 0.3);
-  assert.equal(s.length, 6);
-  assert.ok(s[1].items[0].q.includes('________'));
-  assert.ok(/\/ /.test(s[4].items[0].q));
-  const noKey = L.worksheetHtml(s, false), key = L.worksheetHtml(s, true);
-  assert.ok(!noKey.includes('is gegaan')); assert.ok(key.includes('is gegaan')); assert.ok(key.includes('Answer key'));
-});
-
-test('scramble keeps the same words', () => {
-  const q = L.scramble('Ik heb morgen een afspraak met de dokter.');
-  assert.deepEqual(q.split(' / ').sort(), 'Ik heb morgen een afspraak met de dokter'.split(' ').sort());
-  assert.equal(L.scramble('Te kort'), null);
-});
-
 test('fixState fills defaults', () => {
   const s = L.fixState({ words: [1], settings: { dailyGoal: 5 } });
   assert.equal(s.settings.dailyGoal, 5); assert.equal(s.settings.newPerDay, 10); assert.deepEqual(s.lessons, []);
@@ -209,4 +192,19 @@ test('parseFeedback reads the marking and the summary', () => {
   assert.equal(f.summary.improve[0], 'Verb second after Morgen');
   assert.ok(L.parseFeedback('hello', sheet).error);
   assert.deepEqual(L.sheetScore({ items: sheet.items, results: { 1: { verdict: 'right' }, 2: { verdict: 'close' }, 3: { verdict: 'unsure' } } }), { got: 1.75, of: 4, marked: 2 });
+});
+
+test('parseListing reads the Start / blank-line list format', () => {
+  const text = 'ademen \t\n\nto breathe\nStart \tafmaken \t\n\nto finish\nStart \tbijkomen \t\n\nto recuperate\n';
+  assert.ok(L.looksLikeListing(text));
+  const r = L.parseListing(text);
+  assert.deepEqual(r.map((w) => [w.nl, w.en, w.pos]), [['ademen', 'to breathe', 'verb'], ['afmaken', 'to finish', 'verb'], ['bijkomen', 'to recuperate', 'verb']]);
+  assert.equal(r.leftover, 0);
+  const viaImport = L.parseImport(text).words;
+  assert.equal(viaImport.length, 3); assert.equal(viaImport[1].nl, 'afmaken'); assert.equal(viaImport[1].en, 'to finish');
+  // Windows line endings, an article, a "Start" on its own line and a dangling last line
+  const r2 = L.parseListing('Start\r\n\tde afspraak \t\r\n\r\nappointment\r\nStart\thet huis\r\n\r\nhouse\r\nStarten');
+  assert.deepEqual(r2.map((w) => [w.nl, w.article, w.en]), [['afspraak', 'de', 'appointment'], ['huis', 'het', 'house']]); assert.equal(r2.leftover, 1);
+  // ordinary lists are not mistaken for this format
+  assert.ok(!L.looksLikeListing('de afspraak = appointment\nhet huis = house')); assert.equal(L.parseImport('de afspraak = appointment').words[0].nl, 'afspraak');
 });

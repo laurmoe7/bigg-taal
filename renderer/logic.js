@@ -301,73 +301,6 @@
   L.shuffle = (arr, rnd) => { rnd = rnd || Math.random; const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   L.pick = (arr, n, rnd) => L.shuffle(arr, rnd).slice(0, n);
 
-  // ---------- worksheets ----------
-  // Each section: { title, hint, items: [{ q, a }] }; answers are shown only on the key.
-  const blank = (sentence, word) => {
-    const re = new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
-    return re.test(sentence) ? sentence.replace(re, '________') : null;
-  };
-  L.scramble = (sentence, rnd) => {
-    const words = sentence.replace(/[.!?]+$/, '').split(/\s+/);
-    if (words.length < 3) return null;
-    let s = words, tries = 0;
-    do { s = L.shuffle(words, rnd); } while (s.join(' ') === words.join(' ') && ++tries < 8);
-    return s.join(' / ');
-  };
-  L.makeWorksheet = (words, verbs, kinds, count, rnd) => {
-    const live = words.filter((w) => !w.deleted);
-    const sections = [];
-    const nouns = live.filter((w) => w.article === 'de' || w.article === 'het');
-    if (kinds.includes('article') && nouns.length) {
-      sections.push({ title: 'De or het?', hint: 'Write the right article.', items: L.pick(nouns, count, rnd).map((w) => ({ q: '____ ' + w.nl, a: w.article + ' ' + w.nl })) });
-    }
-    if (kinds.includes('blank')) {
-      const items = [];
-      for (const w of L.shuffle(live.filter((x) => x.example), rnd)) {
-        const q = blank(w.example, w.nl.replace(/^(zich )/, ''));
-        if (q) items.push({ q: q + (w.en ? '   (' + w.en + ')' : ''), a: w.example });
-        if (items.length >= count) break;
-      }
-      if (items.length) sections.push({ title: 'Fill in the blank', hint: 'Use the word in brackets as a clue. The form may change.', items });
-    }
-    if (kinds.includes('nl-en')) sections.push({ title: 'Dutch to English', hint: 'Translate.', items: L.pick(live, count, rnd).map((w) => ({ q: (w.article ? w.article + ' ' : '') + w.nl, a: w.en })) });
-    if (kinds.includes('en-nl')) sections.push({ title: 'English to Dutch', hint: 'Translate, with de/het for nouns.', items: L.pick(live, count, rnd).map((w) => ({ q: w.en, a: (w.article ? w.article + ' ' : '') + w.nl })) });
-    if (kinds.includes('order')) {
-      const items = [];
-      for (const w of L.shuffle(live.filter((x) => x.example), rnd)) {
-        const q = L.scramble(w.example, rnd);
-        if (q) items.push({ q, a: w.example });
-        if (items.length >= Math.max(3, Math.round(count / 2))) break;
-      }
-      if (items.length) sections.push({ title: 'Put the words in order', hint: 'Write the full sentence. Remember: the verb is second in a main clause and last in a clause with omdat/dat/hoewel.', items });
-    }
-    if (kinds.includes('verbs') && verbs.length) {
-      sections.push({ title: 'Verbs: present, past and perfect', hint: 'Fill in all the forms.', verbs: true, items: L.pick(verbs, Math.min(count, 10), rnd).map((v) => ({ q: v.inf + ' (' + v.en + ')', a: [v.ik, v.hij, v.sg, v.pl, v.perf].join('  |  '), v })) });
-    }
-    return sections;
-  };
-  L.worksheetHtml = (sections, withKey, title) => {
-    const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-    let n = 0;
-    const body = (key) => sections.map((s) => {
-      let h = `<h2>${esc(s.title)}</h2><p class="hint">${esc(s.hint)}</p>`;
-      if (s.verbs) {
-        h += '<table><tr><th>Infinitive</th><th>ik</th><th>hij/zij</th><th>Past sg</th><th>Past pl</th><th>Perfect</th></tr>' +
-          s.items.map((i) => key
-            ? `<tr><td>${esc(i.q)}</td><td>${esc(i.v.ik)}</td><td>${esc(i.v.hij)}</td><td>${esc(i.v.sg)}</td><td>${esc(i.v.pl)}</td><td>${esc(i.v.perf)}</td></tr>`
-            : `<tr><td>${esc(i.q)}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('') + '</table>';
-      } else {
-        h += '<ol>' + s.items.map((i) => `<li><span class="q">${esc(i.q)}</span>${key ? `<span class="a">${esc(i.a)}</span>` : '<span class="line"></span>'}</li>`).join('') + '</ol>';
-      }
-      return h;
-    }).join('');
-    n = sections.reduce((a, s) => a + s.items.length, 0);
-    const css = 'body{font:14px/1.5 Segoe UI,Arial,sans-serif;color:#222;margin:0}h1{font-size:22px;margin:0 0 2px}h2{font-size:16px;margin:18px 0 2px;color:#d4574a}.hint{margin:0 0 6px;color:#777;font-size:12px}ol{padding-left:22px}li{margin:7px 0}.q{display:block}.line{display:block;border-bottom:1px solid #999;height:20px}.a{display:block;color:#1d7a55;font-weight:600}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:6px 5px;font-size:12px;text-align:left;height:24px}th{background:#fde8e3}.meta{color:#777;font-size:12px;margin-bottom:6px}.pb{page-break-before:always}';
-    return `<!doctype html><meta charset="utf-8"><title>${esc(title || 'BiggTaal worksheet')}</title><style>${css}</style>` +
-      `<h1>🌸 ${esc(title || 'BiggTaal worksheet')}</h1><div class="meta">Name: ______________  Date: ${L.ymd()}  ·  ${n} questions</div>` + body(false) +
-      (withKey ? `<div class="pb"></div><h1>Answer key</h1>` + body(true) : '');
-  };
-
   // ---------- import / paste parsing ----------
   // One word per line: "de afspraak = appointment", "afspraak; appointment", "afspraak<TAB>appointment", "afspraak - appointment | example sentence"
   L.parseVocab = (text) => {
@@ -396,9 +329,25 @@
     return { words, added, skipped };
   };
   // JSON the user got from Claude: { words: [{nl,en,article,example}], lessons: [{title,due,notes}] } (or just an array of words)
+  // A list copied from a course page: each word on its own line (often after "Start" and a tab), a blank line, then its English on the next line:
+  //   afmaken <tab>  /  (blank)  /  to finish  /  Start <tab> bijkomen <tab>  /  (blank)  /  to recuperate ...
+  L.looksLikeListing = (text) => /^\s*Start[ \t]+\S/mi.test(text) || /^\s*Start\s*$/mi.test(text) || /\t[ \t]*\r?\n[ \t]*\r?\n[ \t]*\S/.test(text);
+  L.parseListing = (text) => {
+    const lines = String(text || '').replace(/\r/g, '').replace(/\u00a0/g, ' ').split('\n')
+      .map((s) => s.replace(/^\s*Start(?:[ \t]+|$)/i, '').trim()).filter(Boolean); // drop the "Start" prefix, tabs and blank lines
+    const out = [];
+    for (let i = 0; i + 1 < lines.length; i += 2) {
+      let nl = lines[i], en = lines[i + 1], article = '';
+      const m = nl.match(/^(de|het)\s+(.+)$/i);
+      if (m) { article = m[1].toLowerCase(); nl = m[2]; }
+      out.push(L.newWord({ nl, en, article, pos: article ? 'noun' : /^(zich\s)?\S+en$/.test(nl) ? 'verb' : 'other' }));
+    }
+    out.leftover = lines.length % 2; // a last line without a partner
+    return out;
+  };
   L.parseImport = (text) => {
     let j = L.extractJson(text);
-    if (!j) return { words: L.parseVocab(text), lessons: [] };
+    if (!j) return { words: L.looksLikeListing(text) ? L.parseListing(text) : L.parseVocab(text), lessons: [] };
     if (Array.isArray(j)) j = { words: j };
     const words = (j.words || []).filter((w) => w && w.nl && w.en).map((w) => ({ nl: String(w.nl), en: String(w.en), article: /^(de|het)$/.test(w.article || '') ? w.article : '', pos: w.pos || (w.article ? 'noun' : 'other'), example: w.example || '', exampleEn: w.exampleEn || '', lesson: w.lesson || '' }));
     const lessons = (j.lessons || []).filter((l) => l && l.title).map((l) => ({ title: String(l.title), due: l.due || '', notes: l.notes || '', status: l.status || 'todo' }));

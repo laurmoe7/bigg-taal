@@ -1,5 +1,5 @@
 // BiggTaal main process: window, saved data, voices, updates.
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -35,15 +35,33 @@ function writeData(state) {
   fs.renameSync(tmp, f);
 }
 
+// Zoom (Ctrl + / Ctrl - / Ctrl 0) is remembered between runs.
+const prefsFile = () => path.join(app.getPath('userData'), 'window.json');
+const readPrefs = () => { try { return JSON.parse(fs.readFileSync(prefsFile(), 'utf8')); } catch { return {}; } };
+function setZoom(z) {
+  z = Math.min(1.6, Math.max(0.6, Math.round(z * 10) / 10));
+  if (win && !win.isDestroyed()) win.webContents.setZoomFactor(z);
+  try { fs.writeFileSync(prefsFile(), JSON.stringify(Object.assign(readPrefs(), { zoom: z }))); } catch {}
+}
+
 function createWindow() {
+  const wa = screen.getPrimaryDisplay().workAreaSize; // a good part of the screen (15% less than before)
   win = new BrowserWindow({
-    width: 1180, height: 780, minWidth: 820, minHeight: 560,
+    width: Math.min(1500, Math.round(wa.width * 0.82)), height: Math.min(950, Math.round(wa.height * 0.82)), minWidth: 820, minHeight: 560,
     backgroundColor: '#0f1c2b', title: 'BiggTaal', autoHideMenuBar: true, icon: icon(),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
   win.removeMenu();
-  // Running from the project folder (not installed): Ctrl+R or F5 reloads the screens, so a change to renderer/ shows instantly.
-  if (!app.isPackaged) win.webContents.on('before-input-event', (e, input) => { if (input.type === 'keyDown' && ((input.control && input.key.toLowerCase() === 'r') || input.key === 'F5')) { e.preventDefault(); win.webContents.reloadIgnoringCache(); } });
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type !== 'keyDown') return;
+    const k = String(input.key || '').toLowerCase();
+    if (input.control && (k === '=' || k === '+')) { e.preventDefault(); setZoom(win.webContents.getZoomFactor() + 0.1); }
+    else if (input.control && k === '-') { e.preventDefault(); setZoom(win.webContents.getZoomFactor() - 0.1); }
+    else if (input.control && k === '0') { e.preventDefault(); setZoom(1); }
+    // Running from the project folder (not installed): Ctrl+R or F5 reloads the screens, so a change to renderer/ shows instantly.
+    else if (!app.isPackaged && ((input.control && k === 'r') || k === 'f5')) { e.preventDefault(); win.webContents.reloadIgnoringCache(); }
+  });
+  win.webContents.once('did-finish-load', () => { const z = readPrefs().zoom; if (z) win.webContents.setZoomFactor(z); });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); if (/^https:/.test(url)) shell.openExternal(url); } });
@@ -147,17 +165,6 @@ ipcMain.handle('file:import', async () => {
   const r = await dialog.showOpenDialog(win, { defaultPath: app.getPath('documents'), properties: ['openFile'], filters: [{ name: 'JSON, text or CSV', extensions: ['json', 'txt', 'csv'] }] });
   if (r.canceled || !r.filePaths[0]) return null;
   return { name: path.basename(r.filePaths[0]), text: fs.readFileSync(r.filePaths[0], 'utf8') };
-});
-ipcMain.handle('print:sheet', async (_e, html) => { // save a worksheet as a PDF
-  const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
-  await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-  const pdf = await w.webContents.printToPDF({ pageSize: 'A4' });
-  w.destroy();
-  const r = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), 'BiggTaal-worksheet.pdf'), filters: [{ name: 'PDF', extensions: ['pdf'] }] });
-  if (r.canceled) return false;
-  fs.writeFileSync(r.filePath, pdf);
-  shell.showItemInFolder(r.filePath);
-  return r.filePath;
 });
 
 app.on('second-instance', showWin);
