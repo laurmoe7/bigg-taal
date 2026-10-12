@@ -1,7 +1,7 @@
 {
   "name": "biggtaal",
   "productName": "BiggTaal",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "A cute dark Dutch learning app: flashcards, worksheets, listening, lesson reminders",
   "main": "main.js",
@@ -11,7 +11,8 @@
     "dist": "node scripts/get-voices.js && electron-builder --win nsis --publish never",
     "voices": "node scripts/get-voices.js",
     "install:local": "node scripts/install-local.js",
-    "ship:local": "npm run dist && node scripts/install-local.js"
+    "ship:local": "npm run dist && node scripts/install-local.js",
+    "shortcut": "powershell -ExecutionPolicy Bypass -File scripts/make-shortcut.ps1"
   },
   "build": {
     "appId": "com.laurmoe.biggtaal",

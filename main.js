@@ -42,6 +42,8 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
   win.removeMenu();
+  // Running from the project folder (not installed): Ctrl+R or F5 reloads the screens, so a change to renderer/ shows instantly.
+  if (!app.isPackaged) win.webContents.on('before-input-event', (e, input) => { if (input.type === 'keyDown' && ((input.control && input.key.toLowerCase() === 'r') || input.key === 'F5')) { e.preventDefault(); win.webContents.reloadIgnoringCache(); } });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); if (/^https:/.test(url)) shell.openExternal(url); } });

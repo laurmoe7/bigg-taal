@@ -4,8 +4,7 @@ A cute, dark Dutch learning app for Windows (Electron). Same pig and look as Var
 
 - **Flashcards** with spaced repetition (Leitner boxes), flip or type-the-answer, NL→EN, EN→NL or mixed. New words are capped per day.
 - **Listening**: spell the word, pick the meaning, de/het, sentence dictation. Uses a Dutch voice installed in Windows.
-- **Worksheets**: practice worksheets that Claude writes from your words, lessons and weak spots (you copy a prompt to chat and paste the JSON reply back), done inside the app, marked instantly where possible and by Claude for open answers, with a running record of your mistakes by skill. The old printable sheets (made offline, saved as PDF) are still there on their own tab.
-- **Book lessons**: your NT2school chapters with due dates and a page per lesson: study just that lesson (flashcards, listening, worksheet), a reading view where you tap any word to hear it or add it, a finder for new words in the text (guesses de/het and pulls the example sentence), and exercises you can check with Claude (copy a ready-made prompt, paste the reply back, import the words).
+- **Worksheets**: practice worksheets that Claude writes from the topics and grammar you pick, your words and your weak spots (you copy a prompt to chat and paste the JSON reply back), done inside the app, marked instantly where possible and by Claude for open answers, with a running record of your mistakes by skill. The old printable sheets (made offline, saved as PDF) are still there on their own tab.
 - **Words**, **Grammar** cheat sheets (B1), daily Dutch saying, streak and daily goal, pig that cheers you on.
 
 ## Run / build
@@ -32,9 +31,11 @@ gh release create vX.Y.Z dist/BiggTaal-Setup-X.Y.Z.exe dist/BiggTaal-Setup-X.Y.Z
 
 The repo must be public (or the app would need a token) for installed apps to see the release. To test updating without a release, run `npm start` with `VT_UPDATE_URL=http://127.0.0.1:PORT` and a `dev-app-update.yml` (git-ignored) pointing at a folder that serves a newer `latest.yml`.
 
-## Installing a build on this PC
+## How the app runs on this PC
 
-`npm run ship:local` builds the installer and installs it on this PC silently (no download, no wizard): it closes BiggTaal if open, installs over the existing copy, checks the version and reopens the app. Your data stays. `npm run install:local -- --dry` shows what it would do.
+The Desktop and Start-menu shortcuts run the app straight from this project folder (`npm run shortcut` recreates them). There is no installer and no build step for day-to-day use: whatever is saved in the folder is what opens next time. Ctrl+R or F5 reloads the screens while it is open (a change to `main.js` needs a restart). Words and progress live in `%APPDATA%iggtaal`, outside the folder, so editing code never touches them. The folder has to stay where it is, with its `node_modules` and `voices` folders.
+
+Installers are only for sharing or a backup copy: `npm run dist` builds one, `npm run ship:local` builds and installs it silently (note: the installer rewrites the shortcuts to point at the installed copy; run `npm run shortcut` to point them back at the folder).
 
 ## Voices
 

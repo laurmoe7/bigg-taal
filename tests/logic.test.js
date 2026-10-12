@@ -90,12 +90,6 @@ test('scramble keeps the same words', () => {
   assert.equal(L.scramble('Te kort'), null);
 });
 
-test('candidates: frequent unknown words, no stop words or known', () => {
-  const c = L.candidates('De gemeente stuurt een brief. De gemeente wil een afspraak. Het huis is groot.', [L.newWord({ nl: 'huis', en: 'house' })]);
-  assert.equal(c[0].w, 'gemeente');
-  assert.ok(!c.some((x) => x.w === 'huis' || x.w === 'het'));
-});
-
 test('fixState fills defaults', () => {
   const s = L.fixState({ words: [1], settings: { dailyGoal: 5 } });
   assert.equal(s.settings.dailyGoal, 5); assert.equal(s.settings.newPerDay, 10); assert.deepEqual(s.lessons, []);
@@ -145,44 +139,6 @@ test('hintText and soundWords', () => {
   assert.deepEqual(L.soundWords(ws, 'ij-ei').map((w) => w.nl), ['tijd', 'de trein']);
 });
 
-test('tokenize keeps the text exactly and marks words', () => {
-  const t = "Ik heb 2 afspraken, zo'n e-mail!";
-  const toks = L.tokenize(t);
-  assert.equal(toks.map((x) => x.t).join(''), t);
-  assert.deepEqual(toks.filter((x) => x.w).map((x) => x.t), ['Ik', 'heb', 'afspraken', "zo'n", 'e-mail']);
-});
-
-test('findWord finds dictionary forms behind inflected words', () => {
-  const ws = L.parseVocab('werken = to work\nwonen = to live\nleren = to learn\nde afspraak = appointment\nde buurman = neighbour\nmooi = pretty');
-  const idx = L.wordIndex(ws);
-  const f = (t) => { const w = L.findWord(t, idx); return w && w.nl; };
-  assert.equal(f('werkt'), 'werken'); assert.equal(f('werkte'), 'werken'); assert.equal(f('gewerkt'), 'werken');
-  assert.equal(f('woonde'), 'wonen'); assert.equal(f('gewoond'), 'wonen'); assert.equal(f('geleerd'), 'leren');
-  assert.equal(f('afspraken'), 'afspraak'); assert.equal(f('buurmans'), 'buurman'); assert.equal(f('Mooie'), 'mooi');
-  assert.equal(f('fiets'), null);
-});
-
-test('wordState and lessonStats', () => {
-  assert.equal(L.wordState(null), 'none'); assert.equal(L.wordState({ box: 0, reps: 0 }), 'new');
-  assert.equal(L.wordState({ box: 2, reps: 3 }), 'learning'); assert.equal(L.wordState({ box: 5, reps: 9 }), 'known');
-  const ws = [L.newWord({ nl: 'a', en: 'a', lesson: 'L1', box: 5, reps: 4 }), L.newWord({ nl: 'b', en: 'b', lesson: 'L1' }), L.newWord({ nl: 'c', en: 'c', lesson: 'L2' })];
-  assert.deepEqual(L.lessonStats(ws, 'L1'), { total: 2, learned: 1, learning: 0, fresh: 1 });
-});
-
-test('extractCandidates: example sentence, article and verb guesses, phrases, no names or known words', () => {
-  const text = 'De huurder wil een nieuwe woning. De woning is groot. Ik bel Peter. Peter kan de huurder bellen. Ik moet de huurovereenkomst tekenen. Het openbaar vervoer is goed. Het openbaar vervoer is snel.';
-  const known = [L.newWord({ nl: 'groot', en: 'big' })];
-  const c = L.extractCandidates(text, known);
-  const by = Object.fromEntries(c.map((x) => [x.w, x]));
-  assert.equal(by.huurder.article, 'de'); assert.equal(by.huurder.n, 2);
-  assert.equal(by.huurder.example, 'Peter kan de huurder bellen.'); // the shortest sentence it appears in
-  assert.equal(by.woning.article, 'de');
-  assert.equal(by.tekenen.pos, 'verb'); assert.equal(by.bellen.pos, 'verb');
-  assert.ok(!by.peter && !by.groot);
-  assert.ok(by['openbaar vervoer'] && by['openbaar vervoer'].phrase);
-  assert.equal(by['openbaar vervoer'].article, 'het'); assert.ok(!by.openbaar && !by.vervoer); // absorbed into the phrase
-});
-
 test('extractJson pulls JSON out of a whole reply', () => {
   const reply = 'Sure! Here you go:\n```json\n{"words":[{"nl":"huurder","en":"tenant","article":"de"}]}\n```\nHope it helps {not json}.';
   assert.equal(L.extractJson(reply).words[0].nl, 'huurder');
@@ -192,14 +148,7 @@ test('extractJson pulls JSON out of a whole reply', () => {
   assert.equal(L.parseImport('huis = house').words.length, 1);
 });
 
-test('prompts mention the lesson and carry the content', () => {
-  const p = L.claudeWordsPrompt('Les 12', [{ w: 'huurder', article: 'de', example: 'De huurder wil een woning.' }]);
-  assert.ok(p.includes('Les 12') && p.includes('huurder (de?): De huurder wil een woning.') && p.includes('"words"'));
-  const e = L.exercisePrompt('Les 12', { title: 'Oefening 1', text: 'Vul in: ik ___ (zijn)', answers: 'ben' });
-  assert.ok(e.includes('Oefening 1') && e.includes('ben') && e.includes('Vul in'));
-});
-
-test('estimateTokens is a rough size', () => { assert.equal(L.estimateTokens(''), 0); assert.equal(L.estimateTokens('x'.repeat(360)), 100); assert.ok(L.estimateTokens(L.exercisePrompt('Les 1', { text: 'Vul in', answers: 'ben' })) > 50); });
+test('estimateTokens is a rough size', () => { assert.equal(L.estimateTokens(''), 0); assert.equal(L.estimateTokens('x'.repeat(360)), 100); assert.ok(L.estimateTokens(L.sheetPrompt({ count: 8 })) > 200); });
 
 const SHEET_REPLY = 'Here you go!\n```json\n' + JSON.stringify({ worksheet: { title: 'Les 12 practice', items: [
   { type: 'mc', skill: 'de/het', q: '___ huis is groot.', options: ['De', 'Het'], answer: 'Het', why: 'huis is het.' },
@@ -244,8 +193,9 @@ test('recordOutcome and weakSkills track accuracy per skill', () => {
 });
 
 test('sheetPrompt and checkPrompt carry what Claude needs', () => {
-  const p = L.sheetPrompt({ count: 10, lessonTitle: 'Les 12', words: [{ nl: 'huurder', en: 'tenant' }], weak: [{ skill: 'word order', wrong: 5, total: 8, examples: [{ yours: 'Morgen ik heb', correct: 'Morgen heb ik' }] }], note: 'keep it short' });
-  assert.ok(p.includes('10 items') && p.includes('Les 12') && p.includes('huurder (tenant)') && p.includes('Word order: missed 5 of my last 8') && p.includes('Morgen ik heb') && p.includes('keep it short') && p.includes('"worksheet"'));
+  const p = L.sheetPrompt({ count: 10, topics: ['Work & jobs', 'Health & the doctor'], grammar: ['word order', 'de/het'], words: [{ nl: 'huurder', en: 'tenant' }], weak: [{ skill: 'word order', wrong: 5, total: 8, examples: [{ yours: 'Morgen ik heb', correct: 'Morgen heb ik' }] }], note: 'keep it short' });
+  assert.ok(p.includes('10 items') && p.includes('Topics to include') && p.includes('Work & jobs, Health & the doctor') && p.includes('Grammar to include') && p.includes('Word order, De / het') && p.includes('huurder (tenant)') && p.includes('Word order: missed 5 of my last 8') && p.includes('Morgen ik heb') && p.includes('keep it short') && p.includes('"worksheet"'));
+  assert.ok(!L.sheetPrompt({ count: 8 }).includes('Topics to include'));
   const sheet = Object.assign(L.parseSheet(SHEET_REPLY).sheet, { answers: { 1: 'Het', 3: 'Morgen ik heb een afspraak' }, results: { 1: { verdict: 'right' }, 3: { verdict: 'unsure' } } });
   const c = L.checkPrompt(sheet);
   assert.ok(c.includes('1. [auto: right]') && c.includes('3. [CHECK]') && c.includes('Morgen ik heb een afspraak') && c.includes('(left blank)') && c.includes('"summary"'));

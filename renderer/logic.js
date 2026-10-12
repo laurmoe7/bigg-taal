@@ -166,83 +166,6 @@
   // Words to practise a sound with.
   L.soundWords = (words, id) => { const s = L.SOUNDS[id]; return s ? words.filter((w) => !w.deleted && s.re.test(L.norm(L.stripArticle(w.nl)).replace(/\s+/g, ''))) : []; };
 
-  // ---------- lessons: reading, word lookup, finding new words, prompts ----------
-  L.sentences = (text) => String(text || '').replace(/\r/g, '').split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
-  // The text cut into [{ t, w }] pieces (w = it is a word), so it can be shown again exactly as it was pasted.
-  L.tokenize = (text) => {
-    text = String(text || '');
-    const out = [], re = /[A-Za-zÀ-ÿ]+(?:['’-][A-Za-zÀ-ÿ]+)*/g;
-    let last = 0, m;
-    while ((m = re.exec(text))) {
-      if (m.index > last) out.push({ t: text.slice(last, m.index), w: false });
-      out.push({ t: m[0], w: true }); last = m.index + m[0].length;
-    }
-    if (last < text.length) out.push({ t: text.slice(last), w: false });
-    return out;
-  };
-  L.lemmaKey = (nl) => L.norm(L.stripArticle(nl));
-  L.wordIndex = (words) => { const m = new Map(); for (const w of words) if (!w.deleted) { const k = L.lemmaKey(w.nl); if (k && !m.has(k)) m.set(k, w); } return m; };
-  // Likely dictionary forms of a word as it appears in a text (werkt -> werken, afspraken -> afspraak, gewoond -> wonen ...).
-  L.lemmaCandidates = (tok) => {
-    const t = L.norm(tok), c = [t];
-    const add = (x) => { if (x && x.length > 2 && !c.includes(x)) c.push(x); };
-    const single = (s) => s.replace(/([aeou])\1([^aeiou])$/, '$1$2'); // leer -> ler
-    const dbl = (s) => s.replace(/([aeou])([^aeiou])$/, '$1$1$2'); // afsprak -> afspraak
-    const verb = (stem) => { add(stem + 'en'); add(single(stem) + 'en'); };
-    add(t + 'en');
-    if (t.endsWith('t')) verb(t.slice(0, -1));
-    let m = t.match(/^(.+?)(te|ten|de|den)$/); if (m) verb(m[1]);
-    m = t.match(/^ge(.+?)(t|d)$/); if (m) verb(m[1]);
-    m = t.match(/^ge(.+?)en$/); if (m) add(m[1] + 'en');
-    if (t.endsWith('en')) { const s = t.slice(0, -2); add(s); add(dbl(s)); add(s + 'e'); }
-    if (t.endsWith('s')) add(t.slice(0, -1));
-    if (t.endsWith('e')) { add(t.slice(0, -1)); add(dbl(t.slice(0, -1))); }
-    return c;
-  };
-  L.findWord = (tok, index) => { for (const k of L.lemmaCandidates(tok)) { const w = index.get(k); if (w) return w; } return null; };
-  // How a word looks in the reading view: known (box 4+), learning, new (in the list, never reviewed), or none (not in the list).
-  L.isStop = (tok) => STOP.has(L.norm(tok));
-  L.wordState = (w) => (!w ? 'none' : w.box >= 4 ? 'known' : w.reps > 0 ? 'learning' : 'new');
-  L.lessonStats = (words, title) => {
-    const ws = words.filter((w) => !w.deleted && w.lesson === title);
-    return { total: ws.length, learned: ws.filter((w) => w.box >= 4).length, learning: ws.filter((w) => w.box > 0 && w.box < 4).length, fresh: ws.filter((w) => !w.reps).length };
-  };
-  const MODALS = new Set('te kan kun kunt kunnen moet moeten moest wil willen wilde mag mogen zal zullen zou zouden ga gaat gaan laat laten'.split(' '));
-  // New-word candidates in a lesson text: [{ w, n, article, pos, example, phrase }], most frequent first.
-  // article/pos are guesses from the text itself (de/het in front of the word, a modal in front of it); the learner can edit them.
-  L.extractCandidates = (text, words, max) => {
-    const index = L.wordIndex(words), seen = new Map(), pairs = new Map();
-    const reWord = /[A-Za-zÀ-ÿ]+(?:['’-][A-Za-zÀ-ÿ]+)*/g;
-    const names = new Set(); // capitalised in the middle of a sentence = a name, skip it everywhere
-    for (const s of L.sentences(text)) (s.match(reWord) || []).forEach((x, i) => { if (i > 0 && /^[A-ZÀ-Þ]/.test(x)) names.add(x.toLowerCase()); });
-    for (const s of L.sentences(text)) {
-      const toks = s.match(reWord) || [], low = toks.map((x) => x.toLowerCase());
-      let prevCand = '';
-      toks.forEach((orig, i) => {
-        const tok = low[i], prev = low[i - 1] || '';
-        const skip = tok.length < 4 || STOP.has(tok) || /\d/.test(tok) || names.has(tok) || L.findWord(tok, index);
-        if (skip) { prevCand = ''; return; }
-        const e = seen.get(tok) || { w: tok, n: 0, de: 0, het: 0, verbish: 0, example: '' };
-        e.n++;
-        if (prev === 'de') e.de++; else if (prev === 'het') e.het++; else if (MODALS.has(prev) || (i === toks.length - 1 && tok.endsWith('en') && low.slice(0, i).some((x) => MODALS.has(x)))) e.verbish++; // a modal before it, or a clause-final infinitive
-        if (!e.example || (s.length < e.example.length && s.length >= 12)) e.example = s;
-        seen.set(tok, e);
-        if (prevCand) { const k = prevCand + ' ' + tok; const p = pairs.get(k) || { w: k, n: 0, example: s }; p.n++; pairs.set(k, p); }
-        prevCand = tok;
-      });
-    }
-    const guess = (e) => (e && e.de > e.het ? "de" : e && e.het > e.de ? "het" : "");
-    // a phrase (two words that keep appearing together) takes over its parts when they only ever occur inside it
-    const phrases = [...pairs.values()].filter((p) => p.n >= 2).map((p) => { const [x, y] = p.w.split(" "); return { w: p.w, n: p.n, article: guess(seen.get(x)), pos: "phrase", example: p.example, phrase: true, parts: [x, y] }; });
-    const absorbed = new Set();
-    for (const p of phrases) for (const t of p.parts) if (seen.get(t).n === p.n) absorbed.add(t);
-    const singles = [...seen.values()].filter((e) => !absorbed.has(e.w)).map((e) => {
-      const article = guess(e);
-      return { w: e.w, n: e.n, article, pos: article ? "noun" : e.verbish ? "verb" : "", example: e.example, phrase: false };
-    });
-    phrases.forEach((p) => delete p.parts);
-    return singles.concat(phrases).sort((x, y) => y.n - x.n || y.w.length - x.w.length).slice(0, max || 40);
-  };
   // Pulls the JSON out of a whole pasted reply (plain JSON, a fenced block, or JSON buried in text). null if there is none.
   L.extractJson = (text) => {
     text = String(text || '');
@@ -265,19 +188,6 @@
     }
     return null;
   };
-  const SHAPE = '{"words":[{"nl":"afspraak","en":"appointment","article":"de","pos":"noun","example":"Ik heb morgen een afspraak.","exampleEn":"I have an appointment tomorrow.","lesson":"LESSON"}]}';
-  const WHO = 'I am learning Dutch (A2 done, working on B1) with the NT2school lesson';
-  L.claudeWordsPrompt = (title, rows) =>
-    `${WHO} "${title}". Here are words from the lesson text that I want to learn, each with the sentence it appears in. For each one give me the English meaning and the dictionary form ` +
-    `(infinitive for verbs, singular for nouns), the article de/het for nouns, and keep my example sentence (add exampleEn). Reply with a short note on anything tricky, then JSON I can import in exactly this shape: ${SHAPE.replace('LESSON', title)}. ` +
-    `Use "article" only for nouns, otherwise "".\n\n` + rows.map((r) => `- ${r.w}${r.article ? ' (' + r.article + '?)' : ''}: ${r.example}`).join('\n');
-  L.exercisePrompt = (title, ex) =>
-    `${WHO} "${title}". Please check my answers to this exercise. For each item say right or wrong, and if wrong give the correct answer and a short, simple English explanation of the rule (B1 level). ` +
-    `Finish with 3 to 5 useful new words from the exercise as JSON I can import: ${SHAPE.replace('LESSON', title)}.\n\nEXERCISE${ex.title ? ' (' + ex.title + ')' : ''}:\n${ex.text}\n\nMY ANSWERS:\n${ex.answers || '(none yet, please just explain the exercise)'}`;
-
-  // Rough size of a prompt in Claude tokens (about 3.6 characters each for mixed Dutch and English). An estimate, not a count.
-  L.estimateTokens = (text) => Math.ceil(String(text || '').length / 3.6);
-
   // ---------- practice worksheets made by Claude, done in the app, tracked by skill ----------
   L.SKILLS = ['word order', 'de/het', 'verb forms', 'past tense', 'separable verbs', 'prepositions', 'adjectives', 'plurals', 'spelling', 'vocabulary', 'pronouns', 'negation', 'questions', 'connectors', 'other'];
   L.SKILL_NAMES = { 'word order': 'Word order', 'de/het': 'De / het', 'verb forms': 'Verb forms', 'past tense': 'Past tense', 'separable verbs': 'Separable verbs', prepositions: 'Prepositions', adjectives: 'Adjective endings', plurals: 'Plurals & diminutives', spelling: 'Spelling', vocabulary: 'Vocabulary', pronouns: 'Pronouns', negation: 'Negation (niet/geen)', questions: 'Questions', connectors: 'Connectors (omdat, dat...)', other: 'Other' };
@@ -344,12 +254,15 @@
   }).filter((x) => x.wrong > 0).sort((a, b) => b.wrong - a.wrong || a.acc - b.acc).slice(0, n || 3);
   const JSON_SHEET = '{"worksheet":{"title":"Short title","items":[{"type":"mc","skill":"de/het","q":"___ huis is groot.","options":["De","Het"],"answer":"Het","why":"huis is a het-word."},{"type":"fill","skill":"past tense","q":"Gisteren ___ ik naar de winkel. (gaan)","answer":"ging","alt":[],"why":"Strong verb: gaan, ging, gegaan."},{"type":"translate","skill":"word order","q":"Tomorrow I have an appointment.","answer":"Morgen heb ik een afspraak.","alt":["Ik heb morgen een afspraak."],"why":"The verb stays second."}]}}';
   const LEVEL = 'I am learning Dutch (A2 done, working on B1) with NT2school';
+  L.TOPICS = ['Housing & neighbours', 'Work & jobs', 'Health & the doctor', 'Shopping & money', 'Travel & transport', 'Food & restaurants', 'Family & friends', 'Daily routine', 'School & courses', 'Government & paperwork', 'Free time & hobbies', 'Weather & nature', 'News & society', 'Technology'];
   L.sheetPrompt = (o) => {
+    const wordList = (o.words || []).slice(0, 40).map((w) => w.nl + (w.en ? ' (' + w.en + ')' : '')).join(', ');
     const lines = [`${LEVEL}. Please make me a practice worksheet of ${o.count || 12} items that I will complete inside my BiggTaal app, so reply with ONLY one JSON object in a code block and no other text.`];
-    if (o.lessonTitle) lines.push(`Base it on my lesson "${o.lessonTitle}".${o.words && o.words.length ? ' Use these words where it makes sense: ' + o.words.slice(0, 40).map((w) => w.nl + (w.en ? ' (' + w.en + ')' : '')).join(', ') + '.' : ''}`);
-    else if (o.words && o.words.length) lines.push('Use these words where it makes sense: ' + o.words.slice(0, 40).map((w) => w.nl + (w.en ? ' (' + w.en + ')' : '')).join(', ') + '.');
+    if (o.topics && o.topics.length) lines.push('Topics to include (spread them across the items): ' + o.topics.join(', ') + '.');
+    if (o.grammar && o.grammar.length) lines.push('Grammar to include (at least two items for each): ' + o.grammar.map((g) => L.SKILL_NAMES[g] || g).join(', ') + '.');
+    if (wordList) lines.push('Use these words from my own list where it makes sense: ' + wordList + '.');
     if (o.weak && o.weak.length) lines.push('My weak spots, so make at least half of the items practise these:\n' + o.weak.map((w) => `- ${L.SKILL_NAMES[w.skill] || w.skill}: missed ${w.wrong} of my last ${w.total}${w.examples && w.examples[0] ? `; for example I wrote "${w.examples[0].yours}" where "${w.examples[0].correct}" was right` : ''}`).join('\n'));
-    if (o.note) lines.push('Also: ' + o.note);
+    if (o.note) lines.push('In my own words, what else I want: ' + o.note);
     lines.push('Item types, use a good mix: "mc" (2 to 4 options), "fill" (one gap), "order" (words in a sentence for me to put in order), "translate" (English to Dutch), "correct" (a sentence with one mistake for me to fix), "write" (1 to 2 sentences about a given topic).');
     lines.push(`Rules: B1 level; every item must stand on its own; never show the answer in the question. For fill, order, translate and correct give the single best answer in "answer" and every other fully correct version in "alt". For mc, "answer" must equal one of "options" exactly. "why" is one short English sentence naming the rule. "skill" must be one of: ${L.SKILLS.join(', ')}. For "write" give a model answer in "answer".`);
     lines.push('JSON shape, shown with three items:\n```json\n' + JSON_SHEET + '\n```');
@@ -380,6 +293,9 @@
     const sm = j.summary || {};
     return { results, summary: { good: String(sm.good || ''), improve: (Array.isArray(sm.improve) ? sm.improve : sm.improve ? [sm.improve] : []).map(String), next: String(sm.next || '') } };
   };
+
+  // Rough size of a prompt in Claude tokens (about 3.6 characters each for mixed Dutch and English). An estimate, not a count.
+  L.estimateTokens = (text) => Math.ceil(String(text || '').length / 3.6);
 
   // ---------- random helpers ----------
   L.shuffle = (arr, rnd) => { rnd = rnd || Math.random; const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -488,25 +404,6 @@
     const lessons = (j.lessons || []).filter((l) => l && l.title).map((l) => ({ title: String(l.title), due: l.due || '', notes: l.notes || '', status: l.status || 'todo' }));
     return { words, lessons };
   };
-
-  // Candidate new words from a pasted lesson text: frequent, not known, not tiny, not common function words.
-  const STOP = new Set('de het een en of maar dat die dit deze ik jij je hij zij ze wij we jullie u mijn jouw zijn haar ons onze hun niet geen wel ook nog al nu dan toen hier daar waar wat wie hoe waarom als omdat want dus er is ben bent was waren heb hebt heeft had hadden wordt werd worden zal zou kan kon moet moest wil wilde mag met voor naar van uit bij op in aan om door over onder tot tegen zonder tussen naast na te zo erg heel zeer meer meest veel weinig alle alles iets niets iemand ieder elk elke dat dan'.split(/\s+/));
-  L.candidates = (text, words, max) => {
-    const known = new Set(words.map((w) => w.nl.toLowerCase()));
-    const count = new Map();
-    for (const t of String(text || '').toLowerCase().match(/[a-zà-ÿ'’-]{4,}/g) || []) {
-      if (STOP.has(t) || known.has(t)) continue;
-      count.set(t, (count.get(t) || 0) + 1);
-    }
-    return [...count.entries()].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length).slice(0, max || 40).map(([w, n]) => ({ w, n }));
-  };
-
-  // Prompt to paste into Claude so it turns a lesson into an importable file.
-  L.claudePrompt = (lessonTitle, text) =>
-    `I'm learning Dutch (A2 done, working on B1) with the NT2school lesson "${lessonTitle}". Below is the lesson text. ` +
-    `Please (1) explain anything tricky in simple English, then (2) give me the useful new vocabulary as JSON I can import into my BiggTaal app, in exactly this shape: ` +
-    `{"words":[{"nl":"afspraak","en":"appointment","article":"de","pos":"noun","example":"Ik heb morgen een afspraak.","exampleEn":"I have an appointment tomorrow.","lesson":"${lessonTitle}"}]}. ` +
-    `Use "article" only for nouns ("de" or "het", otherwise ""). Keep examples short and B1 level.\n\n---\n${text}`;
 
   if (typeof module !== 'undefined' && module.exports) module.exports = L; else root.L = L;
 })(typeof window !== 'undefined' ? window : globalThis);
