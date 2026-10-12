@@ -16,7 +16,7 @@ function save() {
 async function load() {
   let d = null;
   try { d = window.vt ? await window.vt.load() : JSON.parse(localStorage.getItem('biggtaal') || 'null'); } catch {}
-  S = L.fixState(d);
+  S = L.fixState(d); applyTheme();
   if (!S.seeded) {
     const w = L.parseVocab(SEED_WORDS); 
     S.words = L.mergeWords(S.words, w).words; S.seeded = true; save();
@@ -185,97 +185,21 @@ VIEWS.home = () => {
   </div>`;
 };
 
-// ---------- flashcards ----------
-const bestCheck = (typed, w, dir) => {
-  if (dir === 'nl-en') return L.check(typed, w.en);
-  const a = L.check(typed, (w.article ? w.article + ' ' : '') + w.nl), b = L.check(typed, w.nl);
-  return a === 'right' || b === 'right' ? 'right' : a === 'close' || b === 'close' ? 'close' : 'wrong';
-};
-const cardPrefs = () => (S.cardPrefs = S.cardPrefs || { mode: 'flip', dir: 'nl-en', auto: false });
-// Starts a session from a list of words. label shows under the title.
-function launchCards(pool, label) {
-  const p = cardPrefs();
-  if (!pool.length) return toast('Add some words first!');
-  ui.cards = { queue: pool.map((w) => ({ id: w.id, dir: p.dir === 'mixed' ? rnd(['nl-en', 'en-nl']) : p.dir, again: false })), i: 0, flipped: false, res: null, typed: '', n: 0, good: 0, label: label || '' };
-  if (p.auto) autoSpeak();
-  render();
-}
-function startCards() { // today's cards: everything due, plus the day's new words
-  const pool = dueList();
-  if (!pool.length) return toast('Nothing is due. Use "Do more cards" below!');
-  launchCards(pool.slice(0, 300), '');
-}
-// Do more than the daily amount: new words, earlier words ahead of schedule, or a random mix.
-function startMore(kind) {
-  const n = cardPrefs().more || 20, live = liveWords();
-  let pool, label;
-  if (kind === 'new') { pool = live.filter((w) => !w.reps).slice(0, n); label = 'new words'; if (!pool.length) return toast('No unseen words left. Add more on the Words page!'); }
-  else if (kind === 'review') { pool = live.filter((w) => w.reps > 0 && !L.isDue(w, today())).sort((x, y) => (x.due || '').localeCompare(y.due || '')).slice(0, n); label = 'review ahead'; if (!pool.length) return toast('Nothing else to review yet.'); }
-  else { pool = L.pick(live, n); label = 'random mix'; }
-  launchCards(pool, label);
-}
-function curCard() { const c = ui.cards; if (!c || c.i >= c.queue.length) return null; const q = c.queue[c.i]; return { q, w: S.words.find((x) => x.id === q.id) }; }
-function autoSpeak() { const c = curCard(); if (c && c.q.dir === 'nl-en' && cardPrefs().auto) speak(c.w.nl); }
-// "Do more cards" block shown before and after a session.
-const moreCards = () => {
-  const live = liveWords(), fresh = live.filter((w) => !w.reps).length, ahead = live.filter((w) => w.reps > 0 && !L.isDue(w, today())).length;
-  return `<div class="more"><div class="muted" style="margin-bottom:8px">Want to do more?</div>
-    <div class="row" style="justify-content:center"><label class="muted">Cards <select id="fc-n">${[10, 20, 30, 50, 100].map((n) => `<option ${(cardPrefs().more || 20) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-      <button class="ghost" data-act="cards-more" data-k="new" ${fresh ? '' : 'disabled'}>🌱 New words <span class="muted">(${fresh} unseen)</span></button>
-      <button class="ghost" data-act="cards-more" data-k="review" ${ahead ? '' : 'disabled'}>🔁 Review ahead <span class="muted">(${ahead})</span></button>
-      <button class="ghost" data-act="cards-more" data-k="random" ${live.length ? '' : 'disabled'}>🎲 Random mix</button></div></div>`;
-};
-VIEWS.cards = () => {
-  const p = cardPrefs(), c = ui.cards, due = dueList().length;
-  const prefs = `<div class="row" style="margin-bottom:6px">
-    <span class="muted">Mode</span> <button class="ghost ${p.mode === 'flip' ? 'on' : ''}" data-act="cpref" data-k="mode" data-v="flip">Flip</button><button class="ghost ${p.mode === 'type' ? 'on' : ''}" data-act="cpref" data-k="mode" data-v="type">Type answer</button>
-    <span class="muted">Direction</span> <button class="ghost ${p.dir === 'nl-en' ? 'on' : ''}" data-act="cpref" data-k="dir" data-v="nl-en">NL → EN</button><button class="ghost ${p.dir === 'en-nl' ? 'on' : ''}" data-act="cpref" data-k="dir" data-v="en-nl">EN → NL</button><button class="ghost ${p.dir === 'mixed' ? 'on' : ''}" data-act="cpref" data-k="dir" data-v="mixed">Mixed</button>
-    <button class="ghost ${p.auto ? 'on' : ''}" data-act="cpref" data-k="auto" data-v="${p.auto ? '' : '1'}">🔊 Auto-speak</button></div>`;
-  if (!c) {
-    return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${due} due today. Spaced repetition shows hard words more often.</p></div></div><div class="fc-wrap">${prefs}
-      <div class="card" style="text-align:center;padding:30px">${pigSvg(due ? 'happy' : 'sleep', 'pig-sm', { stage: pigStage() })}
-      <p>${due ? `<b>${due}</b> cards are ready.` : 'Nothing is due right now. Nice!'}</p>
-      ${due ? '<div class="row" style="justify-content:center"><button class="primary" data-act="cards-start">Start</button></div>' : ''}
-      ${moreCards()}</div></div>`;
-  }
-  const cur = curCard();
-  if (!cur) {
-    return `<div class="top"><h1>Klaar! 🎉</h1></div><div class="fc-wrap"><div class="card" style="text-align:center;padding:30px">${pigSvg('happy', 'pig-sm', { stage: pigStage(), note: true })}
-      <h2>${c.n} cards reviewed</h2><p class="muted">${c.good} remembered first time (${c.n ? Math.round((c.good / c.n) * 100) : 0}%). ${rnd(PIG.right)}</p>
-      <div class="row" style="justify-content:center"><button class="primary" data-act="cards-done">Back to today</button></div>
-      ${moreCards()}</div></div>`;
-  }
-  const { q, w } = cur, nlFront = q.dir === 'nl-en', type = p.mode === 'type';
-  const frontHtml = nlFront ? `${w.article ? `<div class="fc-art">${esc(w.article)}</div>` : ''}<div class="fc-big">${esc(w.nl)}</div><button class="speak" data-act="say" data-t="${esc((w.article ? w.article + ' ' : '') + w.nl)}" title="Listen">🔊</button>` : `<div class="fc-big">${esc(w.en)}</div><div class="muted">in Dutch</div>`;
-  const ans = nlFront ? esc(w.en) : `${w.article ? `<span class="fc-art">${esc(w.article)}</span> ` : ''}${esc(w.nl)}`;
-  const backHtml = `<div class="fc-big ${c.res ? 'ans ' + c.res : ''}">${ans}</div>${!nlFront ? `<button class="speak" data-act="say" data-t="${esc((w.article ? w.article + ' ' : '') + w.nl)}">🔊</button>` : ''}${w.example ? `<div class="fc-ex">${esc(w.example)}${w.exampleEn ? '<br>' + esc(w.exampleEn) : ''}</div>` : ''}${c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : ''}${c.res === 'wrong' ? `<div class="warn">You typed: ${esc(c.typed)}</div>` : ''}`;
-  const sug = c.res === 'wrong' ? 'again' : 'good';
-  const gradeBtns = `<div class="grades"><button class="g-again ${sug === 'again' ? 'on' : ''}" data-act="grade" data-g="again">Again<small>1 · today</small></button><button class="g-good" data-act="grade" data-g="good">Good<small>2 · ${L.INTERVALS[Math.min(7, w.box + 1)]}d</small></button><button class="g-easy" data-act="grade" data-g="easy">Easy<small>3 · ${L.INTERVALS[Math.min(7, w.box + 2)]}d</small></button></div>`;
-  return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${c.i + 1} of ${c.queue.length}${c.label ? ' · ' + c.label : ''}</p></div><button class="ghost" data-act="cards-done">End session</button></div>
-    <div class="fc-wrap"><div class="bar"><i style="width:${(c.i / c.queue.length) * 100}%"></i></div>
-    <div class="fc ${c.flipped ? 'flip' : ''}" ${!type && !c.flipped ? 'data-act="flip"' : ''}><div class="fc-in"><div class="fc-face">${frontHtml}${!type ? '<div class="muted">click or press Space to flip</div>' : ''}</div><div class="fc-face back">${backHtml}</div></div></div>
-    ${c.flipped ? gradeBtns : type ? `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type the ${nlFront ? 'English' : 'Dutch'}... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button><button class="ghost" data-act="skip">I don't know</button></div>` : '<div class="row" style="justify-content:center"><button class="primary" data-act="flip">Show answer</button></div>'}
-    </div>`;
-};
-function gradeCard(g) {
-  const c = ui.cards, cur = curCard(); if (!cur) return;
-  if (!cur.w.reps) L.bump(S.log, today(), "newWords");
-  const upd = L.grade(cur.w, g, today()); S.words[S.words.indexOf(cur.w)] = upd;
-  c.n++; if (g !== 'again' && !cur.q.again) c.good++;
-  if (g === 'again' && !cur.q.again) c.queue.push({ id: cur.q.id, dir: cur.q.dir, again: true });
-  chime(g === 'again' ? 'bad' : 'ok');
-  c.i++; c.flipped = false; c.res = null; c.typed = '';
-  count('reviews'); autoSpeak(); render();
-}
-function checkTyped() {
-  const c = ui.cards, cur = curCard(); if (!cur || c.flipped) return;
-  c.typed = ($('#typed') || {}).value || ''; c.res = bestCheck(c.typed, cur.w, cur.q.dir); c.flipped = true;
-  chime(c.res === 'wrong' ? 'bad' : 'ok'); if (c.res === 'right' && cur.q.dir === 'en-nl') speak(cur.w.nl); render();
-}
-
 // ---------- listening ----------
-const LMODES = [['word', '✍️ Spell the word', 'Hear a Dutch word and type it'], ['meaning', '🎯 What does it mean?', 'Hear a word and pick the English'], ['article', '🔀 De or het?', 'Hear a noun and pick the article'], ['sentence', '💬 Sentence dictation', 'Hear a whole sentence and type it']];
+const LMODES = [['word', '✍️ Spell the word', 'Hear a Dutch word and type it'], ['meaning', '🎯 What does it mean?', 'Hear a word and pick the English'], ['article', '🔀 De or het?', 'Hear a noun and pick the article'], ['sentence', '💬 Sentence dictation', 'Hear a whole sentence and type it'], ['real', '🌍 Real sentences', 'Dictation with real Dutch sentences that use your words']];
+async function startReal() { // sentences from Tatoeba that use words you are learning
+  toast('Finding real sentences...');
+  let pool = [];
+  try {
+    const idx = await sentenceData(), mine = L.pick(liveWords().filter((w) => !w.example || true), 60), seen = new Set();
+    for (const w of mine) { const f = L.sentencesFor(w.nl, w.pos, idx, SENTENCES, 4).find((p) => !seen.has(p[0])); if (f) { seen.add(f[0]); pool.push(Object.assign({}, w, { id: 'tat' + pool.length, example: f[0], en: f[1], article: '' })); } if (pool.length >= 10) break; }
+  } catch { return toast('Could not load the sentences.'); }
+  if (!pool.length) return toast('No sentences found for your words yet. Add some more words!');
+  ui.listen = { mode: 'sentence', real: true, sound: '', queue: pool, i: 0, res: null, typed: '', n: 0, good: 0, opts: null, picked: '', hint: 0, diff: null, tags: [] };
+  prepListen(); render(); setTimeout(listenSay, 150);
+}
 function startListen(mode, sound) {
+  if (mode === 'real') { startReal(); return; }
   let pool = liveWords();
   if (sound) pool = L.soundWords(pool, sound);
   if (mode === 'article') pool = pool.filter((w) => w.article);
@@ -361,37 +285,29 @@ function listenCheck() {
   }
 }
 
-// ---------- words ----------
-VIEWS.words = () => {
-  const f = ui.words, e = ui.edit, q = f.q.toLowerCase();
-  let ws = liveWords().filter((w) => (!q || (w.nl + ' ' + w.en).toLowerCase().includes(q)));
-  ws = f.sort === 'new' ? ws.slice().sort((a, b) => b.created - a.created) : f.sort === 'az' ? ws.slice().sort((a, b) => a.nl.localeCompare(b.nl)) : ws.slice().sort((a, b) => a.box - b.box);
-  const ed = e ? S.words.find((w) => w.id === e) : null;
-  return `<div class="top"><div><h1>Words</h1><p class="sub">${liveWords().length} words. Everything here feeds flashcards, listening and worksheets.</p></div></div>
-  <div class="card"><h2>${ed ? 'Edit word' : 'Add a word'}</h2>
-    <div class="row"><select id="w-art"><option value="">no article</option><option value="de" ${ed && ed.article === 'de' ? 'selected' : ''}>de</option><option value="het" ${ed && ed.article === 'het' ? 'selected' : ''}>het</option></select>
-    <input type="text" class="grow" id="w-nl" placeholder="Dutch word" value="${esc(ed ? ed.nl : '')}"><input type="text" class="grow" id="w-en" placeholder="English" value="${esc(ed ? ed.en : '')}"></div>
-    <div class="row" style="margin-top:8px"><input type="text" class="grow" id="w-ex" placeholder="Example sentence (optional but great for worksheets)" value="${esc(ed ? ed.example : '')}">
-    <button class="primary" data-act="word-save">${ed ? 'Save' : 'Add'}</button>${ed ? '<button class="ghost" data-act="word-cancel">Cancel</button>' : ''}</div>
-    <details style="margin-top:12px"><summary>Paste a list or import from Claude</summary>
-      <p class="muted">Paste in any of these: one word per line like <code>de afspraak = appointment | Ik heb een afspraak.</code> (also <code>;</code>, tab or <code>-</code>); a list copied from a course page, where each word is followed by a blank line and its English (with or without a <code>Start</code> in front); or the JSON Claude gave you.</p>
-      <textarea id="w-bulk" placeholder="de afspraak = appointment">${esc(ui.draftText)}</textarea><div class="row" style="margin-top:8px"><button class="primary" data-act="bulk-add">Import</button></div></details></div>
-  <div class="row" style="margin:14px 0"><input type="text" class="grow" id="w-search" placeholder="Search..." value="${esc(f.q)}">
-    
-    <select id="w-sort"><option value="new" ${f.sort === 'new' ? 'selected' : ''}>Newest</option><option value="az" ${f.sort === 'az' ? 'selected' : ''}>A–Z</option><option value="hard" ${f.sort === 'hard' ? 'selected' : ''}>Hardest first</option></select></div>
-  <div class="card" style="padding:6px 10px"><table class="words"><tr><th>Dutch</th><th>English</th><th>Level</th><th></th></tr>
-  ${ws.slice(0, 300).map((w) => `<tr><td>${w.article ? `<span class="art-${w.article}">${w.article}</span> ` : ''}<b>${esc(w.nl)}</b>${w.example ? `<div class="muted" style="font-size:13px">${esc(w.example)}</div>` : ''}</td><td>${esc(w.en)}</td>
-    <td><span class="lvl">${[1, 2, 3, 4, 5].map((i) => `<i class="${w.box >= i ? 'on' : ''}"></i>`).join('')}</span></td>
-    <td style="white-space:nowrap"><button class="ghost" data-act="say" data-t="${esc((w.article ? w.article + ' ' : '') + w.nl)}">🔊</button> <button class="ghost" data-act="word-edit" data-id="${w.id}">✎</button> <button class="ghost" data-act="word-del" data-id="${w.id}">🗑</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty">No words match.</td></tr>'}</table>${ws.length > 300 ? `<p class="muted" style="padding:8px">Showing 300 of ${ws.length}. Use search.</p>` : ''}</div>`;
-};
-
 // ---------- grammar ----------
 VIEWS.grammar = () => `<div class="top"><div><h1>Grammar cheat sheets</h1><p class="sub">B1 essentials, short and practical.</p></div></div><div class="grid g2 gram">${GRAMMAR.map((g) => `<div class="card"><h3>${g.t}</h3>${g.b.map((p) => `<p>${p}</p>`).join('')}</div>`).join('')}</div>`;
 
+// ---------- the word and sentence data (loaded the first time it is needed; see data/README.md) ----------
+const dataLoads = {};
+function loadData(name) { // 'freq' (common words with meanings) or 'sentences' (real sentences)
+  if (!dataLoads[name]) dataLoads[name] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = '../data/' + name + '.js'; s.onload = res; s.onerror = () => { delete dataLoads[name]; rej(new Error('Could not load ' + name)); }; document.head.appendChild(s); });
+  return dataLoads[name];
+}
+let SENT_INDEX = null;
+async function sentenceData() { await loadData('sentences'); if (!SENT_INDEX) SENT_INDEX = L.buildSentenceIndex(SENTENCES); return SENT_INDEX; }
+async function examplesFor(nl, pos, n) { const idx = await sentenceData(); return L.sentencesFor(nl, pos, idx, SENTENCES, n); }
+
 // ---------- settings ----------
+const THEMES = [['lagoon', 'Lagoon', '#0b1a28', '#ff8f7e', '#6fd3ee'], ['plum', 'Plum', '#1a1226', '#ff8fb1', '#b79cff'], ['forest', 'Forest', '#0e1c16', '#ff9a85', '#7fe3b4'],
+  ['sunset', 'Sunset', '#221512', '#ff8a70', '#ffc46b'], ['slate', 'Slate', '#14161c', '#ff8f7e', '#8fb4ff'], ['cream', 'Cream (light)', '#fff6ee', '#f2705f', '#1fa3c4']];
+function applyTheme() { const t = (S && S.settings && S.settings.theme) || 'lagoon'; document.documentElement.setAttribute('data-theme', THEMES.some((x) => x[0] === t) ? t : 'lagoon'); }
+
 VIEWS.settings = () => {
   const s = S.settings, nl = dutchVoices(), vc = voiceChoice(), cur = vc ? (vc.engine === 'piper' ? 'piper:' + vc.id : 'win:' + vc.voice.name) : '';
   return `<div class="top"><div><h1>Settings</h1></div></div>
+  <div class="card" style="margin-bottom:16px"><h2>Look</h2><p class="muted" style="margin-top:0">Pick the colours you like best.</p>
+    <div class="themes">${THEMES.map(([id, name, bg, a, b]) => `<button class="theme ${S.settings.theme === id ? 'on' : ''}" data-act="theme" data-v="${id}"><span class="sw" style="background:${bg}"><i style="background:${a}"></i><i style="background:${b}"></i></span>${name}</button>`).join('')}</div></div>
   <div class="grid g2">
   <div class="card"><h2>Daily goals</h2>
     <label class="f">Daily goal (cards)</label><input type="number" id="s-goal" min="3" max="200" value="${s.dailyGoal}" style="width:100px">
@@ -410,7 +326,7 @@ VIEWS.settings = () => {
   <div class="card"><h2>Updates</h2><p class="muted">Version ${esc(APPV || '?')}. ${esc(updateText())}</p>
     <label class="row"><input type="checkbox" id="s-upd" ${s.autoUpdate !== false ? 'checked' : ''}> Look for new versions automatically</label>
     <div class="row" style="margin-top:12px"><button class="ghost" data-act="update-check">🔄 Check for updates</button>${UPD.status === 'ready' ? '<button class="primary" data-act="update-install">Restart to update</button>' : ''}</div></div>
-  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.5.0 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸</p></div></div>`;
+  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.5.0 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸 Dictionary, word lists and sentences come from Wiktionary, OpenSubtitles and Tatoeba (see the data folder). Reviews are scheduled with FSRS.</p></div></div>`;
 };
 function updateText() {
   const u = UPD;
@@ -436,11 +352,6 @@ function importText(text) {
 const ACT = {
   nav: (el) => { ui.cards = ui.cards && ui.view === 'cards' ? ui.cards : null; go(el.dataset.v); },
   say: (el) => speak(el.dataset.t),
-  flip: () => { ui.cards.flipped = true; render(); },
-  'cards-start': () => startCards(), 'cards-more': (el) => startMore(el.dataset.k), 'cards-done': () => { ui.cards = null; go('home'); },
-  cpref: (el) => { const p = cardPrefs(); p[el.dataset.k] = el.dataset.k === 'auto' ? !!el.dataset.v : el.dataset.v; save(); render(); },
-  grade: (el) => gradeCard(el.dataset.g), check: checkTyped,
-  skip: () => { const c = ui.cards; c.res = 'wrong'; c.typed = ''; c.flipped = true; render(); },
   'listen-start': (el) => startListen(el.dataset.m, el.dataset.s),
   rate: (el) => { S.settings.rate = +el.dataset.r; save(); render(); speak('Hoi, dit is de snelheid.'); },
   'listen-hint': () => { const l = ui.listen; l.hint = Math.min(2, l.hint + 1); const t = ($('#typed') || {}).value || ''; render(); const i = $('#typed'); if (i) { i.value = t; i.focus(); } },
@@ -450,14 +361,15 @@ const ACT = {
   'listen-next': () => { const l = ui.listen; l.i++; l.res = null; l.typed = ''; l.picked = ''; prepListen(); render(); if (l.queue[l.i]) setTimeout(listenSay, 150); },
   'word-save': () => {
     const nl = $('#w-nl').value.trim(), en = $('#w-en').value.trim(); if (!nl || !en) return toast('Need both Dutch and English');
-    const o = { nl, en, article: $('#w-art').value, example: $('#w-ex').value.trim() }; o.pos = o.article ? 'noun' : 'other';
+    const o = { nl, en, article: $('#w-art').value, example: $('#w-ex').value.trim() }; o.pos = o.article ? 'noun' : guessPos(nl);
+    o.exampleEn = o.example && ui.exEn && ui.exEn[0] === o.example ? ui.exEn[1] : ''; ui.exEn = null; ui.exFound = null;
     if (ui.edit) Object.assign(S.words.find((w) => w.id === ui.edit), o); else S.words.push(L.newWord(o));
-    ui.edit = null; save(); toast('Saved'); render();
+    const wasEdit = !!ui.edit; ui.edit = null; if (wasEdit) ui.words.tab = ui.words.back || 'all'; save(); toast(wasEdit ? 'Saved' : 'Added ' + nl); render();
   },
-  'word-edit': (el) => { ui.edit = el.dataset.id; render(); $('#w-nl').focus(); }, 'word-cancel': () => { ui.edit = null; render(); },
   'word-del': (el) => { const w = S.words.find((x) => x.id === el.dataset.id); w.deleted = true; save(); toast('Deleted ' + w.nl); render(); },
   'bulk-add': () => { const t = $('#w-bulk').value; if (!t.trim()) return; if (importText(t)) ui.draftText = ''; render(); },
   'settings-save': saveSettings,
+  theme: (el) => { S.settings.theme = el.dataset.v; applyTheme(); save(); render(); },
   'voice-test': () => { const v = $('#s-voice'); if (v) S.settings.voice = v.value; S.settings.rate = +$('#s-rate').value || 0.9; speak('Hoi Lauren! Welkom bij BiggTaal. Veel plezier met leren!'); },
   'data-reveal': () => window.vt && window.vt.reveal(),
   'data-export': async () => { if (!window.vt) return toast('Export works in the installed app.'); const f = await window.vt.exportFile(JSON.stringify(S, null, 1), 'BiggTaal-backup.json'); if (f) toast('Exported'); },
@@ -470,19 +382,13 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]'); if (el && ACT[el.dataset.act]) { e.preventDefault(); ACT[el.dataset.act](el); return; }
   const p = e.target.closest('.hero .pig'); if (p) { p.classList.remove('hop'); void p.offsetWidth; p.classList.add('hop'); ui.say = rnd([...PIG.poke, pigLine()]); const b = $('#bubble'); if (b) b.textContent = ui.say; chime('ok'); }
 });
-document.addEventListener('change', (e) => { if (e.target.id === 'fc-n') { cardPrefs().more = +e.target.value; save(); } });
-document.addEventListener('input', (e) => {
-  const id = e.target.id;
-  if (id === 'w-search') { ui.words.q = e.target.value; const pos = e.target.selectionStart; render(); const s = $('#w-search'); s.focus(); s.setSelectionRange(pos, pos); }
-  else if (id === 'w-sort') { ui.words.sort = e.target.value; render(); }
-  else if (id === 'w-bulk' || id === 'l-text') ui.draftText = e.target.value;
-});
 document.addEventListener('keydown', (e) => {
   const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if (e.key === 'Enter' && e.target.id === 'copy') { e.preventDefault(); copyContinue(false); return; }
   if (e.key === 'Enter' && e.target.id === 'typed') { e.preventDefault(); ui.view === 'cards' ? checkTyped() : listenCheck(); return; }
   if (e.key === 'Enter' && e.target.dataset && e.target.dataset.enter) { ACT[e.target.dataset.enter](); return; }
   if (inField) return;
-  if (ui.view === 'cards' && ui.cards && curCard()) {
+  if (ui.view === 'cards' && ui.cards && curCard() && !isStrict()) {
     const c = ui.cards;
     if (!c.flipped && (e.key === ' ' || e.key === 'Enter') && cardPrefs().mode === 'flip') { e.preventDefault(); ACT.flip(); }
     else if (c.flipped && ['1', '2', '3'].includes(e.key)) gradeCard(['again', 'good', 'easy'][+e.key - 1]);

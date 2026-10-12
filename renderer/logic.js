@@ -9,17 +9,17 @@
   L.uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // ---------- state ----------
-  L.defaultSettings = () => ({ dailyGoal: 10, newPerDay: 10, autoUpdate: true, rate: 0.9, voice: '', login: false, sound: true });
+  L.defaultSettings = () => ({ dailyGoal: 10, newPerDay: 10, autoUpdate: true, rate: 0.9, voice: '', login: false, sound: true, theme: 'lagoon' });
   L.emptyState = () => ({ v: 1, words: [], lessons: [], log: {}, settings: L.defaultSettings(), seeded: false });
   L.fixState = (s) => {
     const e = L.emptyState();
     s = Object.assign(e, s || {});
     s.settings = Object.assign(L.defaultSettings(), s.settings || {});
-    s.words = s.words || []; s.lessons = s.lessons || []; s.log = s.log || {}; s.sheets = s.sheets || []; s.skills = s.skills || {};
+    s.words = s.words || []; s.lessons = s.lessons || []; s.log = s.log || {}; s.sheets = s.sheets || []; s.skills = s.skills || {}; s.knownFreq = s.knownFreq || []; s.knownFreq = s.knownFreq || [];
     return s;
   };
 
-  // ---------- spaced repetition (Leitner boxes) ----------
+  // ---------- spaced repetition ----------
   L.INTERVALS = [0, 1, 2, 4, 8, 16, 32, 64];
   L.newWord = (o) => Object.assign({ id: L.uid(), nl: '', en: '', article: '', pos: 'other', example: '', exampleEn: '', lesson: '', box: 0, due: '', reps: 0, lapses: 0, created: Date.now() }, o);
   L.isDue = (w, today) => !w.due || w.due <= today;
@@ -31,17 +31,45 @@
     const fresh = live.filter((w) => !w.reps).slice(0, Math.max(0, newPerDay - (newToday || 0)));
     return rev.concat(fresh);
   };
+  // FSRS (Free Spaced Repetition Scheduler, v5 default weights). Each word keeps stab (days until recall drops to 90%),
+  // diff (1 easy .. 10 hard) and last (date of last review). 'box' is kept as a simple 0-7 level derived from stab, for the dots and tabs.
+  const FW = [0.40255, 1.18385, 3.173, 15.69105, 7.1949, 0.5345, 1.4604, 0.0046, 1.54575, 0.1192, 1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898, 0.51655, 0.6621];
+  const FF = 19 / 81, FC = -0.5, MAXI = 365;
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+  const GN = { again: 1, good: 3, easy: 4 };
+  const d0 = (g) => clamp(FW[4] - Math.exp(FW[5] * (g - 1)) + 1, 1, 10);
+  L.retrievability = (t, s) => Math.pow(1 + (FF * t) / s, FC);
+  L.boxFromStab = (s) => (s < 1 ? 0 : Math.min(7, 1 + Math.floor(Math.log2(s))));
+  // words from before FSRS (Leitner box only) get a starting stability from their old interval
+  const fsrsState = (w, today) => {
+    if (!w.reps) return null;
+    if (w.stab) return { s: w.stab, d: w.diff || 5, last: w.last || today };
+    const iv = L.INTERVALS[w.box || 0] || 0.5;
+    return { s: Math.max(0.5, iv), d: 5, last: w.due && iv ? L.addDays(w.due, -iv) : today };
+  };
+  L.nextFsrs = (w, grade, today) => {
+    const g = GN[grade], st = fsrsState(w, today);
+    if (!st) return { s: FW[g - 1], d: d0(g) };
+    const t = Math.max(0, L.daysBetween(st.last, today)), r = L.retrievability(t, st.s);
+    const dd = st.d + (-FW[6] * (g - 3)) * ((10 - st.d) / 9);
+    const d = clamp(FW[7] * d0(4) + (1 - FW[7]) * dd, 1, 10);
+    let s;
+    if (t < 1) s = st.s * Math.exp(FW[17] * (g - 3 + FW[18])); // reviewed again the same day
+    else if (g === 1) s = Math.min(st.s, FW[11] * Math.pow(d, -FW[12]) * (Math.pow(st.s + 1, FW[13]) - 1) * Math.exp(FW[14] * (1 - r)));
+    else s = st.s * (1 + Math.exp(FW[8]) * (11 - d) * Math.pow(st.s, -FW[9]) * (Math.exp(FW[10] * (1 - r)) - 1) * (g === 4 ? FW[16] : 1));
+    return { s: clamp(s, 0.1, 36500), d };
+  };
+  const ivOf = (s) => clamp(Math.round(s), 1, MAXI);
   // grade: 'again' | 'good' | 'easy'
   L.grade = (w, grade, today) => {
-    const n = Object.assign({}, w);
-    n.reps = (w.reps || 0) + 1;
-    if (grade === 'again') { n.box = 0; n.lapses = (w.lapses || 0) + 1; n.due = today; }
-    else {
-      n.box = Math.min(L.INTERVALS.length - 1, (w.box || 0) + (grade === 'easy' ? 2 : 1));
-      n.due = L.addDays(today, L.INTERVALS[n.box]);
-    }
+    const n = Object.assign({}, w), f = L.nextFsrs(w, grade, today);
+    n.reps = (w.reps || 0) + 1; n.stab = f.s; n.diff = f.d; n.last = today;
+    if (grade === 'again') { n.lapses = (w.lapses || 0) + 1; n.due = today; n.box = 0; }
+    else { n.due = L.addDays(today, ivOf(f.s)); n.box = Math.max(1, L.boxFromStab(f.s)); }
     return n;
   };
+  // days until the next review for each answer, to show on the buttons
+  L.previewIntervals = (w, today) => ({ again: 0, good: ivOf(L.nextFsrs(w, 'good', today).s), easy: ivOf(L.nextFsrs(w, 'easy', today).s) });
   L.mastery = (words) => {
     const live = words.filter((w) => !w.deleted);
     const learned = live.filter((w) => w.box >= 4).length;
@@ -292,6 +320,100 @@
     }
     const sm = j.summary || {};
     return { results, summary: { good: String(sm.good || ''), improve: (Array.isArray(sm.improve) ? sm.improve : sm.improve ? [sm.improve] : []).map(String), next: String(sm.next || '') } };
+  };
+
+  // "Put in order: vergadering / heb / ik" -> { prefix: 'Put in order:', words: ['vergadering', 'heb', 'ik'] } (null if there is no word list)
+  L.orderParts = (q) => {
+    const s = String(q || ''), slash = s.indexOf('/');
+    if (slash < 0) return null;
+    const colon = s.lastIndexOf(':', slash);
+    const words = s.slice(colon >= 0 ? colon + 1 : 0).split('/').map((x) => x.trim()).filter(Boolean);
+    return words.length >= 2 ? { prefix: colon >= 0 ? s.slice(0, colon + 1).trim() : '', words } : null;
+  };
+  // Which of the given words have been typed so far (each typed word counts once). Returns an array of booleans.
+  L.usedWords = (words, typed) => {
+    let rest = ' ' + L.norm(typed) + ' ';
+    return words.map((w) => {
+      const needle = ' ' + L.norm(w) + ' ', i = needle.trim() ? rest.indexOf(needle) : -1;
+      if (i < 0) return false;
+      rest = rest.slice(0, i) + ' ' + rest.slice(i + needle.length);
+      return true;
+    });
+  };
+
+  // ---------- real example sentences (Tatoeba) ----------
+  // sentences: [[dutch, english], ...]. The index maps every lower-case word to the sentences it appears in.
+  const toks = (s) => s.toLowerCase().match(/[a-zà-ÿ']+/g) || [];
+  L.buildSentenceIndex = (sentences) => {
+    const idx = new Map();
+    sentences.forEach((p, i) => { for (const t of new Set(toks(p[0]))) { const a = idx.get(t); if (a) a.push(i); else idx.set(t, [i]); } });
+    return idx;
+  };
+  // the forms a word might show up in: verbs by their stem (werken -> werk, werkt, werkte, gewerkt...), nouns with s/en/e
+  L.wordForms = (nl, pos) => {
+    const w = nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '').trim(); if (!w || w.includes(' ')) return [w];
+    const forms = new Set([w]);
+    if (pos === 'verb' || /en$/.test(w)) { const st = w.replace(/en$/, ''); if (st.length >= 2) [st, st + 't', st + 'e', st + 'en', st + 'te', st + 'ten', 'ge' + st + 't', 'ge' + st + 'd', 'ge' + st + 'en'].forEach((f) => forms.add(f)); }
+    if (pos !== 'verb') [w + 's', w + 'en', w + 'e', w + 't'].forEach((f) => forms.add(f));
+    return [...forms];
+  };
+  // up to n sentences using the word, shortest first
+  L.sentencesFor = (nl, pos, idx, sentences, n) => {
+    const forms = L.wordForms(nl, pos), hit = new Set();
+    if (forms.length === 1 && forms[0].includes(' ')) sentences.forEach((p, i) => { if (p[0].toLowerCase().includes(forms[0])) hit.add(i); });
+    else for (const f of forms) for (const i of idx.get(f) || []) hit.add(i);
+    return [...hit].sort((a, b) => sentences[a][0].length - sentences[b][0].length).slice(0, n || 5).map((i) => sentences[i]);
+  };
+  // Words from the frequency list (FREQ = [[dutch, english, rank], ...]) that are not in your list yet, within a rank band.
+  L.suggestWords = (freq, words, known, lo, hi) => {
+    const have = new Set(words.filter((w) => !w.deleted).map((w) => w.nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '')));
+    const skip = new Set(known || []);
+    return freq.filter((f) => f[2] > lo && f[2] <= hi && !have.has(f[0]) && !skip.has(f[0]));
+  };
+
+  // ---------- dictionary (Wiktionary: [word, type, article, forms, meanings]) ----------
+  L.POS_NAMES = { n: 'noun', v: 'verb', a: 'adjective', d: 'adverb', p: 'preposition', c: 'conjunction', r: 'pronoun', e: 'determiner', i: 'interjection', u: 'number', t: 'article', h: 'phrase', x: 'particle' };
+  L.POS_KEYS = { n: 'noun', v: 'verb' }; // what the Words page calls them
+  // every form a lookup should find: the word, a noun's plural, a verb's past/participle and present forms, an adjective's comparative and superlative
+  L.dictForms = (e) => {
+    const out = [e[0].toLowerCase()], f = e[3] ? e[3].split(',') : [];
+    if (e[1] === 'n' && f[0]) out.push(f[0].toLowerCase());
+    if (e[1] === 'v') { f.slice(0, 2).forEach((x) => out.push(x.toLowerCase())); const w = e[0].toLowerCase(); if (/en$/.test(w) && f[0]) { const st = w.slice(0, -2); out.push(st, st + 't', st + 'en', f[0] + 'n'); } }
+    if (e[1] === 'a') f.forEach((x) => out.push(x.toLowerCase()));
+    return out;
+  };
+  L.buildDictIndex = (dict) => { const forms = new Map(); dict.forEach((e, i) => { for (const f of L.dictForms(e)) { const a = forms.get(f); if (a) { if (!a.includes(i)) a.push(i); } else forms.set(f, [i]); } }); return { forms }; };
+  // Dutch or English lookup. Results: exact words first, then other forms of a word (plural, past tense...), then words starting with it, then English matches.
+  L.dictSearch = (dict, ix, q, n) => {
+    q = (q || '').toLowerCase().trim().replace(/^(de|het|een|to)\s+/, ''); if (q.length < 2) return [];
+    n = n || 30; const out = [], seen = new Set(), add = (i, how) => { if (!seen.has(i) && out.length < n) { seen.add(i); out.push({ e: dict[i], how }); } };
+    const rank = (i) => ('nvad'.indexOf(dict[i][1]) + 1 || 9);
+    (ix.forms.get(q) || []).filter((i) => dict[i][0].toLowerCase() === q).sort((a, b) => rank(a) - rank(b)).forEach((i) => add(i, 'word'));
+    (ix.forms.get(q) || []).sort((a, b) => rank(a) - rank(b)).forEach((i) => add(i, 'form'));
+    if (q.length >= 3) for (let i = 0; i < dict.length && out.length < n; i++) if (dict[i][0].toLowerCase().startsWith(q)) add(i, 'prefix');
+    // English: the closer the match is to the start of the meanings, and the shorter the word, the higher it ranks
+    const eq = q.replace(/^tos+/, ''), hits = [];
+    for (let i = 0; i < dict.length; i++) { const segs = dict[i][4].toLowerCase().split(/;s*/); let best = 99;
+      segs.forEach((sg, k) => { const parts = sg.split(/,s*/).map((x) => x.replace(/^tos+/, '')); const j = parts.indexOf(eq); if (j >= 0) best = Math.min(best, k * 3 + j); else if (parts.some((x) => x.split(' ').includes(eq))) best = Math.min(best, 20 + k); });
+      if (best < 99) hits.push([best, dict[i][0].length, i]); }
+    hits.sort((x, y) => x[0] - y[0] || x[1] - y[1]).forEach((h) => add(h[2], 'english'));
+    return out;
+  };
+  // an entry as a ready-to-add word
+  L.dictToWord = (e) => ({ nl: e[0], en: e[4].split('; ').slice(0, 2).join('; '), article: e[2] === 'de' || e[2] === 'het' ? e[2] : '', pos: e[1] === 'n' ? 'noun' : e[1] === 'v' ? 'verb' : 'other' });
+
+  // How Bigg reacts after a flashcard is graded. grade: 'again' | 'good' | 'easy'; streak = right answers in a row (this one included);
+  // done = cards graded so far; total = cards in the session now. Returns { kind (a COACH list), act (an animation), burst (emoji to float up) }.
+  L.coachMoment = ({ grade, streak, done, total, rnd }) => {
+    rnd = rnd || Math.random;
+    const pick = (a) => a[Math.floor(rnd() * a.length)];
+    if (grade === 'again') return { kind: 'again', act: 'sway', burst: '' };
+    if (streak === 3) return { kind: 'streak3', act: 'cheer', burst: '⭐' };
+    if (streak === 5) return { kind: 'streak5', act: 'spin', burst: '🔥' };
+    if (streak >= 8 && streak % 4 === 0) return { kind: 'streak8', act: 'cheer', burst: '🎉' };
+    if (total - done === 1) return { kind: 'last', act: 'hop', burst: '' };
+    if (total >= 6 && done === Math.floor(total / 2)) return { kind: 'half', act: 'wiggle', burst: '✨' };
+    return { kind: 'right', act: pick(['hop', 'wiggle', 'nod']), burst: rnd() < 0.35 ? '💗' : '' };
   };
 
   // Rough size of a prompt in Claude tokens (about 3.6 characters each for mixed Dutch and English). An estimate, not a count.

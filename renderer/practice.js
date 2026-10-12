@@ -75,6 +75,24 @@ function toggleChip(el, list) {
 }
 
 // ---------- do one ----------
+// An order question shows its words as tiles that light up as you type them.
+function orderQ(it, typed) {
+  const parts = L.orderParts(it.q);
+  if (!parts) return `<div class="wsq">${esc(it.q)}</div>`;
+  const used = L.usedWords(parts.words, typed);
+  return `<div class="wsq" style="margin-bottom:6px">${esc(parts.prefix || 'Put the words in order:')}</div>
+    <div class="tiles ${used.every(Boolean) ? 'all' : ''}" id="tiles-${it.id}">${parts.words.map((w, i) => `<span class="tile ${used[i] ? 'used' : ''}">${esc(w)}</span>`).join('')}<span class="muted tcount" id="tc-${it.id}">${used.filter(Boolean).length} of ${used.length} used</span></div>`;
+}
+function lightTiles(id) {
+  const sh = sheetById(ui.sheetId), box = $('#tiles-' + id), it = sh && sh.items.find((x) => x.id === id);
+  if (!box || !it) return;
+  const parts = L.orderParts(it.q); if (!parts) return;
+  const used = L.usedWords(parts.words, sh.answers[id] || '');
+  box.querySelectorAll('.tile').forEach((t, i) => t.classList.toggle('used', !!used[i]));
+  box.classList.toggle('all', used.every(Boolean));
+  const c = $('#tc-' + id); if (c) c.textContent = used.filter(Boolean).length + ' of ' + used.length + ' used';
+}
+
 function sheetPage(sh) {
   sh.answers = sh.answers || {}; sh.results = sh.results || {};
   const answered = sh.items.filter((it) => (sh.answers[it.id] || '').trim()).length, st = sheetState(sh), sc = L.sheetScore(sh);
@@ -94,7 +112,7 @@ function sheetPage(sh) {
         ${r.verdict === 'unsure' ? `<div class="row" style="margin-top:6px">${it.answer ? `<span class="muted">Model answer: <b>${esc(it.answer)}</b></span>` : ''}<button class="ghost" data-act="ws-self" data-id="${it.id}" data-v="right">I got it ✓</button><button class="ghost" data-act="ws-self" data-id="${it.id}" data-v="wrong">Not quite ✗</button></div>` : ''}</div>`;
     }
     return `<div class="card wsitem"><div class="row"><b class="wsnum">${it.id}</b><span class="pill sky">${esc(skillName(it.skill))}</span><span class="pill">${TYPE_LABEL[it.type]}</span></div>
-      <div class="wsq">${esc(it.q)}</div>${input}${res}</div>`;
+      ${it.type === 'order' ? orderQ(it, mine) : `<div class="wsq">${esc(it.q)}</div>`}${input}${res}</div>`;
   }).join('<div style="height:12px"></div>');
   const fb = sh.summary ? `<div class="card upd" style="margin-top:16px"><h2>What to improve 🌸</h2>${sh.summary.good ? `<p>${esc(sh.summary.good)}</p>` : ''}
       ${sh.summary.improve.length ? `<ul>${sh.summary.improve.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${sh.summary.next ? `<p class="muted">Next time: ${esc(sh.summary.next)}</p>` : ''}
@@ -204,7 +222,7 @@ Object.assign(ACT, {
 // remember what is typed without re-rendering on every key
 document.addEventListener('input', (e) => {
   const t = e.target, id = t.id || '';
-  if (id.startsWith('wa-')) { const sh = sheetById(ui.sheetId); if (sh) { sh.answers[id.slice(3)] = t.value; save(); } }
+  if (id.startsWith('wa-')) { const sh = sheetById(ui.sheetId); if (sh) { sh.answers[id.slice(3)] = t.value; save(); lightTiles(id.slice(3)); } }
   else if (id === 'ws-reply') ui.askReply = t.value;
   else if (id === 'ws-note') { askPrefs().note = t.value; save(); }
   else if (id === 'ws-custom') { askPrefs().custom = t.value; save(); refreshPicked(); }

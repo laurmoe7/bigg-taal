@@ -28,7 +28,10 @@ function pigSvg(mood, cls, opts) {
     worry: '<path d="M100 36 q5 6 0 10.5 q-5 -4.5 0 -10.5z" fill="#8fd3ff"/>',
     sniff: '',
   }[m];
-  const note = o.note
+  const CARD = `<g class="card-grp"><g transform="rotate(-6 60 98)"><rect x="33" y="82" width="54" height="36" rx="6" fill="#fffaf0" stroke="#f1d9a6" stroke-width="1.8"/><rect x="33" y="82" width="54" height="9" rx="5" fill="#ffd99a"/>
+    <text x="60" y="111" text-anchor="middle" font-size="19" font-weight="900" fill="#ff8f7e" font-family="Nunito, Segoe UI, sans-serif">?</text><path d="M78 97 l1.2 2.6 2.6 1.2 -2.6 1.2 -1.2 2.6 -1.2 -2.6 -2.6 -1.2 2.6 -1.2z" fill="#ffd36e"/></g>
+    <ellipse cx="30" cy="97" rx="7.5" ry="9.5" transform="rotate(-24 30 97)" fill="#ffa89b"/><ellipse cx="90" cy="97" rx="7.5" ry="9.5" transform="rotate(24 90 97)" fill="#ffa89b"/></g>`;
+  const note = o.card ? CARD : o.note
     ? `<g transform="rotate(-6 60 94)"><rect x="32" y="84" width="56" height="32" rx="5" fill="#fff0b8"/><path d="M32 106 q10 -2 18 4 l-18 6 z" fill="#f2d78a"/>
     <path d="M40 94 h26 M40 101 h18" stroke="#d3ad55" stroke-width="2.4" stroke-linecap="round"/><path d="M70 92 l4 4 8 -9" fill="none" stroke="#ff6f5f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></g>
     <ellipse cx="29" cy="95" rx="7.5" ry="9.5" transform="rotate(-24 29 95)" fill="#ffa89b"/><ellipse cx="91" cy="95" rx="7.5" ry="9.5" transform="rotate(24 91 95)" fill="#ffa89b"/>`

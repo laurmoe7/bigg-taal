@@ -2,20 +2,28 @@ const test = require('node:test');
 const assert = require('node:assert');
 const L = require('../renderer/logic.js');
 
-test('grade moves boxes and due dates', () => {
+test('FSRS: first reviews, then a lapse', () => {
   const w = L.newWord({ nl: 'huis', en: 'house' });
   const a = L.grade(w, 'good', '2026-10-12');
-  assert.equal(a.box, 1); assert.equal(a.due, '2026-10-13');
-  const b = L.grade(a, 'easy', '2026-10-13');
-  assert.equal(b.box, 3); assert.equal(b.due, '2026-10-17');
-  const c = L.grade(b, 'again', '2026-10-17');
-  assert.equal(c.box, 0); assert.equal(c.due, '2026-10-17'); assert.equal(c.lapses, 1);
+  assert.equal(a.due, '2026-10-15'); assert.equal(a.box, 2); assert.equal(a.reps, 1); // first Good: 3 days
+  const e = L.grade(w, 'easy', '2026-10-12'); assert.ok(e.stab > a.stab);
+  const b = L.grade(a, 'good', '2026-10-15');
+  assert.ok(b.stab > a.stab * 1.5, 'stability grows after a successful review'); assert.ok(b.due > a.due);
+  const c = L.grade(b, 'again', b.due);
+  assert.equal(c.box, 0); assert.equal(c.due, b.due); assert.equal(c.lapses, 1); assert.ok(c.stab < b.stab);
+  const aw = L.grade(w, 'again', '2026-10-12'); assert.equal(aw.due, '2026-10-12');
 });
-
-test('box never exceeds the top interval', () => {
-  let w = L.newWord({ nl: 'x', en: 'y', box: 7 });
-  w = L.grade(w, 'easy', '2026-01-01');
-  assert.equal(w.box, L.INTERVALS.length - 1);
+test('FSRS: reviewing late helps more than early; old Leitner words carry over', () => {
+  const a = L.grade(L.newWord({ nl: 'x', en: 'y' }), 'good', '2026-10-12');
+  const early = L.grade(a, 'good', '2026-10-13'), late = L.grade(a, 'good', '2026-10-25');
+  assert.ok(late.stab > early.stab);
+  const old = L.newWord({ nl: 'o', en: 'o', box: 4, reps: 5, due: '2026-10-20' }); // 8-day box, last seen 10-12
+  const n = L.grade(old, 'good', '2026-10-20'); assert.ok(n.stab > 8 && n.box >= 4);
+  assert.equal(L.previewIntervals(L.newWord({}), '2026-10-12').good, 3);
+});
+test('box never exceeds the top level', () => {
+  const w = L.grade(L.newWord({ nl: 'x', en: 'y', box: 7, reps: 9, stab: 5000, last: '2025-01-01', due: '2025-01-02' }), 'easy', '2026-01-01');
+  assert.ok(w.box <= 7 && w.due <= L.addDays('2026-01-01', 365));
 });
 
 test('dueWords: new and past-due only, deleted skipped', () => {
@@ -207,4 +215,55 @@ test('parseListing reads the Start / blank-line list format', () => {
   assert.deepEqual(r2.map((w) => [w.nl, w.article, w.en]), [['afspraak', 'de', 'appointment'], ['huis', 'het', 'house']]); assert.equal(r2.leftover, 1);
   // ordinary lists are not mistaken for this format
   assert.ok(!L.looksLikeListing('de afspraak = appointment\nhet huis = house')); assert.equal(L.parseImport('de afspraak = appointment').words[0].nl, 'afspraak');
+});
+
+test('orderParts and usedWords light up the words as they are typed', () => {
+  const p = L.orderParts('Put in order: vergadering / heb / ik / morgen / een / met / mijn / collega');
+  assert.equal(p.prefix, 'Put in order:'); assert.equal(p.words.length, 8); assert.equal(p.words[0], 'vergadering');
+  assert.deepEqual(L.orderParts('afspraak / heb / morgen'), { prefix: '', words: ['afspraak', 'heb', 'morgen'] });
+  assert.equal(L.orderParts('Translate this sentence'), null);
+  assert.deepEqual(L.usedWords(p.words, 'ik heb een vergadering'), [true, true, true, false, true, false, false, false]);
+  assert.deepEqual(L.usedWords(['ik', 'ik', 'heb'], 'Ik heb.'), [true, false, true]); // a typed word is used once
+  assert.deepEqual(L.usedWords(['vergadering', 'heb'], 'vergad'), [false, false]); // half a word does not count
+  assert.deepEqual(L.usedWords(['naar huis', 'ga'], 'ik ga naar huis'), [true, true]); // a tile with two words
+  assert.ok(L.usedWords(p.words, 'ik heb een vergadering met mijn collega morgen').every(Boolean));
+});
+
+test('coachMoment: calm after a miss, bigger cheers at streaks, halfway and last card', () => {
+  const m = (o) => L.coachMoment(Object.assign({ grade: 'good', streak: 1, done: 1, total: 10, rnd: () => 0 }, o));
+  assert.deepEqual(m({ grade: 'again', streak: 0 }), { kind: 'again', act: 'sway', burst: '' });
+  assert.equal(m({ streak: 3 }).kind, 'streak3'); assert.equal(m({ streak: 5 }).act, 'spin'); assert.equal(m({ streak: 8 }).kind, 'streak8'); assert.equal(m({ streak: 9 }).kind, 'right'); assert.equal(m({ streak: 12 }).kind, 'streak8');
+  assert.equal(m({ done: 9, total: 10 }).kind, 'last'); assert.equal(m({ done: 5, total: 10 }).kind, 'half'); assert.equal(m({ done: 2, total: 4 }).kind, 'right'); // too short a session for a halfway cheer
+  assert.equal(m({ streak: 3, done: 9, total: 10 }).kind, 'streak3'); // streaks win over the last-card line
+  const r = m({}); assert.equal(r.kind, 'right'); assert.ok(['hop', 'wiggle', 'nod'].includes(r.act));
+});
+test('every coach moment has lines to say', () => {
+  const src = require('fs').readFileSync(__dirname + '/../renderer/seed.js', 'utf8');
+  const COACH = new Function(src + '; return COACH;')();
+  for (const k of ['start', 'right', 'again', 'streak3', 'streak5', 'streak8', 'half', 'last', 'done']) assert.ok(COACH[k] && COACH[k].length >= 1, k);
+});
+
+test('Tatoeba sentences: find by word and by verb/noun forms, shortest first', () => {
+  const S = [['Ik werk elke dag.', 'I work every day.'], ['Hij werkt hard aan zijn huis in de stad.', 'He works hard.'], ['Het huis is groot.', 'The house is big.'], ['De huizen zijn oud.', 'The houses are old.']];
+  const idx = L.buildSentenceIndex(S);
+  assert.deepEqual(L.sentencesFor('werken', 'verb', idx, S, 5).map((p) => p[0]), ['Ik werk elke dag.', 'Hij werkt hard aan zijn huis in de stad.']);
+  assert.deepEqual(L.sentencesFor('het huis', 'noun', idx, S, 1).map((p) => p[0]), ['Het huis is groot.']);
+  assert.equal(L.sentencesFor('huis', 'noun', idx, S, 5).length, 2); // the two with huis (huizen is irregular)
+});
+test('suggested words skip ones you have or already know, and respect the band', () => {
+  const F = [['ik', 'I', 1], ['huis', 'house', 50], ['boom', 'tree', 900], ['hond', 'dog', 1500]];
+  const mine = [L.newWord({ nl: 'huis', en: 'house', article: 'het' })];
+  assert.deepEqual(L.suggestWords(F, mine, ['ik'], 0, 1000).map((x) => x[0]), ['boom']);
+  assert.deepEqual(L.suggestWords(F, mine, [], 1000, 2000).map((x) => x[0]), ['hond']);
+});
+
+
+test('dictionary lookup: word, plural, past tense and English', () => {
+  const D = [['huis', 'n', 'het', 'huizen', 'house, home'], ['gaan', 'v', '', 'ging,gegaan,zijn', 'to go'], ['huisarts', 'n', 'de', 'huisartsen', 'family doctor'], ['mooi', 'a', '', 'mooier,mooist', 'beautiful'], ['werken', 'v', '', 'werkte,gewerkt', 'to work']];
+  const ix = L.buildDictIndex(D), find = (q) => L.dictSearch(D, ix, q).map((r) => r.e[0] + ':' + r.how);
+  assert.deepEqual(find('het huis'), ['huis:word', 'huisarts:prefix']);
+  assert.equal(find('huizen')[0], 'huis:form'); assert.equal(find('ging')[0], 'gaan:form'); assert.equal(find('werkt')[0], 'werken:form'); assert.equal(find('mooist')[0], 'mooi:form');
+  assert.deepEqual(find('to go'), ['gaan:english']); assert.deepEqual(find('doctor'), ['huisarts:english']);
+  assert.deepEqual(L.dictToWord(D[0]), { nl: 'huis', en: 'house, home', article: 'het', pos: 'noun' });
+  assert.equal(L.dictToWord(['dag', 'n', 'de/het', '', 'day']).article, '');
 });

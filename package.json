@@ -21,6 +21,7 @@
       "main.js",
       "preload.js",
       "renderer/**/*",
+      "data/**/*",
       "build/**/*"
     ],
     "win": {

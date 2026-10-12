@@ -139,3 +139,16 @@ const PIG = {
   wrong: ['That is okay, every try helps you remember! 💗', 'No worries! Now it will stick even better. 🌸', 'You are learning, and that is what counts!', 'Niet erg! We will see it again soon.'],
   poke: ['Hehe, that tickles! 💗', 'Oink-oink! Hoi!', 'Varken says hi from the other room!', 'You are doing so well!', 'Bigg believes in you! 🌸', 'Yay yay yay!', 'Spreek je Nederlands? Een beetje? You are great at it! ✨', 'Big hug! 🤗'],
 };
+
+// What Bigg says while you go through flashcards. One list per moment (see L.coachMoment).
+const COACH = {
+  start: ['Here we go! You have got this! 🌸', 'Ready? I will cheer for every card! ✨', 'Let us do this together! 💗', 'Take your time, I am right here! 🌱'],
+  right: ['Yay, goed zo! 🌸', 'Wonderful!', 'That one is yours now! ✨', 'Nice one! 💗', 'You remembered it!', 'Look at you go! 🌟', 'Precies!'],
+  again: ['That is okay, it will come back soon. 💗', 'No worries, we will see it again!', 'Every try helps it stick. 🌱', 'You are doing great, keep going!', 'Mistakes are how it sticks. 🌸'],
+  streak3: ['Three in a row! ⭐', 'Three right, you are warming up! 🔥'],
+  streak5: ['Five in a row! You are on fire! 🔥', 'Five! I am doing a spin for you! ✨'],
+  streak8: ['Eight in a row?! Amazing! 🎉', 'A whole streak! I am so proud of you! 💗'],
+  half: ['Halfway there! 🌟', 'Half done, you are flying! ✨'],
+  last: ['Last card! Finish strong! 💪', 'One more and you are done! 🌸'],
+  done: ['All done! I am so proud of you! 🎉', 'Klaar! You did so well today! 💗', 'Goed gedaan! Time for a little rest. 🌸'],
+};

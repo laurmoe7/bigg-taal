@@ -2,10 +2,10 @@
 
 A cute, dark Dutch learning app for Windows (Electron). Same pig and look as Varken board.
 
-- **Flashcards** with spaced repetition (Leitner boxes), flip or type-the-answer, NL→EN, EN→NL or mixed. New words are capped per day.
+- **Flashcards** with spaced repetition (Leitner boxes) in three modes: flip, type the answer and grade yourself, or **type the Dutch word and only succeed when it is right** (a miss shows the answer and you type it once to move on). Bigg holds a flashcard, drops in at the top when you start and cheers, sways and spins as you go. Do more than the daily amount with new words, review ahead or a random mix.
 - **Listening**: spell the word, pick the meaning, de/het, sentence dictation. Uses a Dutch voice installed in Windows.
 - **Worksheets**: practice worksheets that Claude writes from the topics and grammar you pick, your words and your weak spots (you copy a prompt to chat and paste the JSON reply back), done inside the app, marked instantly where possible and by Claude for open answers, with a running record of your mistakes by skill.
-- **Words**, **Grammar** cheat sheets (B1), daily Dutch saying, streak and daily goal, pig that cheers you on.
+- **Words** in tabs (all, nouns, verbs, other, needs work, new, learned, add), with search, a letter strip and pages of cards, so a big list stays easy to use; **Grammar** cheat sheets (B1), daily Dutch saying, streak and daily goal, a mascot who cheers you on.
 
 ## Run / build
 
@@ -51,3 +51,12 @@ Listening uses natural offline Dutch voices (alex, pim) from [Piper](https://git
 {"words":[{"nl":"afspraak","en":"appointment","article":"de","example":"Ik heb een afspraak.","lesson":"Les 12"}],
  "lessons":[{"title":"Les 13","due":"2026-10-20"}]}
 ```
+
+## Learning tools
+
+- **FSRS scheduling**: flashcard reviews are timed with FSRS (the modern spaced-repetition algorithm used by Anki). The Again / Good / Easy buttons show the real number of days until you see the card again. Older words carry over from the previous box system.
+- **Suggested words** (Words > Suggested): the most common Dutch words you do not have yet, in bands (top 500, 1,500, ...), added one by one or 24 at a time, each with a real example sentence.
+- **Find examples** (Words > Add words): real Dutch sentences with English translations for the word you are adding.
+- **Real sentences** (Listening): dictation with real Tatoeba sentences that use your words.
+- Data sources and licences are in `data/README.md`.
+- **Dictionary** (Words > Dictionary): look up Dutch or English words, including plurals and past tenses, with de/het, plural and verb forms from Wiktionary. **Add** puts a word in your list with an example sentence; **Look up** in the add form fills in de/het and the English.
