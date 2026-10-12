@@ -22,12 +22,6 @@ function pigSvg(mood, cls, opts) {
     worry: eye(43, 0) + eye(77, 0) + `<path d="M35 55 l12 -3.5 M85 55 l-12 -3.5" fill="none" stroke="${PIG_INK}" stroke-width="2.2" stroke-linecap="round"/>`,
     sniff: eye(43, 1.8) + eye(77, 1.8),
   }[m];
-  const mouth = {
-    happy: `<path d="M51 84 Q60 93 69 84" fill="#c94a52" stroke="${PIG_INK}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><path d="M55.5 87.4 Q60 90 64.5 87.4 Q60 92 55.5 87.4Z" fill="#ff9aa0"/>`,
-    sleep: `<path d="M55 85 q5 3.5 10 0" fill="none" stroke="${PIG_INK}" stroke-width="2.2" stroke-linecap="round"/>`,
-    worry: `<path d="M54 88 q6 -4.5 12 0" fill="none" stroke="${PIG_INK}" stroke-width="2.2" stroke-linecap="round"/>`,
-    sniff: `<path d="M54 85 q6 3 12 0" fill="none" stroke="${PIG_INK}" stroke-width="2.2" stroke-linecap="round"/>`,
-  }[m];
   const extra = {
     happy: '<text class="day-note" x="97" y="46" font-size="13" font-weight="800" fill="#ffd6cf">♪</text>',
     sleep: '<text x="94" y="38" font-size="14" font-weight="800" fill="#7fd4f0">z</text><text x="104" y="26" font-size="10" font-weight="800" fill="#7fd4f0">z</text>',
@@ -37,19 +31,17 @@ function pigSvg(mood, cls, opts) {
   const note = o.note
     ? `<g transform="rotate(-6 60 94)"><rect x="32" y="84" width="56" height="32" rx="5" fill="#fff0b8"/><path d="M32 106 q10 -2 18 4 l-18 6 z" fill="#f2d78a"/>
     <path d="M40 94 h26 M40 101 h18" stroke="#d3ad55" stroke-width="2.4" stroke-linecap="round"/><path d="M70 92 l4 4 8 -9" fill="none" stroke="#ff6f5f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></g>
-    <ellipse cx="29" cy="95" rx="7.5" ry="9.5" transform="rotate(-24 29 95)" fill="#ff8a7b"/><ellipse cx="91" cy="95" rx="7.5" ry="9.5" transform="rotate(24 91 95)" fill="#ff8a7b"/>`
-    : '<ellipse cx="11" cy="86" rx="7.5" ry="10.5" transform="rotate(20 11 86)" fill="#ff8a7b"/><ellipse cx="109" cy="86" rx="7.5" ry="10.5" transform="rotate(-20 109 86)" fill="#ff8a7b"/>';
+    <ellipse cx="29" cy="95" rx="7.5" ry="9.5" transform="rotate(-24 29 95)" fill="#ffa89b"/><ellipse cx="91" cy="95" rx="7.5" ry="9.5" transform="rotate(24 91 95)" fill="#ffa89b"/>`
+    : '<ellipse cx="11" cy="86" rx="7.5" ry="10.5" transform="rotate(20 11 86)" fill="#ffa89b"/><ellipse cx="109" cy="86" rx="7.5" ry="10.5" transform="rotate(-20 109 86)" fill="#ffa89b"/>';
   return `<svg class="pig bigg ${cls || ''} pig-${m}" viewBox="0 0 120 120" aria-hidden="true"><g class="pig-all">
-    <ellipse cx="42" cy="106" rx="11" ry="6.4" fill="#ff7f70"/><ellipse cx="78" cy="106" rx="11" ry="6.4" fill="#ff7f70"/>
-    <g class="ear ear-l"><path d="M24 50 Q14 26 32 20 Q50 20 54 38 Z" fill="#ff8a7b"/><path d="M29 44 Q23 30 34 26 Q45 27 48 38 Z" fill="#e8645a"/></g><g class="ear ear-r"><path d="M96 50 Q106 26 88 20 Q70 20 66 38 Z" fill="#ff8a7b"/><path d="M91 44 Q97 30 86 26 Q75 27 72 38 Z" fill="#e8645a"/></g>
-    <ellipse cx="60" cy="70" rx="49" ry="39" fill="#ff9d8e"/>
-    <ellipse cx="22" cy="78" rx="15" ry="13" fill="#ff9d8e"/><ellipse cx="98" cy="78" rx="15" ry="13" fill="#ff9d8e"/>
-    <ellipse cx="60" cy="84" rx="34" ry="22" fill="#ffc4b8" opacity=".6"/>
+    <ellipse cx="42" cy="106" rx="11" ry="6.4" fill="#ff9d91"/><ellipse cx="78" cy="106" rx="11" ry="6.4" fill="#ff9d91"/>
+    <g class="ear ear-l"><path d="M24 50 Q14 26 32 20 Q50 20 54 38 Z" fill="#ffa89b"/><path d="M29 44 Q23 30 34 26 Q45 27 48 38 Z" fill="#f28f86"/></g><g class="ear ear-r"><path d="M96 50 Q106 26 88 20 Q70 20 66 38 Z" fill="#ffa89b"/><path d="M91 44 Q97 30 86 26 Q75 27 72 38 Z" fill="#f28f86"/></g>
+    <ellipse cx="60" cy="70" rx="52" ry="40" fill="#ffb5a8"/>
+    <ellipse cx="60" cy="84" rx="34" ry="22" fill="#ffdcd3" opacity=".6"/>
     ${o.cap ? NIGHTCAP : `<g class="sprout-slot">${sproutSvg(stage)}</g>`}
     <g class="pig-eyes">${eyes}</g>
-    <ellipse cx="28" cy="78" rx="10" ry="6.2" fill="#ff6a64" opacity=".8"/><ellipse cx="92" cy="78" rx="10" ry="6.2" fill="#ff6a64" opacity=".8"/>
-    <g class="snout"><ellipse cx="60" cy="76" rx="9.4" ry="6.4" fill="#f2665c"/><ellipse cx="56.6" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/><ellipse cx="63.4" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/></g>
-    ${mouth}
+    <ellipse cx="29" cy="77" rx="10" ry="6.2" fill="#ff918a" opacity=".8"/><ellipse cx="91" cy="77" rx="10" ry="6.2" fill="#ff918a" opacity=".8"/>
+    <g class="snout"><ellipse cx="60" cy="76" rx="9.4" ry="6.4" fill="#f58c82"/><ellipse cx="56.6" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/><ellipse cx="63.4" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/></g>
     ${note}
     </g>${extra}
   </svg>`;

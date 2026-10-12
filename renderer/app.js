@@ -370,7 +370,7 @@ VIEWS.settings = () => {
   <div class="card"><h2>Your data</h2><p class="muted">Saved on this PC only${window.vt ? '' : ' (browser storage)'}. A backup copy is made once a day.</p>
     <div class="row"><button class="ghost" data-act="data-reveal">📂 Show data folder</button><button class="ghost" data-act="data-export">⬆ Export everything</button><button class="ghost" data-act="data-import">⬇ Import file</button></div>
     <div class="row" style="margin-top:8px"><button class="ghost" data-act="reseed">Re-add starter words</button></div></div>
-  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.2 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸</p></div></div>`;
+  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.1.2 · made for Lauren · Bigg is Varken's little brother, and he thinks you are doing great. 🌸</p></div></div>`;
 };
 function saveSettings() {
   const s = S.settings;
