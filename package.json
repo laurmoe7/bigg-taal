@@ -1,0 +1,37 @@
+{
+  "name": "biggtaal",
+  "productName": "BiggTaal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A cute dark Dutch learning app: flashcards, worksheets, listening, lesson reminders",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.js",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.laurmoe.biggtaal",
+    "productName": "BiggTaal",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "build/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
+  }
+}

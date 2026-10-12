@@ -1,0 +1,14 @@
+<svg viewBox="0 -2 120 124" width="512" height="512" xmlns="http://www.w3.org/2000/svg"><g class="pig-all">
+    <ellipse cx="42" cy="106" rx="11" ry="6.4" fill="#ff7f70"/><ellipse cx="78" cy="106" rx="11" ry="6.4" fill="#ff7f70"/>
+    <g class="ear ear-l"><path d="M24 50 Q14 26 32 20 Q50 20 54 38 Z" fill="#ff8a7b"/><path d="M29 44 Q23 30 34 26 Q45 27 48 38 Z" fill="#e8645a"/></g><g class="ear ear-r"><path d="M96 50 Q106 26 88 20 Q70 20 66 38 Z" fill="#ff8a7b"/><path d="M91 44 Q97 30 86 26 Q75 27 72 38 Z" fill="#e8645a"/></g>
+    <ellipse cx="60" cy="70" rx="49" ry="39" fill="#ff9d8e"/>
+    <ellipse cx="22" cy="78" rx="15" ry="13" fill="#ff9d8e"/><ellipse cx="98" cy="78" rx="15" ry="13" fill="#ff9d8e"/>
+    <ellipse cx="60" cy="84" rx="34" ry="22" fill="#ffc4b8" opacity=".6"/>
+    <g class="sprout-slot"><path d="M60 30 Q60 22 58 10" fill="none" stroke="#4fcf9a" stroke-width="3.4" stroke-linecap="round"/><path d="M58 12 Q42 4 36 14 Q48 22 58 12 Z" fill="#9af5cf"/><path d="M59 16 Q76 6 84 16 Q70 26 59 16 Z" fill="#6fe2b4"/></g>
+    <g class="pig-eyes"><ellipse cx="43" cy="64" rx="5.8" ry="6.6" fill="#3a1a22"/><circle cx="41.4" cy="61.6" r="2.3" fill="#fff"/><circle cx="45" cy="66.6" r="1.1" fill="#fff" opacity=".85"/><ellipse cx="77" cy="64" rx="5.8" ry="6.6" fill="#3a1a22"/><circle cx="75.4" cy="61.6" r="2.3" fill="#fff"/><circle cx="79" cy="66.6" r="1.1" fill="#fff" opacity=".85"/></g>
+    <ellipse cx="28" cy="78" rx="10" ry="6.2" fill="#ff6a64" opacity=".8"/><ellipse cx="92" cy="78" rx="10" ry="6.2" fill="#ff6a64" opacity=".8"/>
+    <g class="snout"><ellipse cx="60" cy="76" rx="9.4" ry="6.4" fill="#f2665c"/><ellipse cx="56.6" cy="76" rx="1.2" ry="1.9" fill="#3a1a22"/><ellipse cx="63.4" cy="76" rx="1.2" ry="1.9" fill="#3a1a22"/></g>
+    <path d="M51 84 Q60 93 69 84" fill="#c94a52" stroke="#3a1a22" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><path d="M55.5 87.4 Q60 90 64.5 87.4 Q60 92 55.5 87.4Z" fill="#ff9aa0"/>
+    <ellipse cx="11" cy="86" rx="7.5" ry="10.5" transform="rotate(20 11 86)" fill="#ff8a7b"/><ellipse cx="109" cy="86" rx="7.5" ry="10.5" transform="rotate(-20 109 86)" fill="#ff8a7b"/>
+    </g>
+  </svg>
