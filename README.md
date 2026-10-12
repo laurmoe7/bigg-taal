@@ -32,6 +32,10 @@ gh release create vX.Y.Z dist/BiggTaal-Setup-X.Y.Z.exe dist/BiggTaal-Setup-X.Y.Z
 
 The repo must be public (or the app would need a token) for installed apps to see the release. To test updating without a release, run `npm start` with `VT_UPDATE_URL=http://127.0.0.1:PORT` and a `dev-app-update.yml` (git-ignored) pointing at a folder that serves a newer `latest.yml`.
 
+## Installing a build on this PC
+
+`npm run ship:local` builds the installer and installs it on this PC silently (no download, no wizard): it closes BiggTaal if open, installs over the existing copy, checks the version and reopens the app. Your data stays. `npm run install:local -- --dry` shows what it would do.
+
 ## Voices
 
 Listening uses natural offline Dutch voices (alex, pim) from [Piper](https://github.com/rhasspy/piper) (MIT) with voice models from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) (CC0). They are not stored in git; `npm run voices` downloads them into `voices/` and the installer bundles them. Audio is generated on demand and cached in the data folder (`tts-cache`). Windows voices still work as a fallback.

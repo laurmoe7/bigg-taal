@@ -126,7 +126,8 @@ function checkUpdates(manual) {
 }
 ipcMain.handle('update:state', () => updateState);
 ipcMain.handle('update:check', () => { if (!updaterOn) setUpdate({ status: 'unavailable' }); else checkUpdates(true); });
-ipcMain.handle('update:install', () => { quitting = true; autoUpdater.quitAndInstall(false, true); });
+// Silent install (no wizard), then the app reopens by itself.
+ipcMain.handle('update:install', () => { quitting = true; autoUpdater.quitAndInstall(true, true); });
 ipcMain.handle('app:version', () => app.getVersion());
 
 ipcMain.handle('data:load', () => { cache = readData(); return cache; });
