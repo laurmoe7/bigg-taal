@@ -1,3 +1,8 @@
+// Flashcard keyboard shortcuts. The keys can be changed in Settings (S.settings.keys); Enter always works too.
+const HOTKEY_DEFS = [['flip', 'Show the answer', ' '], ['again', 'Rate: Again', '1'], ['good', 'Rate: Good', '2'], ['easy', 'Rate: Easy', '3'], ['speak', 'Hear the word', 'p'], ['hint', 'Show a hint (typing mode)', 'h']];
+const hotkeys = () => Object.assign(Object.fromEntries(HOTKEY_DEFS.map((d) => [d[0], d[2]])), (S && S.settings && S.settings.keys) || {});
+const keyOf = (e) => e.key.toLowerCase();
+const keyLabel = (k) => ({ ' ': 'Space', arrowleft: '←', arrowright: '→', arrowup: '↑', arrowdown: '↓' })[k] || (k.length === 1 ? k.toUpperCase() : k.charAt(0).toUpperCase() + k.slice(1));
 // Flashcards: three ways to practise (flip, type and grade yourself, or type the Dutch word and only succeed when it is right),
 // with Bigg as a coach: he holds a flashcard, drops in at the top when you start and reacts as you go.
 // Loads after app.js and shares its scope.
@@ -60,10 +65,12 @@ const moreCards = () => { // "Do more cards", before and after a session
   const live = liveWords(), fresh = live.filter((w) => !w.reps).length, ahead = live.filter((w) => w.reps > 0 && !L.isDue(w, today())).length;
   return `<div class="more"><div class="muted" style="margin-bottom:8px">Want to do more?</div>
     <div class="row" style="justify-content:center"><label class="muted">Cards <select id="fc-n">${[10, 20, 30, 50, 100].map((n) => `<option ${(cardPrefs().more || 20) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-      <button class="ghost" data-act="cards-more" data-k="new" ${fresh ? '' : 'disabled'}>🌱 New words <span class="muted">(${fresh} unseen)</span></button>
-      <button class="ghost" data-act="cards-more" data-k="review" ${ahead ? '' : 'disabled'}>🔁 Review ahead <span class="muted">(${ahead})</span></button>
+      <button class="ghost" data-act="cards-more" data-k="new" ${fresh ? '' : 'disabled'}>🌱 New words <span class="muted">${fresh}</span></button>
+      <button class="ghost" data-act="cards-more" data-k="review" ${ahead ? '' : 'disabled'}>🔁 Review ahead <span class="muted">${ahead}</span></button>
       <button class="ghost" data-act="cards-more" data-k="random" ${live.length ? '' : 'disabled'}>🎲 Random mix</button></div></div>`;
 };
+// the keyboard shortcuts, shown on the flashcards page (change them in Settings)
+const hotkeyBar = () => { const hk = hotkeys(), k = (id) => `<kbd class="kbd">${esc(keyLabel(hk[id]))}</kbd>`; return `<div class="og hkbar"><span class="muted" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase">Keys</span><span>${k('flip')} flip</span><span>${k('again')} again</span><span>${k('good')} good</span><span>${k('easy')} easy</span><span>${k('speak')} hear it</span><span>${k('hint')} hint</span><button class="ghost mini" data-act="nav" data-v="settings" title="Change the shortcuts in Settings">Change</button></div>`; };
 const modeChip = (m, label) => `<button class="ghost ${cardPrefs().mode === m ? 'on' : ''}" data-act="cpref" data-k="mode" data-v="${m}">${label}</button>`;
 const dirChip = (d, label) => `<button class="ghost ${cardPrefs().dir === d ? 'on' : ''}" data-act="cpref" data-k="dir" data-v="${d}">${label}</button>`;
 
@@ -75,7 +82,7 @@ VIEWS.cards = () => {
   const prefs = `<div class="fopts compact">
     <div class="og"><span class="muted">Mode</span>${modeChip('flip', 'Flip')}${modeChip('type', '⌨️ Type')}<span class="sep"></span>${sw(strict, 'strict', 'Strict', p.mode !== 'type', 'Only counts when you type the Dutch right (Type mode)')}</div>
     <div class="og"><span class="muted">Direction</span>${dirBtn('nl-en', 'NL → EN')}${dirBtn('en-nl', 'EN → NL')}${dirBtn('mixed', 'Mixed')}<span class="sep"></span>${sw(p.auto, 'auto', '🔊 Auto-speak', false, 'Say each word out loud when it appears')}</div>
-    <div class="og hint muted">${strict ? MODE_INFO.strict : MODE_INFO[p.mode] || MODE_INFO.flip}</div></div>`;
+    <div class="og hint muted">${strict ? MODE_INFO.strict : MODE_INFO[p.mode] || MODE_INFO.flip}</div>${hotkeyBar()}</div>`;
   if (!c) {
     return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${due} due today. Spaced repetition shows hard words more often.</p></div></div><div class="fc-wrap">${prefs}
       <div class="card" style="text-align:center;padding:30px">${pigSvg(due ? 'happy' : 'sleep', 'pig-md', { stage: pigStage(), card: true })}
@@ -104,7 +111,7 @@ VIEWS.cards = () => {
   const backHtml = `<div class="fc-big ${c.res ? 'ans ' + (c.res === 'article' ? 'close' : c.res) : ''}">${ans}</div>${!nlFront ? `<button class="speak" data-act="say" data-t="${esc(wordLabel(w))}">🔊</button>` : ''}${w.example ? `<div class="fc-ex">${esc(w.example)}${w.exampleEn ? '<br>' + esc(w.exampleEn) : ''}</div>` : ''}${strict ? (strictMsg ? `<div class="warn">${strictMsg}</div>` : '') : c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : c.res === 'wrong' ? `<div class="warn">You typed: ${esc(c.typed)}</div>` : ''}`;
   const sug = c.res === 'wrong' ? 'again' : 'good';
   const iv = L.previewIntervals(w, today());
-  const gradeBtns = `<div class="grades"><button class="g-again ${sug === 'again' ? 'on' : ''}" data-act="grade" data-g="again">Again<small>1 · today</small></button><button class="g-good" data-act="grade" data-g="good">Good<small>2 · ${iv.good}d</small></button><button class="g-easy" data-act="grade" data-g="easy">Easy<small>3 · ${iv.easy}d</small></button></div>`;
+  const hk = hotkeys(), gradeBtns = `<div class="grades"><button class="g-again ${sug === 'again' ? 'on' : ''}" data-act="grade" data-g="again">Again<small><kbd class="kbd" title="Press this key">${keyLabel(hk.again)}</kbd> today</small></button><button class="g-good" data-act="grade" data-g="good">Good<small><kbd class="kbd" title="Press this key">${keyLabel(hk.good)}</kbd> ${iv.good}d</small></button><button class="g-easy" data-act="grade" data-g="easy">Easy<small><kbd class="kbd" title="Press this key">${keyLabel(hk.easy)}</kbd> ${iv.easy}d</small></button></div><div class="muted keyhint">⌨ Keyboard: press ${keyLabel(hk.again)}, ${keyLabel(hk.good)} or ${keyLabel(hk.easy)} to rate, ${keyLabel(hk.speak)} to hear it</div>`;
   let controls;
   if (strict) {
     controls = c.phase === 'miss'

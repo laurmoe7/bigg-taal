@@ -46,3 +46,5 @@ Object.assign(ACT, {
     return mixSheet();
   },
 });
+
+Object.assign(ACT, { 'dev-mix': () => { chime('goal'); confetti(); toast('Daily mix complete! +' + MIX_BONUS + ' XP 🌈'); } });

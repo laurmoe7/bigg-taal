@@ -16,7 +16,7 @@ function save() {
 async function load() {
   let d = null;
   try { d = window.vt ? await window.vt.load() : JSON.parse(localStorage.getItem('biggtaal') || 'null'); } catch {}
-  S = L.fixState(d); applyTheme(); refreshBirthday(); if (typeof snapshotToday === 'function') snapshotToday(); if (typeof initXp === 'function') initXp();
+  S = L.fixState(d); applyTheme(); applyBgFx(); refreshBirthday(); if (typeof snapshotToday === 'function') snapshotToday(); if (typeof initXp === 'function') initXp();
   if (!S.seeded) {
     const w = L.parseVocab(SEED_WORDS); 
     S.words = L.mergeWords(S.words, w).words; S.seeded = true; save();
@@ -139,10 +139,10 @@ const NAV = [['home', '🏠', 'Today', '#ff9d8e'], ['cards', '🃏', 'Flashcards
   ['words', '🔤', 'Words', '#ffb38a'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['progress', '📈', 'Progress', '#b5b9ff'], ['wardrobe', '🎩', 'Wardrobe', '#a8e6cf'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
 function renderSide() {
   const lv = L.levelInfo(S.xp || 0); ui.sideLevel = lv.level;
-  const due = dueList().length, fresh = ((S.wardrobe || {}).fresh || []).length, sig = [ui.view, due, lv.level, liveWords().length, pigStage(), currentLook(), fresh].join('|');
+  const due = dueList().length, fresh = ((S.wardrobe || {}).fresh || []).length, sig = [ui.view, due, lv.level, liveWords().length, pigStage(), currentLook(), currentBg(), fresh, today()].join('|');
   if (sig === ui.sideSig) return; // nothing in the sidebar changed: leave it alone (redrawing it restarts the logo animation)
   ui.sideSig = sig;
-  $('#side').innerHTML = `<div class="logo">${pigSvg('happy', 'pig-logo', { stage: pigStage() })}<div><b>BiggTaal</b><span>Nederlands leren</span></div></div>` +
+  $('#side').innerHTML = `<div class="logo">${pigSvg('happy', 'pig-logo', { stage: pigStage(), look: '', bg: '' })}<div><b>BiggTaal</b><span>Nederlands leren</span></div></div>` +
     NAV.map(([id, ic, name, col]) => `<button class="nav ${id === 'wardrobe' ? 'nav-bottom ' : ''}${ui.view === id ? 'on' : ''}" data-act="nav" data-v="${id}"><span class="ic" style="background:${col}">${ic}</span><span class="t">${name}</span>` +
       (id === 'cards' && due ? `<span class="badge">${due}</span>` : '') + (id === 'wardrobe' && fresh ? `<span class="badge">${fresh}</span>` : '') + '</button>').join('') +
     `<div class="side-foot"><div class="xp-row"><b>⭐ Level ${lv.level}</b><span>${esc(lv.title[0])}</span></div><div class="xp-bar"><i id="xpfill" style="width:${lv.pct}%"></i></div><div class="xp-sub" id="xpsub">${L.xpText(lv)}</div>${liveWords().length} words</div>`;
@@ -163,6 +163,7 @@ function go(v) { if (ui.view === 'sheets' && ui.sheetId) ui.wsScroll[ui.sheetId]
 const VIEWS = {};
 
 // ---------- home ----------
+const dailyPick = (list, n) => { const d = Math.floor(Date.now() / 864e5); return Array.from({ length: n }, (_, i) => list[(d * n + i) % list.length]); }; // the same few every time today, different tomorrow
 VIEWS.home = () => {
   const t = todayStats(), g = S.settings.dailyGoal, due = dueList().length, m = L.mastery(S.words), lv = L.levelInfo(S.xp || 0);
   if (!ui.say) ui.say = pigLine();
@@ -170,7 +171,7 @@ VIEWS.home = () => {
   const pv = PROVERBS[Math.floor(Date.now() / 864e5) % PROVERBS.length];
   const dn = (d) => ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][new Date(d + 'T12:00').getDay()];
   const upd = UPD.status === 'ready' ? `<div class="card upd"><div class="row"><div class="grow"><b>A new BiggTaal is ready! 🌸</b><div class="muted">Version ${esc(UPD.version)} has been downloaded. It installs when you restart, and your words and progress are safe.</div></div><button class="primary" data-act="update-install">Restart to update</button></div></div>` : '';
-  return `${upd}<div class="hero">${pigSvg(pigMood(), '', { stage: pigStage(), note: true, cap: isNight() })}<div class="bubble" id="bubble">${esc(ui.say)}</div></div>
+  return `${upd}${typeof recapNotice === 'function' ? recapNotice() : ''}<div class="hero">${pigSvg(pigMood(), '', { stage: pigStage(), note: true, cap: isNight() })}<div class="bubble" id="bubble">${esc(ui.say)}</div></div>
   <div class="grid g4">
     <div class="card stat s-coral"><i class="si">🎯</i><b>${(t.reviews || 0)} / ${g}</b><span>cards today</span><div class="bar" style="margin-top:8px"><i style="width:${Math.min(100, ((t.reviews || 0) / g) * 100)}%"></i></div></div>
     <div class="card stat s-sun"><i class="si">⭐</i><b>Lv ${lv.level}</b><span>${esc(lv.title[0])}</span></div>
@@ -180,8 +181,9 @@ VIEWS.home = () => {
   <div class="grid g2" style="margin-top:14px">
     ${typeof mixCard === 'function' ? mixCard() : ''}
     <div class="stack">${levelCard()}${mistakesCard()}</div>
-    <div class="card"><h2>Spreuk van de dag</h2><div style="font-size:18px;font-weight:800">${esc(pv[0])}</div><div class="muted">${esc(pv[1])}</div>
-      <button class="ghost" style="margin-top:10px" data-act="say" data-t="${esc(pv[0])}">🔊 Listen</button></div>
+    <div class="card daily"><h2>Spreuk van de dag</h2><div class="dl-row"><div><b class="dl-big">${esc(pv[0])}</b><small class="muted">${esc(pv[1])}</small></div><button class="ghost mini" data-act="say" data-t="${esc(pv[0])}" title="Listen">🔊</button></div>
+      <h3 class="dl-h">Zinnen van de dag</h3>${dailyPick(DAILY_PHRASES, 2).map((x) => `<div class="dl-row"><div><b>${esc(x[0])}</b><small class="muted">${esc(x[1])}</small></div><button class="ghost mini" data-act="say" data-t="${esc(x[0])}" title="Listen">🔊</button></div>`).join('')}
+      <h3 class="dl-h">Woorden van de dag</h3>${dailyPick(DAILY_WORDS, 2).map((x) => `<div class="dl-row"><div><b>${esc(x[0])}</b><small class="muted">${esc(x[1])}</small></div><button class="ghost mini" data-act="say" data-t="${esc(x[0])}" title="Listen">🔊</button></div>`).join('')}</div>
   </div>`;
 };
 
@@ -231,7 +233,7 @@ VIEWS.listen = () => {
       <div class="row"><span class="muted">Speed</span>${[['Slow', 0.7], ['Normal', 0.9], ['Fast', 1.1]].map(([n, x]) => `<button class="ghost ${Math.abs(r - x) < 0.06 ? 'on' : ''}" data-act="rate" data-r="${x}">${n}</button>`).join('')}</div></div>${warn}
     ${st.length ? `<div class="card" style="margin-bottom:16px"><h2>Sounds to practise 🎯</h2><p class="muted">From the words you wrote down wrongly. Bigg picked the ones that trip you up most.</p>
       ${st.map(([id, x]) => `<div class="lesson" style="margin:6px 0"><div class="lt">${esc(L.SOUNDS[id].name)} <span class="pill pink">${x.n} slip${x.n === 1 ? '' : 's'}</span><div class="muted" style="font-weight:600;font-size:13px">${esc(L.SOUNDS[id].tip)}</div></div><button class="primary" data-act="listen-start" data-m="word" data-s="${id}">Practise</button></div>`).join('')}</div>` : ''}
-    <div class="grid g2">${LMODES.map(([id, name, d]) => `<div class="card"><h2>${name}</h2><p class="muted">${d}</p><button class="primary" data-act="listen-start" data-m="${id}">Start (10)</button></div>`).join('')}</div>`;
+    <div class="grid g2 lmodes">${LMODES.map(([id, name, d]) => `<div class="card"><h2>${name}</h2><p class="muted">${d}</p><button class="primary" data-act="listen-start" data-m="${id}">Start (10)</button></div>`).join('')}</div>`;
   }
   const w = l.queue[l.i];
   if (!w) return `<div class="top"><h1>Klaar! 🎧</h1></div><div class="fc-wrap"><div class="card" style="text-align:center;padding:30px">${pigSvg('happy', 'pig-sm', { note: true, stage: pigStage() })}<h2>${l.good} of ${l.n} right</h2><p class="muted">${l.good === l.n ? 'Perfect! Your ears are getting so good! 💗' : 'Every round trains your ear a little more. 🌸'}</p>
@@ -246,11 +248,11 @@ VIEWS.listen = () => {
     const target = l.mode === 'sentence' ? w.example : l.mode === 'meaning' ? w.en : l.mode === 'article' ? w.article + ' ' + w.nl : (w.article ? w.article + ' ' : '') + w.nl;
     let detail = '';
     if (l.mode === 'sentence' && l.diff) {
-      detail = `<div class="chips">${l.diff.words.map((x) => `<button class="wchip ${x.status}" data-act="listen-word" data-w="${esc(x.w)}" title="Click to hear this word">${esc(x.w)}${x.status !== 'ok' ? `<small>${x.typed ? 'you: ' + esc(x.typed) : 'missed'}</small>` : ''}</button>`).join('')}</div>${l.diff.extra.length ? `<div class="muted">Extra words: ${esc(l.diff.extra.join(', '))}</div>` : ''}${l.showTr ? `<div class="muted" style="margin-top:6px">${esc(w.exampleEn || w.en)}</div>` : '<div style="margin-top:6px"><button class="ghost" data-act="listen-tr">👁 Show translation</button></div>'}<div class="muted tapnote">Tap a word to hear it and see its meaning</div>`;
+      detail = `<div class="chips">${l.diff.words.map((x) => `<button class="wchip ${x.status}" data-act="listen-word" data-w="${esc(x.w)}" title="Click to hear this word">${esc(x.w)}${x.status !== 'ok' ? `<small>${x.typed ? 'you: ' + esc(x.typed) : 'missed'}</small>` : ''}</button>`).join('')}</div>${l.diff.extra.length ? `<div class="muted">Extra words: ${esc(l.diff.extra.join(', '))}</div>` : ''}<div class="muted" style="margin-top:6px">${esc(w.exampleEn || w.en)}</div><div class="muted tapnote">Tap a word to hear it and see its meaning</div>`;
     } else if (l.mode === 'word' && l.diff) {
       detail = `<button class="wordbtn" data-act="listen-mean" data-w="${esc(w.nl)}" title="Tap for the meaning"><div class="ltrs">${w.article ? `<span class="fc-art" style="margin-right:8px">${esc(w.article)}</span>` : ''}${l.diff.cells.map((c) => `<span class="ltr ${c.ok ? 'ok' : 'bad'}">${esc(c.c)}</span>`).join('')}</div></button>${l.diff.extra.length ? `<div class="muted">Extra letters you typed: ${esc(l.diff.extra.join(' '))}</div>` : ''}`;
     } else detail = `<div style="font-size:20px;margin:8px 0">${esc(target)}</div>${l.mode === 'meaning' ? `<div class="muted">${esc(w.nl)}</div>` : ''}`;
-    const exBox = l.ex ? `<div class="exbox"><button class="ghost mini" data-act="say" data-t="${esc(l.ex.nl)}" title="Hear the sentence">🔊</button><div><div class="exnl">${exHtml(l.ex.nl, w)}</div>${l.ex.en ? (l.showTr ? `<div class="muted">${esc(l.ex.en)}</div>` : '<button class="ghost mini" data-act="listen-tr">👁 Show translation</button>') : ''}</div></div>` : '';
+    const exBox = l.ex ? `<div class="exbox"><button class="ghost mini" data-act="say" data-t="${esc(l.ex.nl)}" title="Hear the sentence">🔊</button><div><div class="exnl">${exHtml(l.ex.nl, w)}</div>${l.ex.en ? `<div class="muted">${esc(l.ex.en)}</div>` : ''}</div></div>` : '';
     const meanBox = l.mean ? `<div class="meaning">${meaningHtml(l.mean, w)}</div>` : '';
     const tip = l.tags.length ? `<div class="tip">💡 <b>${esc(L.SOUNDS[l.tags[0]].name)}:</b> ${esc(L.SOUNDS[l.tags[0]].tip)}</div>` : '';
     result = `<div class="card rcard" style="text-align:center">${detail}${meanBox}${exBox}${tip}${l.typed && dictation && l.res !== 'right' ? `<div class="muted" style="margin-top:6px">You typed: ${esc(l.typed)}</div>` : ''}${l.hint && l.res === 'right' ? '<div class="muted">(with a hint)</div>' : ''}
@@ -351,8 +353,11 @@ document.addEventListener('change', (e) => {
     }
     refreshBirthday(); save(); ui.say = ''; ui.sideSig = ''; if (typeof checkEarned === 'function') checkEarned(); render(); return;
   }
+  if (e.target.id === 's-bgfx') { S.settings.bgfx = e.target.checked; save(); applyBgFx(); }
   if (e.target.id === 's-gloss') { S.settings.gloss = e.target.checked; save(); render(); }
 });
+// the floating hearts and sparkles behind every page can be switched off in Settings
+function applyBgFx() { document.body.classList.toggle('nofx', S && S.settings && S.settings.bgfx === false); }
 function applyTheme() { const t = (S && S.settings && S.settings.theme) || 'lagoon'; document.documentElement.setAttribute('data-theme', THEMES.some((x) => x[0] === t) ? t : 'lagoon'); }
 
 VIEWS.settings = () => {
@@ -364,10 +369,14 @@ VIEWS.settings = () => {
         const cur = /^\d{4}-(\d{2})-(\d{2})$/.exec(S.settings.birthday || ''), bd = ui.bday || {}, m = bd.m != null ? bd.m : cur ? +cur[1] : 0, d = bd.d != null ? bd.d : cur ? +cur[2] : 0;
         const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
         return `<select id="s-bday-m"><option value="">Month</option>${MN.map((n, i) => `<option value="${i + 1}" ${m === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select><select id="s-bday-d"><option value="">Day</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${d === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>`;
-      })()}</div></div></div>
-    <p class="muted" style="margin:8px 0 0;font-size:13px">Bigg uses your name, and wears his party hat on your birthday (you earn it by opening BiggTaal that day).</p></div>
+      })()}</div></div></div></div>
   <div class="card" style="margin-bottom:16px"><h2>Theme</h2>
     <div class="themes">${THEMES.map(([id, name, bg, a, b]) => `<button class="theme ${S.settings.theme === id ? 'on' : ''}" data-act="theme" data-v="${id}"><span class="sw" style="background:${bg}"><i style="background:${a}"></i><i style="background:${b}"></i></span>${name}</button>`).join('')}</div></div>
+  <div class="card" style="margin-bottom:16px"><h2>Flashcard shortcuts</h2>
+    <div class="hk-grid">${HOTKEY_DEFS.map(([id, name]) => `<div class="hk-row"><span>${esc(name)}</span><button class="hk-key ${ui.hkCapture === id ? 'wait' : ''}" data-act="hk-set" data-v="${id}" title="Click, then press the key you want">${ui.hkCapture === id ? 'Press a key…' : esc(keyLabel(hotkeys()[id]))}</button></div>`).join('')}</div>
+    <div class="row" style="margin-top:10px"><button class="ghost mini" data-act="hk-reset">↺ Back to the usual keys</button><span class="muted" style="font-size:13px">Click a key, then press the new one. Esc cancels. Enter always works for the answer and for rating.</span></div></div>
+  <div class="card" style="margin-bottom:16px"><h2>Background</h2>
+    <label class="row"><input type="checkbox" id="s-bgfx" ${S.settings.bgfx !== false ? 'checked' : ''}> Show the floating hearts, flowers and sparkles behind the pages</label></div>
   <div class="card" style="margin-bottom:16px"><h2>Hover help</h2>
     <label class="row"><input type="checkbox" id="s-gloss" ${S.settings.gloss !== false ? 'checked' : ''}> Explain grammar terms when I hover over them</label>
     <p class="muted" style="margin:6px 0 0;font-size:13px">Words like "main clause" or "conjugated verb" get a dotted underline and a short explanation in worksheets and on the Grammar page.</p></div>
@@ -389,6 +398,7 @@ VIEWS.settings = () => {
   <div class="card"><h2>Updates</h2><p class="muted">Version ${esc(APPV || '?')}. ${esc(updateText())}</p>
     <label class="row"><input type="checkbox" id="s-upd" ${s.autoUpdate !== false ? 'checked' : ''}> Look for new versions automatically</label>
     <div class="row" style="margin-top:12px"><button class="ghost" data-act="update-check">🔄 Check for updates</button>${UPD.status === 'ready' ? '<button class="primary" data-act="update-install">Restart to update</button>' : ''}</div></div>
+  ${typeof devCard === 'function' ? devCard() : ''}
   <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.5.0 · Bigg is Varken's little brother, and he thinks you are doing great. 🌸 Dictionary, word lists and sentences come from Wiktionary, OpenSubtitles and Tatoeba (see the data folder). Reviews are scheduled with FSRS.</p></div></div>`;
 };
 function updateText() {
@@ -442,6 +452,8 @@ const ACT = {
   'bulk-add': () => { const t = $('#w-bulk').value; if (!t.trim()) return; if (importText(t)) ui.draftText = ''; render(); },
   'settings-save': saveSettings,
   theme: (el) => { S.settings.theme = el.dataset.v; applyTheme(); save(); render(); },
+  'hk-set': (el) => { ui.hkCapture = ui.hkCapture === el.dataset.v ? '' : el.dataset.v; render(); },
+  'hk-reset': () => { delete S.settings.keys; ui.hkCapture = ''; save(); toast('Shortcuts are back to the usual keys.'); render(); },
   'voice-test': () => { const v = $('#s-voice'); if (v) S.settings.voice = v.value; S.settings.rate = +$('#s-rate').value || 0.9; speak('Hoi' + (userName() ? ' ' + userName() : '') + '! Welkom bij BiggTaal. Veel plezier met leren!'); },
   'data-reveal': () => window.vt && window.vt.reveal(),
   'data-export': async () => { if (!window.vt) return toast('Export works in the installed app.'); const f = await window.vt.exportFile(JSON.stringify(S, null, 1), 'BiggTaal-backup.json'); if (f) toast('Exported'); },
@@ -455,19 +467,29 @@ document.addEventListener('click', (e) => {
   const p = e.target.closest('.hero .pig'); if (p) { p.classList.remove('hop'); void p.offsetWidth; p.classList.add('hop'); ui.say = rnd([...PIG.poke, pigLine()]); const b = $('#bubble'); if (b) b.textContent = ui.say; chime('ok'); }
 });
 document.addEventListener('keydown', (e) => {
+  if (ui.hkCapture) { // Settings is waiting for the new key of a shortcut
+    e.preventDefault(); e.stopPropagation(); const k = keyOf(e), act = ui.hkCapture;
+    if (['shift', 'control', 'alt', 'meta', 'altgraph', 'capslock'].includes(k)) return;
+    if (k === 'escape') { ui.hkCapture = ''; return render(); }
+    if (['enter', 'tab'].includes(k)) return toast('Enter and Tab are kept for other things. Pick another key.');
+    const keys = (S.settings.keys = Object.assign({}, hotkeys())), other = Object.keys(keys).find((x) => x !== act && keys[x] === k);
+    if (other) { keys[other] = keys[act]; toast(keyLabel(k) + ' was used for "' + HOTKEY_DEFS.find((d) => d[0] === other)[1] + '", so the two keys swapped.'); }
+    keys[act] = k; ui.hkCapture = ''; save(); return render();
+  }
   const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (e.key === 'Enter' && e.target.id === 'copy') { e.preventDefault(); copyContinue(false); return; }
   if (e.key === 'Enter' && e.target.id === 'typed') { e.preventDefault(); ui.view === 'cards' ? checkTyped() : listenCheck(); return; }
   if (e.key === 'Enter' && e.target.dataset && e.target.dataset.enter) { ACT[e.target.dataset.enter](); return; }
   if (inField) return;
   if (ui.view === 'cards' && ui.cards && curCard() && !isStrict()) {
-    const c = ui.cards;
-    if (!c.flipped && (e.key === ' ' || e.key === 'Enter') && cardPrefs().mode === 'flip') { e.preventDefault(); ACT.flip(); }
-    else if (c.flipped && ['1', '2', '3'].includes(e.key)) gradeCard(['again', 'good', 'easy'][+e.key - 1]);
+    const c = ui.cards, hk = hotkeys(), k = keyOf(e);
+    if (!c.flipped && (k === hk.flip || e.key === 'Enter') && cardPrefs().mode === 'flip') { e.preventDefault(); ACT.flip(); }
+    else if (c.flipped && (k === hk.again || k === hk.good || k === hk.easy)) { e.preventDefault(); gradeCard(k === hk.again ? 'again' : k === hk.good ? 'good' : 'easy'); }
     else if (c.flipped && e.key === 'Enter') { e.preventDefault(); gradeCard(c.res === 'wrong' ? 'again' : 'good'); }
-    else if (e.key.toLowerCase() === 'p') { const w = curCard().w; speak((w.article ? w.article + ' ' : '') + w.nl); }
+    else if (k === hk.speak) { const w = curCard().w; speak((w.article ? w.article + ' ' : '') + w.nl); }
+    else if (k === hk.hint && !c.flipped) { const b = document.querySelector('[data-act="fc-hint"]'); if (b) { e.preventDefault(); b.click(); } }
   } else if (ui.view === 'listen' && ui.listen) {
-    if (e.key === 'Enter' && ui.listen.res) { e.preventDefault(); ACT['listen-next'](); } else if (e.key.toLowerCase() === 'p') listenSay();
+    if (e.key === 'Enter' && ui.listen.res) { e.preventDefault(); ACT['listen-next'](); } else if (keyOf(e) === hotkeys().speak) listenSay();
   }
 });
 

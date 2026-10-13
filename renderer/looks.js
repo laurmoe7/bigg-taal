@@ -3,24 +3,27 @@
 const heart = (x, y, s, f) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 4 C-6 -4 -12 4 0 12 C12 4 6 -4 0 4Z" fill="${f}"/>`;
 // A striped scarf round his middle, just under the snout, with a tail on the right. Drawn behind the sticky note and his dictionary. The
 // stripes are clipped to the scarf's own shape so they can't spill out.
-const SCARF_BAND = 'M20 79 Q60 95 100 79 L99 91 Q60 107 21 91 Z';
+const SCARF_BAND = 'M6 77 Q60 98 114 77 L110 93 Q60 114 10 93 Z'; // wraps all the way round his body, edge to edge
 const SCARF_TAIL = 'M82 94 L98 91 L100 114 L84 118 Z';
-const SCARF = `<g class="scarf"><clipPath id="scarfClip"><path d="${SCARF_BAND}"/><path d="${SCARF_TAIL}"/></clipPath>
-  <path d="${SCARF_BAND}" fill="#b9a4ff"/><path d="${SCARF_TAIL}" fill="#b9a4ff"/>
-  <g clip-path="url(#scarfClip)" stroke="#ff9ec7" stroke-width="3.6">${[24, 36, 48, 60, 72, 84, 96].map((x) => `<path d="M${x} 74 l8 48"/>`).join('')}</g>
+const SCARF = `<g class="scarf"><clipPath id="scarfTail"><path d="${SCARF_TAIL}"/></clipPath><clipPath id="scarfBody"><ellipse cx="60" cy="70" rx="52" ry="40"/></clipPath><clipPath id="scarfClip"><path d="${SCARF_BAND}"/><path d="${SCARF_TAIL}"/></clipPath>
+  <g clip-path="url(#scarfBody)"><path d="${SCARF_BAND}" fill="#b9a4ff"/></g><path d="${SCARF_TAIL}" fill="#b9a4ff"/>
+  <g clip-path="url(#scarfBody)"><g clip-path="url(#scarfClip)" stroke="#ff9ec7" stroke-width="3.6">${[6, 18, 30, 42, 54, 66, 78, 90, 102].map((x) => `<path d="M${x} 74 l8 48"/>`).join('')}</g></g>
+  <g clip-path="url(#scarfTail)"><g stroke="#ff9ec7" stroke-width="3.6">${[78, 90, 102].map((x) => `<path d="M${x} 74 l8 48"/>`).join('')}</g></g>
   <path d="M86 118 l-.5 4.5 M91 117 l-.5 4.5 M96 116 l-.5 4.5" stroke="#efe8ff" stroke-width="1.8" stroke-linecap="round"/></g>`;
-const EARMUFFS = `<g class="earmuffs"><path d="M17 56 Q60 -8 103 56" fill="none" stroke="#b9a4ff" stroke-width="4.5" stroke-linecap="round"/><circle cx="17" cy="58" r="9" fill="#c9b8ff"/><circle cx="103" cy="58" r="9" fill="#c9b8ff"/><circle cx="14.5" cy="55.5" r="2.4" fill="#efe8ff"/><circle cx="100.5" cy="55.5" r="2.4" fill="#efe8ff"/></g>`;
-const HEART_D = 'M0 11 C-15 0 -13 -13 -6 -12.5 C-2.5 -12 0 -9.5 0 -7 C0 -9.5 2.5 -12 6 -12.5 C13 -13 15 0 0 11 Z';
-const heartLens = (cx, cy, id) => `<g transform="translate(${cx} ${cy - 1.5})"><clipPath id="lens${id}"><path d="${HEART_D}"/></clipPath>
-  <path d="${HEART_D}" fill="url(#lensGrad)" fill-opacity=".86"/>
-  <g clip-path="url(#lens${id})"><path d="M-16 4 Q0 15 16 4 L16 16 L-16 16 Z" fill="#9c1650" opacity=".32"/><path d="M-13 -10 L-8.4 -13 L-12 1 L-14 1 Z" fill="#fff" opacity=".5"/><path d="M-6.6 -11.6 L-4.6 -12.4 L-9.6 2 L-11 2 Z" fill="#fff" opacity=".32"/><ellipse cx="4.6" cy="5.6" rx="3.6" ry="1.4" transform="rotate(-24 4.6 5.6)" fill="#ffd0e4" opacity=".28"/></g>
-  <path d="${HEART_D}" fill="none" stroke="#c2255f" stroke-width="3.4" stroke-linejoin="round" opacity=".35"/><path d="${HEART_D}" fill="none" stroke="#fff0f6" stroke-width="2.2" stroke-linejoin="round"/>
-  <path d="${HEART_D}" fill="none" stroke="#ffc2da" stroke-width=".7" stroke-linejoin="round" transform="scale(.8)" opacity=".8"/><circle cx="-5.8" cy="-6.4" r="1.1" fill="#fff"/></g>`;
-const SHADES = `<g class="shades"><defs><linearGradient id="lensGrad" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#ff86b8"/><stop offset=".55" stop-color="#e83f86"/><stop offset="1" stop-color="#b3205a"/></linearGradient></defs>
-  <path d="M31 61 Q24 58.4 19 56" fill="none" stroke="#fff0f6" stroke-width="2.4" stroke-linecap="round"/><path d="M89 61 Q96 58.4 101 56" fill="none" stroke="#fff0f6" stroke-width="2.4" stroke-linecap="round"/><path d="M31 61 Q24 58.4 19 56" fill="none" stroke="#ffc2da" stroke-width=".8" stroke-linecap="round" opacity=".9"/>
-  <path d="M53 57.8 Q60 53.8 67 57.8" fill="none" stroke="#fff0f6" stroke-width="2.8" stroke-linecap="round"/><path d="M53 57.8 Q60 53.8 67 57.8" fill="none" stroke="#ffc2da" stroke-width=".8" stroke-linecap="round" opacity=".9"/>
-  ${heartLens(43, 64, 'L')}${heartLens(77, 64, 'R')}<circle cx="31.4" cy="60.6" r="1.7" fill="#ffd35a"/><circle cx="88.6" cy="60.6" r="1.7" fill="#ffd35a"/><circle cx="31" cy="60.2" r=".6" fill="#fff6cf"/><circle cx="88.2" cy="60.2" r=".6" fill="#fff6cf"/>
-  <path transform="translate(98 49) scale(.9)" d="M0 -4 L1.1 -1.1 L4 0 L1.1 1.1 L0 4 L-1.1 1.1 L-4 0 L-1.1 -1.1Z" fill="#ffe29a"/></g>`;
+// fuzzy earmuffs: a padded band and two fluffy cushions made of lots of little tufts
+const fuzz = (cx, cy) => Array.from({ length: 22 }, (_, i) => { const t = (i / 22) * Math.PI * 2, r = 9.4; return `<circle cx="${(cx + Math.cos(t) * r).toFixed(1)}" cy="${(cy + Math.sin(t) * r).toFixed(1)}" r="3.5" fill="${i % 2 ? '#d9ccff' : '#c9b8ff'}"/>`; }).join('') + Array.from({ length: 12 }, (_, i) => { const t = (i / 12) * Math.PI * 2 + 0.2, r = 5.4; return `<circle cx="${(cx + Math.cos(t) * r).toFixed(1)}" cy="${(cy + Math.sin(t) * r).toFixed(1)}" r="3.4" fill="${i % 2 ? '#e8dfff' : '#dccfff'}"/>`; }).join('') + `<circle cx="${cx}" cy="${cy}" r="4.6" fill="#f1ebff"/><circle cx="${cx - 3}" cy="${cy - 3.4}" r="2.2" fill="#fff" opacity=".85"/>`;
+const EARMUFFS = `<g class="earmuffs"><path d="M17 56 Q60 -8 103 56" fill="none" stroke="#9d86ee" stroke-width="5.6" stroke-linecap="round"/><path d="M17 56 Q60 -8 103 56" fill="none" stroke="#b9a4ff" stroke-width="4.2" stroke-linecap="round"/><path d="M22 47 Q60 -2 98 47" fill="none" stroke="#e1d8ff" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="1.8 2.4" opacity=".8"/>${fuzz(17, 58)}${fuzz(103, 58)}</g>`;
+const HEART_D = 'M0 11.4 C-15.5 0 -13.4 -13.4 -6 -12.9 C-2.6 -12.4 0 -9.8 0 -7.2 C0 -9.8 2.6 -12.4 6 -12.9 C13.4 -13.4 15.5 0 0 11.4 Z';
+// one rimless heart of tinted red plastic: you can see through it, with a darker edge, an inner glow, glossy shine and a deeper red at the bottom
+const heartLens = (cx, cy, id) => `<g transform="translate(${cx} ${cy - 1.2}) scale(1.1)"><clipPath id="lens${id}"><path d="${HEART_D}"/></clipPath>
+  <path d="${HEART_D}" fill="url(#redLens)" fill-opacity=".7"/>
+  <g clip-path="url(#lens${id})"><path d="M-16 4 Q0 15 16 4 L16 16 L-16 16 Z" fill="#7d0610" opacity=".28"/><path d="M-13 -9 L-7.6 -13 L-12.6 2.4 L-14.6 2.4 Z" fill="#fff" opacity=".55"/><path d="M-5.8 -11.8 L-3.6 -12.8 L-9.2 3 L-10.6 3 Z" fill="#fff" opacity=".3"/><ellipse cx="5.6" cy="5.8" rx="4.2" ry="1.3" transform="rotate(-26 5.6 5.8)" fill="#fff" opacity=".28"/><path d="${HEART_D}" fill="none" stroke="#ff7480" stroke-width="2.6" opacity=".4" transform="scale(.94)"/></g>
+  <path d="${HEART_D}" fill="none" stroke="#930a15" stroke-width="1" stroke-linejoin="round" opacity=".75"/><path d="${HEART_D}" fill="none" stroke="#ff9aa2" stroke-width=".7" stroke-linejoin="round" opacity=".7" transform="scale(.9)"/><circle cx="-5.8" cy="-7" r="1" fill="#fff" opacity=".95"/></g>`;
+const SHADES = `<g class="shades"><defs><linearGradient id="redLens" x1="0" x2="0.3" y1="0" y2="1"><stop offset="0" stop-color="#ff4a56"/><stop offset=".55" stop-color="#e01a28"/><stop offset="1" stop-color="#a30c18"/></linearGradient></defs>
+  
+  <path d="M55.5 58.6 Q60 56.4 64.5 58.6" stroke="#c40f1c" stroke-width="2.8" fill="none" stroke-linecap="round" opacity=".85"/><path d="M55.5 58.2 Q60 56 64.5 58.2" stroke="#ff7480" stroke-width=".9" fill="none" stroke-linecap="round" opacity=".7"/>
+  ${heartLens(43, 64, 'L')}${heartLens(77, 64, 'R')}
+  <path transform="translate(99 48) scale(.9)" d="M0 -4 L1.1 -1.1 L4 0 L1.1 1.1 L0 4 L-1.1 1.1 L-4 0 L-1.1 -1.1Z" fill="#ffe29a"/></g>`;
 const star = (x, y, s, f) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 -4 l1.2 2.7 2.9 .3 -2.2 2 .6 2.9 -2.5 -1.5 -2.5 1.5 .6 -2.9 -2.2 -2 2.9 -.3z" fill="${f}"/>`;
 const HATS = {
   stpatrick: `<g class="hat"><ellipse cx="60" cy="44.5" rx="33" ry="7.2" fill="#2a9560"/><path d="M45 44 L47 12 Q60 6 73 12 L75 44 Q60 48 45 44 Z" fill="#3fbf7a"/><ellipse cx="60" cy="12" rx="13.3" ry="3.6" fill="#58d894"/>
@@ -44,13 +47,17 @@ const FALLS = {
   petal: fallPieces((c) => petalPath(c, 1.2), ['#ffc6dc', '#fff0f6', '#ffa6c4', '#e9d8ff', '#ffe0ec', '#ffb3cf']),
   leaf: fallPieces((c) => petalPath(c, 1.5), ['#ffb26b', '#e8624a', '#ffd35a', '#c9794a', '#ff9a3d']),
   snow: fallPieces((c, i) => `<circle r="${[2.8, 2, 3.2, 1.8, 2.5, 2.2][i % 6]}" fill="${c}"/>`, ['#ffffff', '#e6f1ff', '#ffffff', '#d4e8ff', '#ffffff', '#f0f7ff']),
+  stars: fallPieces((c) => starPath(c), ['#ffe29a', '#fffaf0', '#ff8aa0', '#8fb4ff', '#ffd35a', '#ffffff']),
+  hearts: fallPieces((c) => heart(0, 0, .45, c), ['#ff7fa6', '#ffb3cf', '#ff4f7d', '#ffd0e0', '#ff9ec7', '#e0457b']),
+  bubbles: fallPieces((c, i) => `<circle r="${[3.2, 2.2, 4, 2.6, 3.6][i % 5]}" fill="${c}" fill-opacity=".3" stroke="${c}" stroke-width=".9"/><circle cx="-1.1" cy="-1.1" r=".8" fill="#fff" opacity=".85"/>`, ['#8fd3ff', '#b9a4ff', '#8ff0c8', '#ffc6dc', '#ffffff', '#ffe29a']),
+  confetti: fallPieces((c, i) => ([`<path d="M-4 0 q2 -3.4 4 0 t4 0" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" transform="rotate(${i * 29})"/>`, `<rect x="-3" y="-1.1" width="6" height="2.2" rx=".5" fill="${c}" transform="rotate(${i * 37})"/>`, `<circle r="1.7" fill="${c}"/>`, `<path d="M0 -2.6 L2.4 1.8 L-2.4 1.8 Z" fill="${c}" transform="rotate(${i * 53})"/>`])[i % 4], ['#ff7fa6', '#8fd3ff', '#ffe29a', '#b9a4ff', '#8ff0c8', '#ffa94d', '#ff6b82', '#6ee0d0', '#d9b8ff', '#ffd35a']),
   sun: fallPieces((c, i) => (i % 2 ? starPath(c) : `<circle r="${[2.2, 1.6, 2.6][i % 3]}" fill="${c}"/>`), ['#ffe36e', '#fff6b8', '#ffb347', '#ffffff', '#ffd35a', '#ffe9a0']),
 };
 const LOOK_DEFS = {
-  winter: { label: '❄️ Winter (scarf and earmuffs)', earmuffs: true, scarf: true, fall: 'snow' },
-  spring: { label: '🌸 Spring', hat: 'springhat', fall: 'petal' },
-  summer: { label: '😎 Summer', shades: true, fall: 'sun' },
-  autumn: { label: '🍂 Autumn', hat: 'autumnhat', fall: 'leaf' },
+  winter: { label: '❄️ Winter (scarf and earmuffs)', earmuffs: true, scarf: true },
+  spring: { label: '🌸 Spring', hat: 'springhat' },
+  summer: { label: '😎 Summer', shades: true },
+  autumn: { label: '🍂 Autumn', hat: 'autumnhat' },
   christmas: { label: '🎅 Christmas (18-25 Dec)', hat: 'santa' },
   halloween: { label: '🎃 Halloween (25-31 Oct)', hat: 'witch' },
   kingsday: { label: "👑 King's Day (27 Apr)", hat: 'crown' },
@@ -67,7 +74,7 @@ const LOOK_DEFS = {
   prinsjesdag: { label: '👒 Prinsjesdag (3rd Tue of Sept)', hat: 'prinsjesdag' },
   sintmaarten: { label: '🏮 Sint-Maarten (11 Nov)', hat: 'sintmaarten' },
   bevrijding: { label: '🇳🇱 Bevrijdingsdag (5 May)', hat: 'bevrijding' },
-  leafband: { label: '🌱 Leaf crown (level 5)', hat: 'leafband', level: 5 },
+  leafband: { label: '🍄 Mushroom cap (level 5)', hat: 'leafband', level: 5 },
   straw: { label: '🌻 Sun hat (level 10)', hat: 'straw', level: 10 },
   beanie: { label: '🧶 Knit beanie (level 20)', hat: 'beanie', level: 20 },
   cowboy: { label: '🤠 Cowboy hat (level 30)', hat: 'cowboy', level: 30 },
@@ -120,6 +127,13 @@ const looksPrefs = { preview: '' }; // '' = today's look, 'none' = no clothes, o
 const lookOn = () => true; // Bigg follows the season and holidays unless you pick an outfit in the wardrobe
 // The look Bigg wears now: a preview if one is picked, else today's season or holiday (or none when switched off).
 const wornChoice = () => (S && S.wardrobe && S.wardrobe.worn) || 'auto'; // 'auto' (season and holidays), 'none', or a look he owns
+const SEASON_BG = { winter: 'snow', spring: 'petal', summer: 'sun', autumn: 'leaf' }; // the automatic background for each season
+const bgChoice = () => (S && S.wardrobe && S.wardrobe.bg) || 'auto'; // 'auto' (the season, and confetti on your birthday), 'none', or a background in the wardrobe
+const currentBg = () => {
+  const b = bgChoice(); if (b === 'none') return ''; if (b !== 'auto' && FALLS[b]) return b;
+  if (L.holidayOf(new Date()) === 'birthday' && S.wardrobe && (S.wardrobe.owned || []).includes('bg:confetti')) return 'confetti';
+  return SEASON_BG[L.seasonOf()] || '';
+};
 const currentLook = () => {
   if (looksPrefs.preview) return looksPrefs.preview === 'none' ? '' : looksPrefs.preview;
   const w = wornChoice(); if (w === 'none') return ''; if (w !== 'auto' && LOOK_DEFS[w]) return w;

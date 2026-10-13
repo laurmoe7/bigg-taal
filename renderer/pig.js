@@ -1,13 +1,31 @@
 // Bigg, Varken's little brother: a round, extra-chubby coral pig (viewBox 120 x 120). Moods: happy, sleep, worry, sniff.
 const PIG_INK = '#3a1a22';
-function sproutSvg(stage) {
+// The flower that grows on Bigg's head as you practise: a sprout, then leaves, a bud and a bloom. Each day it is a different flower (picked from the date).
+const FLOWER_KINDS = ['daisy', 'tulip', 'sunflower', 'blossom', 'rose', 'bluebell', 'poppy'];
+const FLOWER_BUD = { daisy: '#ffd36e', tulip: '#ff7fa6', sunflower: '#ffc640', blossom: '#ffb3cf', rose: '#ff4f6d', bluebell: '#8fb4ff', poppy: '#ff6b4a' };
+const FLOWER_NAME = { daisy: 'daisy', tulip: 'tulip', sunflower: 'sunflower', blossom: 'cherry blossom', rose: 'rose', bluebell: 'bluebell', poppy: 'poppy' };
+function flowerOfDay() {
+  const d = typeof today === 'function' ? today() : '';
+  let h = 7; for (const ch of d) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return FLOWER_KINDS[h % FLOWER_KINDS.length];
+}
+const bloomSvg = (kind) => ({
+  daisy: '<circle r="3.4" fill="#ff8f7e"/><g fill="#ffd36e"><circle cy="-6.6" r="3.9"/><circle cx="6.3" cy="-2" r="3.9"/><circle cx="3.9" cy="5.3" r="3.9"/><circle cx="-3.9" cy="5.3" r="3.9"/><circle cx="-6.3" cy="-2" r="3.9"/></g><circle r="3.4" fill="#ff8f7e"/>',
+  tulip: '<path d="M-6.4 -1 Q-6.8 -10 -3.4 -12 Q0 -8 3.4 -12 Q6.8 -10 6.4 -1 Q6 6 0 7 Q-6 6 -6.4 -1 Z" fill="#ff7fa6"/><path d="M0 -12 Q-3.6 -3 0 6.4 Q3.6 -3 0 -12 Z" fill="#ff9ec4"/><path d="M-5 -1 Q-4.6 3 -2 5" stroke="#ffc0d8" stroke-width="1.4" fill="none" stroke-linecap="round"/>',
+  sunflower: `${Array.from({ length: 12 }, (_, i) => `<ellipse cy="-6.6" rx="2" ry="3.6" fill="${i % 2 ? '#ffd35a' : '#ffbf2f'}" transform="rotate(${i * 30})"/>`).join('')}<circle r="4.4" fill="#8a5a2c"/><circle r="2.6" fill="#6a421f"/><circle cx="-1.2" cy="-1.2" r=".7" fill="#c89a5c"/><circle cx="1.4" cy=".8" r=".7" fill="#c89a5c"/>`,
+  blossom: `${[0, 72, 144, 216, 288].map((a) => `<path d="M0 0 C-5 -3 -6 -9 -2.4 -10.4 L0 -8.2 L2.4 -10.4 C6 -9 5 -3 0 0 Z" fill="#ffb3cf" transform="rotate(${a})"/>`).join('')}<circle r="2" fill="#ff7fa6"/><g stroke="#ff4f7d" stroke-width=".8" stroke-linecap="round"><path d="M0 0 L0 -3.4 M0 0 L3.2 -1 M0 0 L-3.2 -1 M0 0 L2 2.8 M0 0 L-2 2.8"/></g>`,
+  rose: '<circle r="7.4" fill="#e03a5c"/><circle r="5.6" fill="#ff4f6d"/><path d="M-4.6 -1 Q-3 -5.6 1 -5 Q5.4 -4 4 0 Q2.6 4.4 -1.6 3.6 Q-5 2.6 -3 -1 Q-1.4 -3.2 1 -2 Q2.4 -.8 .8 .6" stroke="#b92a48" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M-5 -4 Q-3 -7 0 -7" stroke="#ff9aae" stroke-width="1.4" fill="none" stroke-linecap="round"/>',
+  bluebell: `${[[-5.4, 1, -18], [0, 4, 0], [5.4, 1, 18]].map(([x, y, r]) => `<g transform="translate(${x} ${y}) rotate(${r})"><path d="M-2.2 -5 Q-4.8 1 -3.4 3.6 Q-1.6 2.6 0 3.6 Q1.6 2.6 3.4 3.6 Q4.8 1 2.2 -5 Z" fill="#8fb4ff"/><path d="M-2.2 -5 Q0 -6.6 2.2 -5 L1 -1 Q0 -.4 -1 -1 Z" fill="#6f95f0"/><path d="M-3.4 3.6 Q-1.6 2.6 0 3.6 Q1.6 2.6 3.4 3.6" stroke="#cfe0ff" stroke-width=".9" fill="none"/></g>`).join('')}<path d="M-5.4 -4.6 Q-3 -9 0 -9 Q3 -9 5.4 -4.6" stroke="#4fcf9a" stroke-width="1.4" fill="none" stroke-linecap="round"/>`,
+  poppy: '<g fill="#ff6b4a"><circle cx="-4.2" cy="-3.2" r="5.2"/><circle cx="4.2" cy="-3.2" r="5.2"/><circle cx="-3.6" cy="3.2" r="5"/><circle cx="3.6" cy="3.2" r="5"/></g><circle r="5" fill="#ff8a64" opacity=".6"/><circle r="2.6" fill="#3a2a3a"/><g fill="#3a2a3a"><circle cy="-4.2" r=".8"/><circle cx="4" cy="-1.4" r=".8"/><circle cx="2.6" cy="3.4" r=".8"/><circle cx="-2.6" cy="3.4" r=".8"/><circle cx="-4" cy="-1.4" r=".8"/></g>',
+})[kind];
+function sproutSvg(stage, kind) {
+  kind = kind || flowerOfDay();
   const stem = (top) => `<path d="M60 30 Q60 ${top + 12} 58 ${top}" fill="none" stroke="#4fcf9a" stroke-width="3.4" stroke-linecap="round"/>`;
   const leaves = (y) => `<path d="M59 ${y} Q42 ${y - 6} 36 ${y + 4} Q48 ${y + 10} 59 ${y} Z" fill="#9af5cf"/><path d="M60 ${y + 2} Q77 ${y - 6} 85 ${y + 4} Q71 ${y + 12} 60 ${y + 2} Z" fill="#6fe2b4"/>`;
   if (stage <= 0) return '<path d="M60 30 Q60 24 60 20" fill="none" stroke="#4fcf9a" stroke-width="3.4" stroke-linecap="round"/><ellipse cx="60" cy="17" rx="4" ry="5.5" fill="#9af5cf"/>';
   if (stage === 1) return stem(10) + '<path d="M58 12 Q42 4 36 14 Q48 22 58 12 Z" fill="#9af5cf"/><path d="M59 16 Q76 6 84 16 Q70 26 59 16 Z" fill="#6fe2b4"/>';
-  if (stage === 2) return stem(8) + leaves(22) + '<ellipse cx="58" cy="5" rx="5" ry="7" fill="#ffd36e"/><path d="M53 8 Q58 12 63 8 Q61 13 58 13 Q55 13 53 8 Z" fill="#6fe2b4"/>';
-  return stem(7) + leaves(22) +
-    '<g transform="translate(58 5)"><circle r="3.4" fill="#ff8f7e"/><g fill="#ffd36e"><circle cy="-6.6" r="3.9"/><circle cx="6.3" cy="-2" r="3.9"/><circle cx="3.9" cy="5.3" r="3.9"/><circle cx="-3.9" cy="5.3" r="3.9"/><circle cx="-6.3" cy="-2" r="3.9"/></g><circle r="3.4" fill="#ff8f7e"/></g>' +
+  if (stage === 2) return stem(8) + leaves(22) + `<ellipse cx="58" cy="5" rx="5" ry="7" fill="${FLOWER_BUD[kind]}"/><path d="M53 8 Q58 12 63 8 Q61 13 58 13 Q55 13 53 8 Z" fill="#6fe2b4"/>`;
+  return stem(7) + leaves(22) + `<g transform="translate(58 5)">${bloomSvg(kind)}</g>` +
     '<path d="M78 6 l1.4 3 3 1.4 -3 1.4 -1.4 3 -1.4 -3 -3 -1.4 3 -1.4z" fill="#fff1b0"/><path d="M38 10 l1.1 2.4 2.4 1.1 -2.4 1.1 -1.1 2.4 -1.1 -2.4 -2.4 -1.1 2.4 -1.1z" fill="#fff1b0"/>';
 }
 const NIGHTCAP = `<g class="nightcap"><path d="M30 42 Q34 14 64 12 Q90 12 96 28 Q102 38 106 54 Q98 48 92 48 Q78 42 60 42 Q42 42 30 42 Z" fill="#7fd4f0"/>
@@ -15,7 +33,7 @@ const NIGHTCAP = `<g class="nightcap"><path d="M30 42 Q34 14 64 12 Q90 12 96 28 
 
 function pigSvg(mood, cls, opts) {
   const m = mood || 'happy', o = opts || {}, stage = o.stage == null ? 1 : o.stage;
-  const lookId = o.look === undefined ? currentLook() : o.look, look = LOOK_DEFS[lookId] || {}; // what he wears today (hats sit about 3px higher on his rounder head)
+  const lookId = o.look === undefined ? currentLook() : o.look, look = LOOK_DEFS[lookId] || {}, bgId = o.bg === undefined ? currentBg() : o.bg; // what he wears today (hats sit about 3px higher on his rounder head)
   const eye = (x, dx, big) => `<ellipse cx="${x}" cy="64" rx="${big ? 5.8 : 5.2}" ry="${big ? 6.6 : 6}" fill="${PIG_INK}"/><circle cx="${x - 1.6 + dx}" cy="61.6" r="2.3" fill="#fff"/><circle cx="${x + 2 + dx}" cy="66.6" r="1.1" fill="#fff" opacity=".85"/>`;
   const eyes = {
     happy: eye(43, 0, 1) + eye(77, 0, 1),
@@ -55,7 +73,7 @@ function pigSvg(mood, cls, opts) {
     <g class="snout"><ellipse cx="60" cy="76" rx="9.4" ry="6.4" fill="#f58c82"/><ellipse cx="56.6" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/><ellipse cx="63.4" cy="76" rx="1.2" ry="1.9" fill="${PIG_INK}"/></g>
     ${look.scarf && !o.cap ? SCARF : ''}
     ${note}
-    ${look.fall && m !== 'sleep' ? FALLS[look.fall] : ''}
+    ${bgId && FALLS[bgId] && m !== 'sleep' ? FALLS[bgId] : ''}
     </g>${extra}
   </svg>`;
 }

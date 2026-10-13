@@ -355,3 +355,29 @@ test('daily mix: steps finish by their own counts, and cards count as done when 
   const s1 = L.mixSteps({ reviews: 10, lOk: 3, lMiss: 2, sOk: 4, sMiss: 2 }, 10, 5); assert.deepEqual(s1.map((x) => x.done), [true, true, true]);
   assert.equal(L.mixSteps({}, 10, 0)[0].done, true);
 });
+
+test('sentence explainer: spots the word-order patterns and uses the words of the sentence', () => {
+  const iv = { isVerb: (w) => ['woon', 'bel', 'werk'].includes(w) }; const pats = (s) => { const r = L.explainSentence(s, iv); return r ? r.pats : []; };
+  assert.deepEqual(pats('Gisteren heb ik een boek gelezen.'), ['perfect', 'inversion']);
+  const sub = L.explainSentence('Ik denk dat hij morgen komt.'); assert.deepEqual(sub.pats, ['subordinate']);
+  assert.ok(sub.findings[0].bullets.some((b) => b.includes('hij komt morgen')));
+  assert.deepEqual(pats('Ik wil morgen naar de winkel gaan.'), ['modal']);
+  assert.deepEqual(pats('Waar woon je?'), ['question']); assert.deepEqual(pats('Heb je honger?'), ['question']);
+  assert.deepEqual(pats('Ik bel je morgen op.'), ['separable']);
+  assert.deepEqual(pats('Ik ben moe, want ik heb slecht geslapen.'), ['coord', 'perfect']);
+  assert.equal(L.explainSentence('Het huis is groot.'), null);
+  const q = L.explainSentence('Waar woon je?', iv); assert.equal(q.roles[0], 'q'); assert.equal(q.roles[1], 'verb');
+});
+
+test('weekly recap: Monday to Sunday sums, accuracy, best day and the level you started on', () => {
+  const log = { '2026-10-05': { xp: 50, reviews: 10, cOk: 8, cMiss: 2 }, '2026-10-07': { xp: 120, reviews: 5, lOk: 5, lMiss: 1, sOk: 4, sMiss: 1 }, '2026-09-29': { xp: 40, reviews: 4 } };
+  const r = L.weekRecap(log, 170, '2026-10-09', 0); // a Friday
+  assert.equal(r.start, '2026-10-05'); assert.equal(r.end, '2026-10-11'); assert.equal(r.xp, 170); assert.equal(r.active, 2); assert.equal(r.cards, 15); assert.equal(r.best.d, '2026-10-07');
+  assert.equal(Math.round(r.acc * 100), 81); assert.equal(r.prev.xp, 40); assert.equal(r.levelFrom, 1);
+  const last = L.weekRecap(log, 170, '2026-10-14', 1); assert.equal(last.start, '2026-10-05'); assert.equal(last.xp, 170);
+  assert.ok(L.recapLine(L.weekRecap({}, 0, '2026-10-09', 0)).includes('quiet'));
+});
+test("'t kofschip picks -te or -de from the stem of the infinitive", () => {
+  const s = (v) => L.kofschip(v).suffix;
+  assert.deepEqual(['werken', 'maken', 'praten', 'fietsen', 'wonen', 'reizen', 'leren', 'spelen', 'wachten'].map(s), ['te', 'te', 'te', 'te', 'de', 'de', 'de', 'de', 'te']);
+});

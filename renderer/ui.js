@@ -70,7 +70,8 @@ function enhanceSelects() {
 }
 document.addEventListener('mousedown', (e) => { if (ddOpen && !e.target.closest('.dd-list') && !e.target.closest('.dd-wrap')) closeDd(); });
 window.addEventListener('blur', () => closeDd()); window.addEventListener('resize', () => closeDd());
-document.addEventListener('scroll', () => closeDd(), true);
+// the page scrolling closes an open list, but scrolling the list itself (to reach the later months, say) must not
+document.addEventListener('scroll', (e) => { if (ddOpen && e.target && e.target.nodeType === 1 && ddOpen.list.contains(e.target)) return; closeDd(); }, true);
 let ddQueued = false;
 new MutationObserver(() => { if (ddQueued) return; ddQueued = true; requestAnimationFrame(() => { ddQueued = false; enhanceSelects(); }); }).observe(document.body, { childList: true, subtree: true });
 enhanceSelects();
@@ -209,3 +210,24 @@ document.addEventListener('visibilitychange', idleCheck);
 
 // if the saved data finished loading before the last scripts ran, the first draw may have been too early: draw the page again now
 if (typeof S !== 'undefined' && S && S.settings) { render(); if (typeof checkEarned === 'function') checkEarned(); }
+
+// ---------- mini Bigg in the corner oinks when you click him ----------
+function oink() {
+  if (S && S.settings && S.settings.sound === false) return;
+  try {
+    actx = actx || new AudioContext(); const ctx = actx, t = ctx.currentTime, p = 0.9 + Math.random() * 0.22; // a slightly different pitch each time
+    const burst = (start, f0, f1, dur, vol, band) => {
+      const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(f0 * p, t + start); o.frequency.exponentialRampToValueAtTime(f1 * p, t + start + dur);
+      f.type = 'bandpass'; f.frequency.value = band; f.Q.value = 2.2;
+      g.gain.setValueAtTime(0.0001, t + start); g.gain.exponentialRampToValueAtTime(vol, t + start + 0.025); g.gain.exponentialRampToValueAtTime(0.0001, t + start + dur);
+      o.connect(f).connect(g).connect(ctx.destination); o.start(t + start); o.stop(t + start + dur + 0.03);
+    };
+    burst(0, 200, 115, 0.2, 0.5, 650);    // "oi": a low grunt
+    burst(0.17, 310, 600, 0.17, 0.36, 1500); // "nk": the little squeal at the end
+  } catch {}
+}
+document.addEventListener('click', (e) => {
+  const pig = e.target.closest && e.target.closest('.logo .pig-logo'); if (!pig) return;
+  oink(); pig.classList.remove('squish'); void pig.getBoundingClientRect(); pig.classList.add('squish');
+});

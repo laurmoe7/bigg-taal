@@ -535,6 +535,159 @@
   // the sentence of a text that contains a word
   L.sentenceWith = (text, word) => { const re = new RegExp('(^|[^A-Za-zÀ-ÿ])' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^A-Za-zÀ-ÿ])', 'i'); return (text.replace(/\n+/g, ' ').match(/[^.!?]+[.!?]*/g) || []).map((s) => s.trim()).find((s) => re.test(s)) || ''; };
 
+  // ---------- why is the sentence built like this? ----------
+  // A rule-of-thumb reading of a Dutch sentence: finds the word-order patterns learners trip over (verb in second place, verb at the end of a
+  // subordinate clause, the perfect tense, modal verbs, separable verbs, questions) and explains them with the sentence's own words.
+  // Returns { words, roles, findings: [{ pat, title, bullets }] } or null. opt.isVerb(word) can widen what counts as a conjugated verb.
+  const SX = {
+    time: new Set('gisteren vandaag morgen nu daarna dan later vanavond vanmiddag vanochtend vanmorgen soms vaak altijd meestal eerst hier daar misschien helaas gelukkig eigenlijk vroeger binnenkort straks tegenwoordig volgende vorige'.split(' ')),
+    fin: new Set('ben bent is zijn was waren heb hebt heeft hebben had hadden word wordt worden werd werden kan kun kunt kunnen kon konden moet moeten moest moesten wil wilt willen wilde wilden mag mogen mocht mochten zal zult zullen zou zouden ga gaat gaan ging gingen doe doet doen deed deden'.split(' ')),
+    modal: new Set('kan kun kunt kunnen kon konden moet moeten moest moesten wil wilt willen wilde wilden mag mogen mocht mochten zal zult zullen zou zouden'.split(' ')),
+    haveAux: new Set('heb hebt heeft hebben had hadden'.split(' ')), beAux: new Set('ben bent is zijn was waren'.split(' ')),
+    pron: new Set('ik jij je u hij zij ze het wij we jullie'.split(' ')), art: new Set('de het een er men'.split(' ')),
+    sub: new Set('dat omdat als terwijl hoewel zodat voordat nadat totdat tenzij aangezien doordat sinds wanneer'.split(' ')),
+    coord: new Set('want maar dus'.split(' ')), qw: new Set('waar wat wie wanneer hoe waarom welke welk hoeveel waarheen waarvoor waarmee hoelang'.split(' ')),
+    part: new Set('op uit aan af mee weg terug toe neer rond vast samen bij na over door in'.split(' ')),
+  };
+  const sxEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const sxIsPart = (x) => /^(ge|be|ver|ont|her|er)[a-zà-ÿ]{2,}(d|t|en)$/.test(x) && x.length > 5;
+  const sxIsInf = (x) => (/en$/.test(x) && x.length > 3 && !SX.pron.has(x)) || ['zijn', 'gaan', 'doen', 'zien', 'staan', 'slaan'].includes(x);
+  L.explainSentence = (text, opt) => {
+    const s = String(text || '').trim(), isVerb = (opt && opt.isVerb) || (() => false); if (!s) return null;
+    const tk = L.tokenize(s), words = [], after = [];
+    tk.forEach((x, k) => { if (x.w) { words.push(x.w); after.push((tk[k + 1] && tk[k + 1].t) || ''); } });
+    const n = words.length; if (n < 3 || n > 14) return null;
+    const l = words.map((w) => w.toLowerCase()), comma = after.map((a) => /,/.test(a)), isQ = /\?\s*$/.test(s);
+    const roles = {}, findings = [], B = (i, cls) => '<b class="rl rl-' + cls + '">' + sxEsc(words[i]) + '</b>';
+    const mark = (i, r) => { if (roles[i] == null) roles[i] = r; };
+    const fin = (i) => SX.fin.has(l[i]) || isVerb(l[i]);
+    const slice = (a, b) => words.slice(a, b + 1).join(' ');
+    // where the main clause stops: at the first subordinate conjunction that really starts a clause
+    let subAt = -1;
+    for (let i = 0; i < n - 3; i++) if (SX.sub.has(l[i]) && (SX.pron.has(l[i + 1]) || SX.art.has(l[i + 1])) && !(i === 0 && SX.qw.has(l[0]) && l[0] !== 'als')) { subAt = i; break; }
+    const mainEnd = subAt > 0 ? subAt - 1 : n - 1; // last word of the main clause (when it comes first)
+    // 1. questions
+    if (SX.qw.has(l[0]) && fin(1) && isQ) {
+      mark(0, 'q'); mark(1, 'verb'); if (n > 2) mark(2, 'subj');
+      findings.push({ pat: 'question', title: 'A question with a question word', bullets: [
+        'A question word like ' + B(0, 'q') + ' goes in position 1.',
+        'The conjugated verb ' + B(1, 'verb') + ' comes straight after it, in position 2, and the subject follows: ' + B(2 < n ? 2 : 1, 'subj') + '.',
+        'Normal statement order would be subject first, verb second. In a question word question the question word takes the first place, so the subject moves behind the verb.'] });
+    } else if (fin(0) && isQ && SX.pron.has(l[1])) {
+      mark(0, 'verb'); mark(1, 'subj');
+      findings.push({ pat: 'question', title: 'A yes/no question', bullets: [
+        'A question that can be answered with yes or no starts with the conjugated verb: ' + B(0, 'verb') + '.',
+        'The subject ' + B(1, 'subj') + ' comes right after it. Compare the statement: "' + words[1].charAt(0).toUpperCase() + words[1].slice(1) + ' ' + l[0] + ' ...".',
+        'Everything else stays after that, and the question mark does the rest.'] });
+    }
+    // 2. subordinate clause: the conjugated verb goes to the end
+    if (subAt >= 0) {
+      let end = subAt + 1; while (end < n - 1 && !comma[end]) end++;
+      const f = end; let g0 = f; // the verbs at the end of the clause: walk back over auxiliaries, modals and participles
+      while (g0 - 1 > subAt + 1 && f - g0 < 2 && (SX.fin.has(l[g0 - 1]) || sxIsPart(l[g0 - 1]))) g0--;
+      const group = []; for (let g = g0; g <= f; g++) group.push(g);
+      const finite = group.find((g) => SX.modal.has(l[g]) || SX.haveAux.has(l[g]) || SX.beAux.has(l[g]) || ['word', 'wordt', 'worden', 'werd', 'werden', 'zal', 'zou'].includes(l[g])) ?? f, others = group.filter((g) => g !== finite);
+      if (end - subAt >= 3) {
+        mark(subAt, 'conj'); if (SX.pron.has(l[subAt + 1])) mark(subAt + 1, 'subj'); group.forEach((g) => mark(g, 'verb'));
+        const subj = SX.pron.has(l[subAt + 1]) ? subAt + 1 : -1, midFrom = subAt + (subj >= 0 ? 2 : 1), midTo = group[0] - 1;
+        const middle = midFrom <= midTo ? slice(midFrom, midTo) : '';
+        const bullets = ['The word ' + B(subAt, 'conj') + ' starts a subordinate clause (a bijzin): it cannot stand on its own.',
+          'In a subordinate clause the conjugated verb goes to the very END of the clause: ' + (group.length > 1 ? B(group[0], 'verb') + ' ' + B(group[1], 'verb') : B(f, 'verb')) + '.'];
+        if (subj >= 0) bullets.push('Compare the same words as a main clause, where the verb is second: "' + [words[subj], words[finite], middle, ...others.map((o) => words[o])].filter(Boolean).join(' ') + '".');
+        if (subAt === 0) bullets.push('Because the subordinate clause comes first, it fills position 1 of the whole sentence, so the main clause that follows starts with its verb: the verb-second rule again.');
+        findings.push({ pat: 'subordinate', title: 'A subordinate clause: the verb goes last', bullets });
+      }
+    }
+    // 3. want / maar / dus do not change the word order
+    for (let i = 1; i < n - 2; i++) if (SX.coord.has(l[i]) && comma[i - 1] && SX.pron.has(l[i + 1]) && fin(i + 2)) {
+      mark(i, 'conj'); mark(i + 1, 'subj'); mark(i + 2, 'verb');
+      findings.push({ pat: 'coord', title: words[i] + ' keeps the normal order', bullets: [
+        B(i, 'conj') + ' joins two main clauses. It does not count as a position, so the order afterwards stays normal: subject ' + B(i + 1, 'subj') + ', then verb ' + B(i + 2, 'verb') + '.',
+        'Compare ' + (l[i] === 'want' ? '"omdat"' : '"dat"') + ', which sends the verb to the end. Words like want, maar and dus are the easy ones: nothing moves.'] });
+      break;
+    }
+    // 4. the perfect tense: hebben/zijn + participle at the end
+    const mEnd = mainEnd;
+    let cs = 0; for (let i = 0; i < mEnd; i++) if (comma[i]) cs = i + 1; // the clause that ends the main part starts here (after the last comma)
+    if (SX.coord.has(l[cs]) && cs < mEnd) cs++; // want / maar / dus do not count as a position
+    let aux = -1; for (let i = cs; i <= Math.min(cs + 3, mEnd - 1); i++) if (SX.haveAux.has(l[i]) || SX.beAux.has(l[i])) { aux = i; break; }
+    const hasPerfect = aux >= 0 && sxIsPart(l[mEnd]) && mEnd > aux + 1;
+    if (hasPerfect) {
+      mark(aux, 'verb'); mark(mEnd, 'inf'); const be = SX.beAux.has(l[aux]);
+      findings.push({ pat: 'perfect', title: 'The perfect tense: the verb is split in two', bullets: [
+        'The perfect tense (voltooid tegenwoordige tijd) is ' + (be ? 'zijn' : 'hebben') + ' + a past participle: ' + B(aux, 'verb') + ' ... ' + B(mEnd, 'inf') + '.',
+        'The conjugated part ' + B(aux, 'verb') + ' stays in position 2, while the participle ' + B(mEnd, 'inf') + ' jumps to the very end of the clause.',
+        be ? 'Zijn is used with verbs of movement or change (gaan, komen, blijven, worden). Most other verbs use hebben.' : 'Most verbs use hebben. Only verbs of movement or change use zijn (gaan, komen, blijven, worden).',
+        'Regular participles are ge- + stem + t/d (werken, gewerkt). Strong verbs end in -en (lezen, gelezen).'] });
+    }
+    // 5. modal verb + infinitive at the end
+    let mod = -1; for (let i = cs; i <= Math.min(cs + 3, mEnd - 1); i++) if (SX.modal.has(l[i])) { mod = i; break; }
+    if (mod >= 0 && !hasPerfect && mEnd > mod + 1 && sxIsInf(l[mEnd])) {
+      mark(mod, 'verb'); mark(mEnd, 'inf');
+      findings.push({ pat: 'modal', title: 'A modal verb: the other verb goes to the end', bullets: [
+        B(mod, 'verb') + ' is a modal verb (kunnen, moeten, willen, mogen, zullen). It is the conjugated verb, so it takes position 2.',
+        'The main verb ' + B(mEnd, 'inf') + ' stays in its basic form (the infinitive) and goes to the END of the clause.',
+        'So a modal sentence always has two verbs far apart: ' + words[mod] + ' ... ' + words[mEnd] + '.'] });
+    }
+    // 6. separable verb: the prefix goes to the end
+    const lastW = l[mEnd];
+    if (!hasPerfect && mod < 0 && SX.part.has(lastW) && mEnd >= 3 && subAt < 0 && !isQ) {
+      let v = -1; for (let i = cs; i < mEnd; i++) if (fin(i) && !SX.pron.has(l[i])) { v = i; break; }
+      const sv = v >= 0 && opt && opt.isSepVerb ? opt.isSepVerb(l[v], lastW) : '', joined = typeof sv === 'string' && sv ? sv : lastW + l[v].replace(/(t|en)$/, '') + 'en';
+      if (v >= 0 && v <= cs + 2 && (!opt || !opt.isSepVerb || sv)) {
+        mark(v, 'verb'); mark(mEnd, 'part');
+        findings.push({ pat: 'separable', title: 'A separable verb: the prefix goes to the end', bullets: [
+          B(v, 'verb') + ' ... ' + B(mEnd, 'part') + ' belong together: this is the separable verb "' + joined + '".',
+          'In a main clause the verb part stays in position 2 and the little prefix ' + B(mEnd, 'part') + ' is thrown to the end.',
+          'In the infinitive and in a subordinate clause the two parts join again: "' + joined + '", or "...omdat hij ... ' + l[mEnd] + l[v] + '".'] });
+      }
+    }
+    // 7. something other than the subject starts the sentence: the verb stays second
+    if (!SX.sub.has(l[0]) && (SX.time.has(l[0]) || l[0] === 'toen') && fin(1) && (SX.pron.has(l[2]) || SX.art.has(l[2]))) {
+      mark(0, 'time'); mark(1, 'verb'); mark(2, 'subj');
+      const rest = words.slice(3, mEnd + 1).join(' ').replace(/[.,!?]+$/, '');
+      findings.push({ pat: 'inversion', title: 'The verb stays second, so the subject moves', bullets: [
+        'In a main clause the conjugated verb is always in position 2 (the verb-second rule).',
+        B(0, 'time') + ' takes position 1, so the verb ' + B(1, 'verb') + ' comes next and the subject ' + B(2, 'subj') + ' has to go after it.',
+        'Compare the usual order: "' + [words[2].charAt(0).toUpperCase() + words[2].slice(1), words[1], words[0].toLowerCase(), rest].filter(Boolean).join(' ') + '." Same meaning, different emphasis.'] });
+    }
+    if (!findings.length) return null;
+    return { words, roles, findings, pats: findings.map((f) => f.pat) };
+  };
+
+  // 't kofschip: does the regular past tense of this verb end in -te (stem ends in t, k, f, s, ch or p) or -de? Uses the stem of the infinitive
+  // (so reizen, with a z, gets -de: reisde). Returns { suffix: 'te' | 'de', letter }.
+  L.kofschip = (inf) => { const stem = String(inf).toLowerCase().replace(/en$/, ''), last = /ch$/.test(stem) ? 'ch' : stem.slice(-1); return { suffix: ['t', 'k', 'f', 's', 'ch', 'p'].includes(last) ? 'te' : 'de', letter: last }; };
+
+  // ---------- weekly recap ----------
+  // The week (Monday to Sunday) that is `offset` weeks before the one that contains `today`: day by day XP, what you did, accuracy and how it
+  // compares with the week before. xpNow is your total XP now (used to work out which level you started the week on).
+  L.weekRecap = (log, xpNow, today, offset, words) => {
+    const [y, m, d] = today.split('-').map(Number), dow = (new Date(y, m - 1, d).getDay() + 6) % 7; // Monday = 0
+    const start = L.addDays(today, -dow - 7 * (offset || 0)), sum = (s) => {
+      const days = Array.from({ length: 7 }, (_, i) => { const day = L.addDays(s, i), e = log[day] || {}; return { d: day, xp: e.xp || 0, cards: e.reviews || 0, listen: (e.lOk || 0) + (e.lMiss || 0), sheet: (e.sOk || 0) + (e.sMiss || 0), ok: (e.cOk || 0) + (e.lOk || 0) + (e.sOk || 0), bad: (e.cMiss || 0) + (e.lMiss || 0) + (e.sMiss || 0), added: e.newWords || 0 }; });
+      const t = (k) => days.reduce((n, x) => n + x[k], 0), ok = t('ok'), bad = t('bad');
+      return { days, xp: t('xp'), cards: t('cards'), listen: t('listen'), sheet: t('sheet'), added: t('added'), acc: ok + bad ? ok / (ok + bad) : null, active: days.filter((x) => x.xp || x.cards || x.listen || x.sheet).length };
+    };
+    const r = sum(start), prev = sum(L.addDays(start, -7)), end = L.addDays(start, 6);
+    let after = 0; for (let day = L.addDays(end, 1); day <= today; day = L.addDays(day, 1)) after += (log[day] || {}).xp || 0; // XP earned after that week ended
+    const xpEnd = Math.max(0, (xpNow || 0) - after), xpStart = Math.max(0, xpEnd - r.xp);
+    const best = r.days.reduce((b, x) => (x.xp > (b ? b.xp : 0) ? x : b), null);
+    return Object.assign(r, { start, end, prev, best, levelFrom: L.levelInfo(xpStart).level, levelTo: L.levelInfo(xpEnd).level, words: words || null });
+  };
+  // Bigg's comment on a week, sweet and specific
+  L.recapLine = (r) => {
+    const p = r.prev;
+    if (!r.active) return 'A quiet week, and that is okay. One little session today and we are right back on track. 🌱';
+    if (r.levelTo > r.levelFrom) return 'You grew a whole level this week! Look how far you have come. 🌟';
+    if (r.active >= 6) return 'You practised almost every single day. I am so proud of you! 💗';
+    if (p.xp > 0 && r.xp >= p.xp * 1.25) return 'More than last week, and I noticed every bit of it! ✨';
+    if (r.acc != null && r.acc >= 0.85) return 'Most of your answers were right this week. Clever you! 🌸';
+    if (r.active >= 4) return 'A steady week. Little by little is exactly how it works. 🌱';
+    if (p.xp > r.xp && p.xp > 0) return 'A bit gentler than last week, and that is fine. Every day counts. 💗';
+    return 'Every session helps my little flower grow. Let us do a bit more this week! 🌷';
+  };
+
   // ---------- daily mix ----------
   // The three parts of today's mix from today's log entry: flashcards (your daily goal, or done when nothing is due), listening (5 answers), a worksheet (6 answers).
   L.mixSteps = (t, goal, due) => {

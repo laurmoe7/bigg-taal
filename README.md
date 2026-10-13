@@ -69,5 +69,10 @@ Listening uses natural offline Dutch voices (alex, pim) from [Piper](https://git
 - **Themes and polish**: six colour themes (Lagoon, Plum, Midnight, Slate, and the light Cream and Blossom), themed dropdown menus everywhere, ripples on buttons, animated checkboxes and sliders, bars that grow in, numbers that count up and a softly drifting background. Reduced-motion settings in Windows turn the movement off.
 - **Hard mode** (worksheets): a switch on every worksheet and in Quick practice. Bigg leaves his dictionary at home and right answers give 50% more XP.
 - **Daily mix**: on Today, three parts (flashcards, listening, a worksheet from your trouble words) with a bonus when all are done.
+- **Verb trainer** (Grammar page): practise the past tense, the past participle and hebben/zijn with irregular verbs, regular verbs ('t kofschip) and the verbs in your own list. Missed verbs come back more often.
+- **Weekly recap**: Monday to Sunday at a glance (XP, days practised, accuracy, new words, levels) with a comment from Bigg, offered on Today and in Progress.
+- **Flashcard shortcuts**: Space shows the answer, 1/2/3 rate it, P hears the word, H gives a hint. Change any of them in Settings.
+- **Sentence explainer** (Grammar page): real Dutch sentences with the word-order rule behind each one, the key words colour-coded, and a button that copies a deeper question for Claude.
+- **Developer tools** (Settings): preview the hat celebration, the level-up overlay and the weekly recap without earning anything.
 - **Wardrobe**: choose what Bigg wears. Seasons are free, a holiday hat is earned by opening BiggTaal on that holiday, and level hats can be added by giving a look in looks.js a level.
 - **Bigg's dictionary**: click Bigg on a worksheet to look words up (Dutch to English or English to Dutch) while you work.

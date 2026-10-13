@@ -152,3 +152,25 @@ const COACH = {
   last: ['Last card! Finish strong! 💪', 'One more and you are done! 🌸'],
   done: ['All done! I am so proud of you! 🎉', 'Klaar! You did so well today! 💗', 'Goed gedaan! Time for a little rest. 🌸'],
 };
+
+// Two phrases and two words show up on Today each day (chosen from the date, so they change every morning).
+const DAILY_PHRASES = [
+  ['Hoe gaat het met je?', 'How are you?'], ['Kun je dat nog een keer zeggen?', 'Can you say that again?'], ['Ik begrijp het niet helemaal.', 'I do not completely understand.'],
+  ['Mag ik even iets vragen?', 'May I ask something quickly?'], ['Wat vind je ervan?', 'What do you think of it?'], ['Dat maakt niet uit.', 'That does not matter.'],
+  ['Ik ben er bijna.', 'I am almost there.'], ['Laten we een afspraak maken.', 'Let us make an appointment.'], ['Ik heb er zin in!', 'I am looking forward to it!'],
+  ['Dat klinkt goed.', 'That sounds good.'], ['Het spijt me van de vertraging.', 'I am sorry about the delay.'], ['Ik kom zo bij je terug.', 'I will get back to you shortly.'],
+  ['Wil je het iets langzamer zeggen?', 'Could you say it a bit slower?'], ['Heb je een momentje?', 'Do you have a moment?'], ['Dat hangt ervan af.', 'That depends.'],
+  ['Ik ben het met je eens.', 'I agree with you.'], ['Ik twijfel nog.', 'I am still undecided.'], ['Het is niet erg.', 'It is not a big deal.'],
+  ['Succes met je werk!', 'Good luck with your work!'], ['Tot later!', 'See you later!'], ['Mag ik de rekening, alsjeblieft?', 'Could I have the bill, please?'],
+  ['Waar kan ik dit vinden?', 'Where can I find this?'], ['Ik zoek een nieuwe woning.', 'I am looking for a new home.'], ['Hoe laat begint het?', 'What time does it start?'],
+  ['Wat is er aan de hand?', 'What is going on?'], ['Het regent al de hele dag.', 'It has been raining all day.'], ['Dat is een goed idee.', 'That is a good idea.'],
+  ['Neem de tijd.', 'Take your time.'], ['Ik moet even nadenken.', 'I need to think for a moment.'], ['Alles komt goed.', 'Everything will be fine.'],
+];
+const DAILY_WORDS = [
+  ['de gezelligheid', 'coziness, a nice atmosphere'], ['de afspraak', 'appointment'], ['het gesprek', 'conversation'], ['de ervaring', 'experience'], ['de bedoeling', 'intention, purpose'],
+  ['vervelend', 'annoying'], ['eigenlijk', 'actually'], ['misschien', 'maybe'], ['bijvoorbeeld', 'for example'], ['daarom', 'that is why'], ['ondertussen', 'meanwhile'],
+  ['de buurt', 'neighbourhood'], ['de gewoonte', 'habit'], ['het gevoel', 'feeling'], ['de keuze', 'choice'], ['het verschil', 'difference'], ['de oplossing', 'solution'],
+  ['meestal', 'usually'], ['vooral', 'especially'], ['gelukkig', 'fortunately, happy'], ['de verrassing', 'surprise'], ['het verhaal', 'story'], ['de reis', 'journey'],
+  ['de herinnering', 'memory'], ['ontmoeten', 'to meet'], ['begrijpen', 'to understand'], ['herinneren', 'to remember'], ['uitleggen', 'to explain'], ['zich verheugen', 'to look forward'],
+  ['het voordeel', 'advantage'], ['het nadeel', 'disadvantage'], ['verwachten', 'to expect'],
+];
