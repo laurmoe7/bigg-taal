@@ -74,6 +74,7 @@ const GEO_DECKS = [
   Object.assign(geoFlagDeck('provinces', 'Dutch provinces', '🌷', PROVINCE_FLAGS, null, 'Flags of the Dutch provinces', ['f2p', 'p2f', 'tfp']), { noun: 'province', nounPl: 'provinces' }),
 ];
 GEO_DECKS.find((d) => d.id === 'f-americas').title = 'The Americas';
+['f2n', 'tn', 'm2n', 'tmn', 'm2p', 'tmp', 'm2w', 'tmw', 'f2p', 'tfp'].forEach((id) => { GEO_K[id].fill = true; }); // the picture grows to the free space of the window
 const GEO_SECTIONS = [['geo', '🗺️ Geography'], ['flags', '🚩 Flags']];
 
 const geo = (ui.geo = ui.geo || { view: 'cards', sel: '', deck: null, tab: 'learn', region: 'all', cover: false, rev: {}, kind: 'mix', qregion: 'all', sess: null });
@@ -88,12 +89,14 @@ const geoMuted = () => !!S.geoMute;
 const geoChime = (k) => { if (!geoMuted()) chime(k); };
 const geoSpeak = (t) => { if (!geoMuted()) speak(t); };
 const geoSoundBtn = () => `<button class="switch ${geoMuted() ? '' : 'on'}" role="switch" aria-checked="${!geoMuted()}" data-act="geo-mute" title="Sounds and the Dutch voice in the Bonus Lessons"><i></i>${geoMuted() ? '🔇 Sound' : '🔊 Sound'}</button>`;
+const geoCoverBtn = () => `<button class="switch ${geo.cover ? 'on' : ''}" role="switch" aria-checked="${!!geo.cover}" data-act="geo-cover" title="Hide the names, so you can test yourself"><i></i>🙈 Cover names</button>`;
 const geoEnOn = () => S.geoEn !== false; // English hints in the quiz (on at first, to help with the first look)
 const geoEnOf = (it, f) => { const e = f === 'cap' ? it.capEn : it.en, d = f === 'cap' ? it.cap : it.name; return e && geoNorm(e) !== geoNorm(d) ? e : ''; };
 const geoDot = (lv) => ({ new: '<span class="muted" title="Not practised yet">○</span>', learning: '<span title="Learning" style="color:var(--butter)">◐</span>', known: '<span title="Known" style="color:var(--mint)">●</span>', mastered: '<span title="Mastered" style="color:var(--mint)">★</span>' }[lv]);
 const geoKnown = (d) => d.items.filter((it) => ['known', 'mastered'].includes(geoLevel(geoRec(d, it)))).length;
 function geoMark(d, it, ok) { const r = geoStats(d)[it.id] || (geoStats(d)[it.id] = { c: 0, m: 0 }); if (ok) r.c++; else r.m++; r.last = today(); save(); }
-const geoInfo = (d, it) => `<div class="geo-res-name">${esc(it.name)}${!geoSame(it.en, it.name) ? ` <span class="muted">${esc(it.en)}</span>` : ''}</div>${d.showCap && it.cap ? `<div>📍 ${esc(it.cap)}${!geoSame(it.capEn, it.cap) ? ` <span class="muted">(${esc(it.capEn)})</span>` : ''}</div>` : ''}${it.fact ? `<div class="muted" style="font-size:13px">${esc(it.fact)}</div>` : ''}`;
+const geoSay = (t) => `<button class="ghost mini geo-say" data-act="geo-say" data-t="${esc(t)}" title="Listen">🔊</button>`;
+const geoInfo = (d, it, inline) => `<div class="geo-res-name">${esc(it.name)}${!geoSame(it.en, it.name) ? ` <span class="muted">${esc(it.en)}</span>` : ''}${inline ? geoSay(it.name) : ''}</div>${d.showCap && it.cap ? `<div>📍 ${esc(it.cap)}${!geoSame(it.capEn, it.cap) ? ` <span class="muted">(${esc(it.capEn)})</span>` : ''}${inline && it.cap !== it.name ? geoSay(it.cap) : ''}</div>` : ''}${it.fact ? `<div class="muted geo-fact" style="font-size:13px">${esc(it.fact)}</div>` : ''}`;
 const geoSayBtns = (d, it) => `<button class="ghost mini" data-act="geo-say" data-t="${esc(it.name)}">🔊 ${esc(it.name)}</button>${d.showCap && it.cap && it.cap !== it.name ? `<button class="ghost mini" data-act="geo-say" data-t="${esc(it.cap)}">🔊 ${esc(it.cap)}</button>` : ''}`;
 
 // ---------- the screens ----------
@@ -101,7 +104,7 @@ VIEWS.bonus = () => {
   const d = geoDeck();
   if (!d) return geoHub();
   if (geo.sess) return geoSession();
-  const head = `<div class="top"><div><h1>${d.icon} ${esc(d.full)}</h1><p class="sub">${geoKnown(d)} of ${d.items.length} ${d.nounPl} known</p></div><div class="row">${geoSoundBtn()}<button class="ghost" data-act="geo-home">← Bonus Lessons</button></div></div>`;
+  const head = `<div class="top"><div><h1>${d.icon} ${esc(d.full)}</h1><p class="sub">${geoKnown(d)} of ${d.items.length} ${d.nounPl} known</p></div><div class="geo-head-r"><div class="row">${geoSoundBtn()}<button class="ghost" data-act="geo-home">← Bonus Lessons</button></div>${geo.tab === 'learn' ? geoCoverBtn() : ''}</div></div>`;
   return head + `<div class="seg">${[['learn', '📖 Learn'], ['quiz', '🎯 Quiz']].map(([id, n]) => `<button class="${geo.tab === id ? 'on' : ''}" data-act="geo-tab" data-v="${id}">${n}</button>`).join('')}</div>` + (geo.tab === 'quiz' ? geoQuizSetup(d) : geoLearn(d));
 };
 function geoHub() {
@@ -113,13 +116,16 @@ function geoHub() {
 function geoLearn(d) {
   const toggle = d.map ? `<div class="seg mini-seg">${[['cards', '🃏 Cards'], ['map', '🗺️ Map']].map(([id, n]) => `<button class="${geo.view === id ? 'on' : ''}" data-act="geo-view" data-v="${id}">${n}</button>`).join('')}</div>` : '';
   const mapMode = d.map && geo.view === 'map';
-  const cover = `<label class="row" style="margin-bottom:12px"><input type="checkbox" data-act="geo-cover" ${geo.cover ? 'checked' : ''}> 🙈 Cover the names (${mapMode ? 'hides the names on the map' : 'tap a card to see it and hear it'})</label>`;
+  const cover = ''; // the Cover names switch sits under Sound, at the top right
   return toggle + (mapMode ? geoMapView(d, cover) : geoCards(d, cover));
 }
 function geoMapView(d, cover) {
   const sel = d.items.find((x) => x.id === geo.sel), stats = geoStats(d);
   const map = geoMapSvg(d, { click: true, sel: geo.sel, lv: stats, titles: !geo.cover, labels: d.map === 'provinces' && !geo.cover, dots: d.map === 'provinces', all: true, cls: 'big' });
-  const panel = sel ? `<div class="card geo-res-main geo-sel">${d.visual === 'flag' ? `<div class="geo-flag sm">${sel.flag()}</div>` : ''}<div class="geo-res-txt">${geoInfo(d, sel)}<div class="row" style="margin-top:8px">${geoSayBtns(d, sel)}</div></div></div>` : `<div class="card muted">Tap a ${d.noun} on the map to see its name and hear it.</div>`;
+  const hidden = sel && geo.cover && !geo.rev[d.id + sel.id]; // names covered: the tap only picks the place, you reveal the name yourself
+  const panel = !sel ? `<div class="card muted">Tap a ${d.noun} on the map${geo.cover ? ' and guess its name' : ' to see its name and hear it'}.</div>`
+    : hidden ? `<div class="card geo-sel geo-covered">${d.visual === 'flag' ? `<div class="geo-flag sm">${sel.flag()}</div>` : ''}<div class="geo-q-mark">?</div><div class="muted">What is this ${d.noun} called?</div><button class="primary" data-act="geo-reveal" data-id="${sel.id}">Show name</button></div>`
+    : `<div class="card geo-res-main geo-sel">${d.visual === 'flag' ? `<div class="geo-flag sm">${sel.flag()}</div>` : ''}<div class="geo-res-txt">${geoInfo(d, sel)}<div class="row" style="margin-top:8px">${geoSayBtns(d, sel)}</div></div></div>`;
   const legend = d.feat ? '<span style="color:#5aa9e6">●</span> sea · <span style="color:#5aa9e6">━</span> river · <span style="color:#c9a27a">▲</span> mountain' : `<span style="color:var(--mint)">■</span> known · <span style="color:var(--butter)">■</span> learning${d.map === 'provinces' && d.section === 'geo' ? ' · ● capital' : ''}`;
   return `${cover}<div class="geo-mapview"><div class="card geo-mapcard">${map}</div><div>${panel}<p class="muted" style="font-size:13px;margin:10px 2px">${d.feat ? '' : 'Colours: '}${legend}</p></div></div>`;
 }
@@ -172,8 +178,8 @@ function geoAnswer(res, picked, typed) { // res: right | close | english | wrong
 }
 function geoReveal(d, it, s, k) {
   const verdict = { right: '<b style="color:var(--mint)">✓ Goed zo!</b>', close: `<b style="color:var(--butter)">Almost! It is spelled <u>${esc(it[k.field])}</u>.</b>`, english: `<b style="color:var(--butter)">That is the English one. In Dutch: <u>${esc(it[k.field])}</u>.</b>`, wrong: s.typed ? `<span class="warn">You typed: ${esc(s.typed)}</span>` : '<span class="warn">That is okay, here it is!</span>' }[s.res];
-  return `<div class="card rcard geo-res"><div class="geo-res-main"><div class="geo-flag sm">${geoVis(it, d)}</div><div class="geo-res-txt">${verdict}${geoInfo(d, it)}</div></div>
-    <div class="row geo-res-btns">${geoSayBtns(d, it)}<button class="primary" data-act="geo-next" data-focus>${s.i + 1 >= s.queue.length ? 'Finish' : 'Next →'}</button></div></div>`;
+  return `<div class="card rcard geo-res"><div class="geo-res-main">${d.visual === 'flag' ? `<div class="geo-flag sm">${it.flag()}</div>` : ''}<div class="geo-res-txt">${verdict}${geoInfo(d, it, true)}</div></div>
+    <div class="row geo-res-btns"><button class="primary keyed up" data-act="geo-next" data-focus><span>${s.i + 1 >= s.queue.length ? 'Finish' : 'Next →'}</span><small class="btn-key"><kbd class="kbd">Space</kbd></small></button></div></div>`;
 }
 function geoSession() {
   const s = geo.sess, d = s.d, q = s.queue[s.i];
@@ -187,16 +193,26 @@ function geoSession() {
   const it = d.items.find((x) => x.id === q.id), k = d.kinds.find((x) => x.id === q.kind), co = s.coach, actCls = co.played ? '' : 'act-' + co.act;
   co.played = true;
   const coach = `<div class="coach">${pigSvg('happy', actCls, { stage: pigStage(), card: true })}<div class="cbub"><span>${esc(co.line || '')}</span></div></div>`;
-  let body;
+  // the options (choice questions), and the controls that sit in the slot below: "I don't know", or the box to type in. After the answer the slot shows the result.
+  let opts = '', ctl;
   if (k.type === 'choice') {
-    body = `<div class="opts ${k.optClass || ''}">${q.opts.map((id, n) => { const o = d.items.find((x) => x.id === id); return `<button data-act="geo-pick" data-v="${id}" class="${s.res ? (id === it.id ? 'ok' : id === s.picked ? 'no' : '') : ''}" ${s.res ? 'tabindex="-1"' : ''}>${s.res ? '' : `<kbd class="kbd">${n + 1}</kbd> `}${k.opt(o)}${geoEnOn() && k.optF && geoEnOf(o, k.optF) ? `<small class="geo-en">${esc(geoEnOf(o, k.optF))}</small>` : ''}</button>`; }).join('')}</div>${s.res ? '' : '<div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="geo-skip">🤷 I don\'t know</button></div>'}`;
+    opts = `<div class="opts ${k.optClass || ''}">${q.opts.map((id, n) => { const o = d.items.find((x) => x.id === id); return `<button data-act="geo-pick" data-v="${id}" class="${s.res ? (id === it.id ? 'ok' : id === s.picked ? 'no' : '') : ''}" ${s.res ? 'tabindex="-1"' : ''}>${k.opt(o)}${geoEnOn() && k.optF && geoEnOf(o, k.optF) ? `<small class="geo-en">${esc(geoEnOf(o, k.optF))}</small>` : ''}<kbd class="kbd"${s.res ? ' style="visibility:hidden"' : ''}>${n + 1}</kbd></button>`; }).join('')}</div>`;
+    ctl = `<div class="row" style="justify-content:center"><button class="ghost keyed" data-act="geo-skip">🤷 I don't know${skipKey()}</button></div>`;
   } else {
-    body = s.res ? '' : `${geoEnOn() && geoEnOf(it, k.field) ? `<div class="geo-en" style="text-align:center;margin-bottom:6px">in English: ${esc(geoEnOf(it, k.field))}</div>` : ''}${s.hint ? `<div class="hint-line">${esc(L.hintText(it[k.field], s.hint))}</div>` : ''}<input type="text" class="big-in" id="geo-in" data-focus data-enter="geo-check" autocomplete="off" spellcheck="false" placeholder="Type it in Dutch... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="geo-check">Check</button><button class="ghost" data-act="geo-hint">💡 Hint</button><button class="ghost" data-act="geo-skip">🤷 I don't know</button></div>`;
+    ctl = `${geoEnOn() && geoEnOf(it, k.field) ? `<div class="geo-en" style="text-align:center;margin-bottom:6px">in English: ${esc(geoEnOf(it, k.field))}</div>` : ''}${s.hint ? `<div class="hint-line">${esc(L.hintText(it[k.field], s.hint))}</div>` : ''}<input type="text" class="big-in" id="geo-in" data-focus data-enter="geo-check" autocomplete="off" spellcheck="false" placeholder="Type it in Dutch... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="geo-check">Check</button><button class="ghost" data-act="geo-hint">💡 Hint</button><button class="ghost keyed" data-act="geo-skip">🤷 I don't know${skipKey()}</button></div>`;
   }
   return `<div class="top"><div><h1>${d.icon} ${esc(d.full)}</h1></div><div class="row">${geoSoundBtn()}<button class="switch ${geoEnOn() ? 'on' : ''}" role="switch" aria-checked="${geoEnOn()}" data-act="geo-en" title="Show the English next to the Dutch"><i></i>Show English</button><button class="ghost" data-act="geo-end">End</button></div></div>
     <div class="fc-wrap geo-wrap">${coach}<div class="geo-prog"><div class="bar"><i style="width:${(s.i / s.queue.length) * 100}%"></i></div><span class="muted">${s.i + 1} / ${s.queue.length}</span></div>
-    <div class="card geo-q">${k.ask(it, d)}${geoEnOn() && k.askF && geoEnOf(it, k.askF) ? `<div class="geo-en">${esc(geoEnOf(it, k.askF))}</div>` : ''}<div class="muted geo-prompt">${esc(k.prompt)}</div></div>${body}${s.res ? geoReveal(d, it, s, k) : ''}</div>`;
+    <div class="card geo-q${k.fill ? ' fill' : ''}">${k.ask(it, d)}${geoEnOn() && k.askF && geoEnOf(it, k.askF) ? `<div class="geo-en">${esc(geoEnOf(it, k.askF))}</div>` : ''}${k.fill ? '' : `<div class="muted geo-prompt">${esc(k.prompt)}</div>`}</div>${opts}<div class="geo-slot">${s.res ? geoReveal(d, it, s, k) : ctl}</div></div>`;
 }
+
+// The quiz page is exactly as tall as the window has room for, whatever the title row did (a long title wraps to two lines).
+function geoFit() {
+  const w = $('.geo-wrap'), m = $('#main'); if (!w || !m) return;
+  const top = w.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop, pad = parseFloat(getComputedStyle(m).paddingBottom) || 0;
+  w.style.height = Math.max(430, m.clientHeight - top - pad) + 'px';
+}
+window.addEventListener('resize', geoFit);
 
 // ---------- actions ----------
 Object.assign(ACT, {
@@ -207,7 +223,8 @@ Object.assign(ACT, {
   'geo-say': (el) => geoSpeak(el.dataset.t),
   'geo-mute': () => { S.geoMute = !geoMuted(); if (S.geoMute) stopSpeech(); save(); render(); },
   'geo-view': (el) => { geo.view = el.dataset.v; render(); },
-  'geo-map': (el) => { const d = geoDeck(), it = d.items.find((x) => x.id === el.dataset.id); if (!it) return; geo.sel = it.id; geoSpeak(it.name); render(); },
+  'geo-map': (el) => { const d = geoDeck(), it = d.items.find((x) => x.id === el.dataset.id); if (!it) return; geo.sel = it.id; if (!geo.cover || geo.rev[d.id + it.id]) geoSpeak(it.name); render(); }, // with the names covered, saying it would give it away
+  'geo-reveal': (el) => { const d = geoDeck(), it = d.items.find((x) => x.id === el.dataset.id); if (!it) return; geo.rev[d.id + it.id] = true; geoSpeak(it.name); render(); },
   'geo-region': (el) => { geo.region = el.dataset.v; render(); },
   'geo-cover': () => { geo.cover = !geo.cover; geo.rev = {}; render(); },
   'geo-tile': (el) => { const d = geoDeck(), it = d.items.find((x) => x.id === el.dataset.id); if (!it) return; geo.rev[d.id + it.id] = true; geoSpeak(it.name); if (geo.cover) render(); },
@@ -236,6 +253,10 @@ document.addEventListener('change', (e) => {
 document.addEventListener('keydown', (e) => { // 1-4 pick an option, Enter goes on
   if (ui.view !== 'bonus' || !geo.sess || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const s = geo.sess, q = s.queue[s.i]; if (!q) return;
-  if (!s.res && /^[1-4]$/.test(e.key)) { const b = document.querySelectorAll('[data-act="geo-pick"]')[+e.key - 1]; if (b) { e.preventDefault(); b.click(); } }
-  else if (s.res && e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); ACT['geo-next'](); }
+  if (!s.res && keyOf(e) === hotkeys().skip && document.querySelector('[data-act="geo-skip"]')) { e.preventDefault(); ACT['geo-skip'](); }
+  else if (!s.res && /^[1-4]$/.test(e.key)) { const b = document.querySelectorAll('[data-act="geo-pick"]')[+e.key - 1]; if (b) { e.preventDefault(); b.click(); } }
+  else if (s.res && (e.key === ' ' || (e.key === 'Enter' && e.target.tagName !== 'BUTTON'))) { e.preventDefault(); ACT['geo-next'](); } // Space or Enter go on
+});
+document.addEventListener('keyup', (e) => { // a button would be "clicked" again when Space comes up
+  if (e.key === ' ' && ui.view === 'bonus' && geo.sess && geo.sess.res && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) e.preventDefault();
 });

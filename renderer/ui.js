@@ -23,7 +23,7 @@ function openDd(wrap, sel) {
   const items = [];
   const addOpt = (o, parent) => {
     const it = document.createElement('div'); it.className = 'dd-item' + (o.selected ? ' sel' : '') + (o.disabled ? ' off' : ''); it.setAttribute('role', 'option');
-    it.dataset.v = o.value; it.innerHTML = '<span class="dd-check">✓</span><span>' + esc(o.textContent) + '</span>';
+    it.dataset.v = o.value; it.title = o.textContent; it.innerHTML = '<span class="dd-check">✓</span><span class="dd-txt">' + esc(o.textContent) + '</span>';
     it.addEventListener('mousedown', (e) => e.preventDefault());
     it.addEventListener('click', () => { if (o.disabled) return; pickDd(sel, wrap, o.value); closeDd(true); });
     it.addEventListener('mousemove', () => hlDd(items.indexOf(it)));
@@ -34,8 +34,8 @@ function openDd(wrap, sel) {
   });
   document.body.appendChild(list);
   const b = wrap.getBoundingClientRect(), vh = window.innerHeight;
-  list.style.minWidth = Math.max(b.width, 160) + 'px';
-  list.style.left = Math.min(b.left, window.innerWidth - list.offsetWidth - 12) + 'px';
+  list.style.width = b.width + 'px'; // the list is exactly as wide as the button it belongs to
+  list.style.left = Math.max(8, Math.min(b.left, window.innerWidth - b.width - 8)) + 'px';
   const h = Math.min(list.scrollHeight, 340), below = vh - b.bottom - 14;
   if (below >= h || below >= 180) { list.style.top = b.bottom + 6 + 'px'; list.style.maxHeight = Math.min(340, below) + 'px'; list.classList.add('down'); }
   else { list.style.maxHeight = Math.min(340, b.top - 14) + 'px'; list.style.top = Math.max(8, b.top - Math.min(h, b.top - 14) - 6) + 'px'; list.classList.add('up'); }
@@ -57,7 +57,8 @@ function enhanceSelects() {
     if (cs.maxWidth && cs.maxWidth !== 'none') wrap.style.maxWidth = cs.maxWidth;
     const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'dd-btn'; btn.setAttribute('aria-haspopup', 'listbox');
     if (sel.disabled) btn.disabled = true;
-    btn.innerHTML = '<span class="dd-label"></span><svg class="dd-caret" viewBox="0 0 12 8" aria-hidden="true"><path d="M1.5 1.5 6 6l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const sizers = [...sel.options].map((o) => '<span class="dd-sizer" aria-hidden="true">' + esc(o.textContent) + '</span>').join(''); // every option sits in the same grid cell, so the widest one sets the width
+    btn.innerHTML = '<span class="dd-lw"><span class="dd-label"></span>' + sizers + '</span><svg class="dd-caret" viewBox="0 0 12 8" aria-hidden="true"><path d="M1.5 1.5 6 6l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     btn.querySelector('.dd-label').textContent = ddLabel(sel);
     btn.addEventListener('click', (e) => { e.preventDefault(); openDd(wrap, sel); });
     btn.addEventListener('keydown', (e) => {

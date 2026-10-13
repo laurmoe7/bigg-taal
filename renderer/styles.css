@@ -412,7 +412,8 @@ details summary { cursor: pointer; font-weight: 800; color: var(--lav); }
   border: 1px solid var(--line); border-radius: 14px; padding: 9px 14px; font-weight: 800; color: var(--text); box-shadow: inset 0 -2px 0 #00000014; overflow: hidden; }
 .dd-btn:hover { border-color: var(--hl); background: linear-gradient(180deg, var(--card-hi), var(--deep)); }
 .dd-btn:focus-visible, .dd-wrap.open .dd-btn { border-color: var(--pink); box-shadow: 0 0 0 4px color-mix(in srgb, var(--pink) 15%, transparent); outline: none; }
-.dd-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-lw { flex: 1; min-width: 0; display: grid; } .dd-label, .dd-sizer { grid-area: 1 / 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .dd-sizer { visibility: hidden; height: 0; pointer-events: none; } /* the sizer holds the longest option, so the button keeps one width whichever option is picked */
+.dd-item .dd-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dd-caret { width: 12px; height: 8px; flex: none; color: var(--lav); transition: transform .22s cubic-bezier(.3, 1.4, .5, 1); } .dd-wrap.open .dd-caret { transform: rotate(180deg); }
 .dd-btn:disabled { opacity: .5; cursor: default; }
 .dd-list { position: fixed; z-index: 9800; overflow-y: auto; padding: 6px; background: linear-gradient(180deg, var(--card-hi), var(--card)); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 22px 44px -14px #000d, 0 0 0 1px color-mix(in srgb, var(--pink) 10%, transparent);
@@ -678,7 +679,7 @@ body.nofx .sparkles { display: none; }
 .geo-q { text-align: center; padding: 22px !important; } .geo-q .big { font-size: 30px; font-weight: 900; line-height: 1.2; }
 .geo-flag { width: min(100%, 340px); margin: 0 auto 4px; } .geo-flag.sm { width: 120px; } .geo-mini { width: 54px; display: block; flex: none; } .geo-mini .geo-pin { font-size: 26px; padding: 0; }
 .geo-wrap .opts button .flag { margin: 0 auto; } .opts.flags button { padding: 10px; }
-.geo-wrap .opts button { display: flex; align-items: center; justify-content: center; gap: 8px; } .geo-wrap .opts .kbd { flex: none; }
+.geo-wrap .opts button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; } .geo-wrap .opts .kbd { flex: none; }
 .geo-res .flag { margin: 0 auto; }
 .geo-setup { max-width: 760px; } .geo-setup .card { padding: 24px; }
 .geo-setup-head { display: flex; align-items: center; gap: 16px; } .geo-setup-head .pig { width: 84px; height: 84px; flex: none; } .geo-setup-head h2 { margin: 0 0 2px; } .geo-setup-head p { margin: 0; }
@@ -693,16 +694,16 @@ body.nofx .sparkles { display: none; }
 .geo-part { display: flex; align-items: center; gap: 10px; } .geo-go { display: flex; align-items: center; gap: 14px; margin-left: auto; }
 .geo-setup-head { justify-content: flex-start; } .geo-setup-head > svg { flex: none; width: 84px !important; height: 84px !important; margin: 0 !important; } .geo-setup-head > div { text-align: left; }
 /* compact quiz screen */
-.geo-wrap { max-width: 600px; }
+.geo-wrap { max-width: 680px; }
 .geo-prog { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; } .geo-prog .bar { flex: 1; margin: 0; } .geo-prog span { font-size: 13px; font-weight: 800; }
-.geo-wrap .geo-q { padding: 12px 16px !important; } .geo-wrap .geo-q .geo-flag { width: min(100%, 320px); margin-bottom: 0; } .geo-wrap .geo-q .geo-flag.sm { width: 84px; } .geo-wrap .geo-q .big { font-size: 24px; } .geo-prompt { margin-top: 6px; font-size: 14px; }
-.geo-wrap .opts { margin-top: 8px; gap: 8px; } .geo-wrap .opts button { padding: 9px 12px; font-size: 15px; } .geo-wrap .opts.flags button { padding: 6px 10px; } .geo-wrap .opts.flags .flag { width: 150px; }
+.geo-wrap .geo-q { padding: 12px 16px !important; } .geo-wrap .geo-q .geo-flag { width: min(100%, clamp(150px, calc((100vh - 540px) * 1.33), 440px)); margin-bottom: 0; } .geo-wrap .geo-q .geo-flag.sm { width: 84px; } .geo-wrap .geo-q .big { font-size: 24px; } .geo-prompt { margin-top: 6px; font-size: 14px; }
+.geo-wrap .opts { margin-top: 8px; gap: 8px; } .geo-wrap .opts button { padding: 9px 12px; font-size: 15px; } .geo-wrap .opts.flags button { padding: 6px 10px; } .geo-wrap .opts.flags .flag { width: min(100%, clamp(80px, calc((100vh - 620px) / 1.5), 230px)); }
 .geo-wrap .opts + .row { margin-top: 6px !important; }
 .geo-wrap .geo-res { margin-top: 10px !important; padding: 10px 14px !important; text-align: left; }
-.geo-res-main { display: flex; align-items: center; gap: 14px; } .geo-res-main .geo-flag.sm { width: 96px; margin: 0; flex: none; } .geo-res-txt { line-height: 1.35; font-size: 14px; } .geo-res-name { font-size: 18px; font-weight: 900; }
+.geo-res-main { display: flex; align-items: center; gap: 14px; } .geo-res-main .geo-flag.sm { width: 150px; margin: 0; flex: none; } .geo-res-txt { line-height: 1.35; font-size: 14px; } .geo-res-name { font-size: 18px; font-weight: 900; }
 .geo-res-btns { justify-content: flex-end; margin-top: 8px !important; gap: 8px; }
 /* maps */
-.geo-sel .geo-flag.sm { width: 150px; }
+.geo-sel .geo-flag.sm { width: 200px; }
 .geo-map { display: block; width: 100%; height: auto; } .geo-map .mp { stroke: var(--deep); stroke-width: .8px; vector-effect: non-scaling-stroke; transition: fill .15s; }
 .geo-map .mp.x { fill: color-mix(in srgb, var(--text) 9%, transparent); stroke-width: .5px; } .geo-map .mp.o { fill: color-mix(in srgb, var(--lav) 34%, transparent); }
 .geo-map .mp.l { fill: color-mix(in srgb, var(--butter) 45%, transparent); } .geo-map .mp.k { fill: color-mix(in srgb, var(--mint) 45%, transparent); }
@@ -710,7 +711,7 @@ body.nofx .sparkles { display: none; }
 .geo-map .mp[data-act] { cursor: pointer; } .geo-map .mp[data-act]:hover { fill: var(--lav); }
 .geo-map .ring { fill: none; stroke: var(--pink); stroke-width: 2.5px; vector-effect: non-scaling-stroke; } .geo-map .mdot { fill: var(--text); stroke: var(--deep); stroke-width: 1.5; pointer-events: none; }
 .geo-map .mlabel { font: 800 21px sans-serif; fill: var(--text); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--deep); stroke-width: 3px; }
-.geo-map.q { height: 240px; } .geo-map.mini { height: 96px; } .geo-flag.sm .geo-map.mini { height: 84px; } .geo-mini .geo-map.mini { height: 44px; }
+.geo-map.q { height: 240px; } /* (a quiz page that fills the window overrides this below) */ .geo-map.mini { height: 96px; } .geo-flag.sm .geo-map.mini { height: 84px; } .geo-mini .geo-map.mini { height: 44px; }
 .geo-mapview { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(220px, 1fr); gap: 16px; align-items: start; } @media (max-width: 760px) { .geo-mapview { grid-template-columns: 1fr; } } .geo-mapcard { padding: 12px !important; } .geo-mapcard .geo-map.big { max-height: 62vh; }
 .geo-sel { padding: 14px !important; } .mini-seg { display: flex; width: fit-content; margin-bottom: 14px; } .mini-seg button { padding: 6px 16px; font-size: 14px; }
 /* English helper in the quizzes */
@@ -728,7 +729,7 @@ body.nofx .sparkles { display: none; }
 .geo-map .fp.sea { fill: #5aa9e6; } .geo-map .fp.mnt { fill: #c9a27a; } .geo-map .fp.hi { fill: var(--pink); } .geo-map .fp.sel { fill: var(--butter); } .geo-map .fp-hit { fill: transparent; pointer-events: all; cursor: pointer; }
 .geo-map .sdot { fill: color-mix(in srgb, var(--lav) 80%, #fff); stroke: var(--deep); stroke-width: 1px; vector-effect: non-scaling-stroke; pointer-events: none; } .geo-map .sdot.l { fill: var(--butter); } .geo-map .sdot.k { fill: var(--mint); } .geo-map .sdot.sel { fill: #fff; }
 /* key shown under a button, and the tidier settings page */
-.ghost.keyed { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; } .btn-key .kbd { margin: 0; min-width: 20px; padding: 0 7px; font-size: 11px; }
+.ghost.keyed, .primary.keyed { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; } .keyed.up { flex-direction: column-reverse; gap: 2px; } /* up: the label above, only where room is tight (Next) */ .btn-key .kbd { margin: 0; min-width: 20px; padding: 0 7px; font-size: 11px; }
 .set-card, .set-grid { margin-bottom: 16px; } .set-grid .card { height: 100%; } .set-about { margin: 4px 4px 24px; font-size: 13px; }
 /* the Practise / Browse / Patterns switch sits to the right of the My words / Phrases tabs, as quiet text tabs, so both Flashcards pages have the same top */
 .tabrow { display: flex; align-items: flex-end; gap: 44px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 2px solid var(--line); padding: 0 6px; }
@@ -738,3 +739,53 @@ body.nofx .sparkles { display: none; }
 .tabrow .seg button:hover { color: var(--text); } .tabrow .seg button.on { background: none; color: var(--text); border-bottom-color: var(--pink); box-shadow: none; animation: none; }
 /* online voices card */
 .az-status { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #ffffff06; } .az-help { margin-top: 12px; } .az-help summary { cursor: pointer; font-weight: 800; color: var(--muted); } .az-help ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.6; }
+.geo-covered { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px !important; } .geo-q-mark { font-size: 54px; font-weight: 900; line-height: 1; color: var(--pink); }
+/* short windows: the quiz pages give a little back so the map and flags can stay big enough */
+@media (max-height: 780px) { .geo-wrap .coach .pig { width: 68px; height: 68px; } .geo-wrap .coach { margin-bottom: 0; } .geo-wrap .geo-q { padding: 8px 12px !important; } .geo-wrap .opts button { padding: 7px 10px; } .geo-prompt { margin-top: 2px; font-size: 13px; } }
+@media (max-width: 900px) { .geo-wrap .opts { gap: 6px; } .geo-wrap .opts button { font-size: 14px; } }
+@media (max-height: 700px) { .geo-wrap .coach .pig { width: 46px; height: 46px; } .geo-wrap .coach .cbub { padding: 4px 12px; font-size: 13px; } .geo-wrap .geo-prog { margin-bottom: 4px; }
+  .geo-wrap .opts button { padding: 5px 10px; } .geo-wrap .opts.flags button { padding: 4px 8px; }
+  .geo-wrap .geo-res { padding: 8px 12px !important; margin-top: 6px !important; } .geo-res-main .geo-flag.sm { width: 100px; } .geo-wrap .opts + .row { margin-top: 4px !important; } }
+.geo-head-r { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+
+/* ---- the quiz page fits the window: the map or flag takes what is left, and the answer has its own place that is kept free ---- */
+.geo-wrap { display: flex; flex-direction: column; height: max(430px, calc(100vh - var(--geo-top, 144px))); /* 144 = the page's own top (title row) and bottom padding */ }
+.geo-wrap > * { flex: none; }
+.geo-wrap > .geo-q.fill { flex: 1 1 0; min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; }
+.geo-wrap .geo-q.fill .geo-map.q { flex: 1 1 0; min-height: 0; height: auto; width: 100%; }
+.geo-wrap .geo-q.fill .geo-flag { flex: 1 1 0; min-height: 0; width: 100%; margin: 0; display: flex; justify-content: center; align-items: center; }
+.geo-wrap .geo-q.fill .geo-flag .flag { height: 100%; width: auto; max-width: 100%; margin: 0; }
+.geo-slot { min-height: 136px; display: flex; flex-direction: column; justify-content: center; margin-top: 8px; }
+.geo-slot .geo-res { margin: 0 !important; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.geo-slot .geo-res { flex-wrap: nowrap; } .geo-slot .geo-res-main { flex: 1 1 0; min-width: 0; } .geo-slot .geo-res-btns { flex: none; margin: 0 !important; }
+.geo-slot .geo-res-txt .geo-fact { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+/* the 1-4 key badge sits at the left edge of an answer instead of above it: shorter buttons, a bigger picture */
+.geo-wrap .opts button .kbd { margin: 3px 0 0; min-width: 20px; padding: 0 6px; font-size: 11px; } /* every key label sits below what it belongs to */
+.geo-wrap .opts button:has(.geo-en) { flex-direction: column; gap: 0; }
+@media (max-height: 800px) { .geo-slot { min-height: 108px; margin-top: 4px; } .geo-slot .geo-res-main .geo-flag.sm { width: 104px; } .geo-slot .geo-res-main .geo-map.mini { height: 66px; } .geo-slot .geo-res-btns .ghost, .geo-slot .geo-res-btns .primary { padding-top: 5px; padding-bottom: 5px; } }
+@media (max-height: 700px) { .geo-slot { min-height: 96px; } .geo-slot .geo-res-main .geo-flag.sm { width: 84px; } .geo-slot .geo-res-main .geo-map.mini { height: 52px; } .geo-wrap .geo-q { padding: 6px 10px !important; } .geo-slot .geo-res-btns { flex-direction: row; flex-wrap: wrap; } }
+
+/* ---- less padding and spacing in the quiz, so the map can be bigger ---- */
+.geo-wrap .coach { margin: 0 0 4px; gap: 12px; align-items: center; } .geo-wrap .coach .geo-prog { margin: 0 0 0 auto; width: min(260px, 36%); flex: none; }
+.geo-wrap .geo-prog .bar { margin: 0; }
+.geo-wrap .geo-q { padding: 6px 10px 8px !important; } .geo-wrap .geo-q.fill { gap: 2px; } .geo-wrap .geo-prompt { margin-top: 0; font-size: 14px; line-height: 1.2; }
+.geo-wrap .opts { margin-top: 6px; gap: 6px; } .geo-wrap .opts button { padding: 4px 10px; line-height: 1.2; } .geo-wrap .opts button .kbd { margin: 1px 0 0; line-height: 1.25; } .geo-wrap .opts button .geo-en { margin-top: -1px; }
+.geo-slot { min-height: 96px; margin-top: 6px; justify-content: flex-start; }
+.geo-slot .geo-res { padding: 8px 14px !important; } .geo-slot .geo-res-txt > div { line-height: 1.3; } .geo-slot .geo-res-main { gap: 12px; }
+.geo-slot .geo-res-btns { align-self: center; } .geo-slot .geo-res-btns .primary { padding-top: 6px; padding-bottom: 8px; }
+.geo-say { padding: 0 8px !important; margin-left: 8px; font-size: 12px; min-height: 0 !important; vertical-align: middle; }
+
+/* the answer card is slim, and its space is reserved exactly, so the map does not change size when you answer */
+.geo-slot { min-height: 100px; } .geo-slot .geo-res-main .geo-flag.sm { width: 112px; } .geo-slot .geo-res-main .geo-map.mini { height: 68px; } .geo-slot .geo-res { padding: 6px 12px !important; }
+.geo-slot { min-height: 104px; }
+
+/* ---- key labels sit to the LEFT of what they belong to (only Next has its label above); progress bars are thin and under Bigg everywhere ---- */
+.fc-wrap > .bar, .geo-prog .bar { height: 7px; border-width: 1px; }
+.geo-prog { margin: 2px 0 6px; } .geo-wrap .coach .geo-prog { margin: 0; }
+.geo-slot { min-height: 92px; } .geo-slot .geo-res { padding: 6px 14px !important; }
+.geo-slot { min-height: 100px; }
+/* key labels on the left (Next keeps its label above) */
+.keyed:not(.up) { flex-direction: row; gap: 8px; } .keyed:not(.up) .btn-key { order: -1; }
+.geo-wrap .opts button { position: relative; } .geo-wrap .opts button .kbd { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); margin: 0; }
+.grades .gl { display: inline-flex; align-items: center; gap: 8px; } .grades button small { margin-top: 2px; }
+.speakw { flex-direction: row-reverse; gap: 6px; }

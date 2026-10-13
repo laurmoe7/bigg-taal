@@ -16,7 +16,7 @@ function save() {
 async function load() {
   let d = null;
   try { d = window.vt ? await window.vt.load() : JSON.parse(localStorage.getItem('biggtaal') || 'null'); } catch {}
-  S = L.fixState(d); applyTheme(); applyBgFx(); refreshBirthday(); if (typeof snapshotToday === 'function') snapshotToday(); if (typeof initXp === 'function') initXp();
+  S = L.fixState(d); if (S.settings.keys && S.settings.keys.skip === '4') S.settings.keys.skip = '5'; /* 4 was the first default, but 1-4 pick the answers in the Bonus quizzes */ applyTheme(); applyBgFx(); refreshBirthday(); if (typeof snapshotToday === 'function') snapshotToday(); if (typeof initXp === 'function') initXp();
   if (!S.seeded) {
     const w = L.parseVocab(SEED_WORDS); 
     S.words = L.mergeWords(S.words, w).words; S.seeded = true; save();
@@ -169,6 +169,7 @@ function render() {
   ui.rendered = ui.view;
   main.innerHTML = v();
   main.scrollTop = keep;
+  if (typeof geoFit === 'function') geoFit(); // the Bonus quiz page is sized to the window
   const f = $('[data-focus]'); if (f) f.focus();
 }
 ui.wsScroll = {}; // where you were in each open worksheet, so coming back to it puts you at the same spot
@@ -513,11 +514,11 @@ document.addEventListener('keydown', (e) => {
     if (other) { keys[other] = keys[act]; toast(keyLabel(k) + ' was used for "' + HOTKEY_DEFS.find((d) => d[0] === other)[1] + '", so the two keys swapped.'); }
     keys[act] = k; ui.hkCapture = ''; save(); return render();
   }
-  if (ui.view === 'cards' && ['typed', 'copy', 'ph-in', 'ph-copy'].includes(e.target.id)) { // while the typing box has focus: the skip key (or Esc) = I don't know, the hint key = hint
+  if ((ui.view === 'cards' && ['typed', 'copy', 'ph-in', 'ph-copy'].includes(e.target.id)) || (ui.view === 'bonus' && e.target.id === 'geo-in')) { // while the typing box has focus: the skip key (or Esc) = I don't know, the hint key = hint
     const hk = hotkeys(), k = keyOf(e), plain = !e.ctrlKey && !e.altKey && !e.metaKey;
     const hit = (key) => (/^\p{L}$/u.test(key) ? e.ctrlKey && !e.altKey && k === key : plain && k === key); // a letter needs Ctrl, or it would be typed
-    if (e.key === 'Escape' || hit(hk.skip)) { e.preventDefault(); ACT[{ typed: 'skip', copy: 'copy-skip', 'ph-in': 'ph-skip', 'ph-copy': 'ph-copy-skip' }[e.target.id]](); return; }
-    if (hit(hk.hint)) { const b = document.querySelector('[data-act="fc-hint"],[data-act="ph-hint"]'); if (b) { e.preventDefault(); b.click(); } return; }
+    if (e.key === 'Escape' || hit(hk.skip)) { e.preventDefault(); ACT[{ typed: 'skip', copy: 'copy-skip', 'ph-in': 'ph-skip', 'ph-copy': 'ph-copy-skip', 'geo-in': 'geo-skip' }[e.target.id]](); return; }
+    if (hit(hk.hint)) { const b = document.querySelector('[data-act="fc-hint"],[data-act="ph-hint"],[data-act="geo-hint"]'); if (b) { e.preventDefault(); b.click(); } return; }
   }
   const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (e.key === 'Enter' && e.target.id === 'copy') { e.preventDefault(); copyContinue(false); return; }

@@ -12,7 +12,8 @@
     "voices": "node scripts/get-voices.js",
     "install:local": "node scripts/install-local.js",
     "ship:local": "npm run dist && node scripts/install-local.js",
-    "shortcut": "powershell -ExecutionPolicy Bypass -File scripts/make-shortcut.ps1"
+    "icon": "node scripts/stamp-icon.js",
+    "shortcut": "node scripts/stamp-icon.js && powershell -ExecutionPolicy Bypass -File scripts/make-shortcut.ps1"
   },
   "build": {
     "appId": "com.laurmoe.biggtaal",
