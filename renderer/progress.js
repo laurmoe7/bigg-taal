@@ -55,7 +55,7 @@ VIEWS.progress = () => {
   const first = snaps.find((x) => x != null), last = snaps[snaps.length - 1];
   const weak = L.weakSkills(S.skills, 5), trouble = L.troubleWords(liveWords()).slice(0, 8);
   const sounds = Object.entries(S.sounds || {}).filter(([id, x]) => x.n > 0 && L.SOUNDS[id]).sort((a, b) => b[1].n - a[1].n).slice(0, 4);
-  return `<div class="top"><div><h1>Progress</h1><p class="sub">How you are doing, week by week.</p></div><div class="row"><button class="ghost" data-act="recap-open" data-v="0">📅 This week</button><button class="ghost" data-act="recap-open" data-v="1">📅 Last week</button></div></div>
+  return `<div class="top"><div><h1>Progress</h1></div><div class="row"><button class="ghost" data-act="recap-open" data-v="0">📅 This week</button><button class="ghost" data-act="recap-open" data-v="1">📅 Last week</button></div></div>
   <div class="grid g4">
     <div class="card stat s-coral"><i class="si">🃏</i><b>${cards}</b><span>cards this week</span>${delta(cards, cardsB)}</div>
     <div class="card stat s-aqua"><i class="si">🎧</i><b>${heard}</b><span>listening answers</span>${delta(heard, heardB)}</div>

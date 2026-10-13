@@ -101,8 +101,9 @@ VIEWS.wardrobe = () => {
   const bgTab = `<h2 class="wd-h">Everyday</h2><div class="wd-grid">${wdSpecial('wd-bg', 'auto', '✨', 'Automatic', 'Follows the season', w.bg === 'auto', pigSvg('happy', 'wd-pig wd-showfall', { stage: pigStage(), look: '', bg: SEASON_BG[L.seasonOf()] || '' }))}${wdSpecial('wd-bg', 'none', '🚫', 'None', 'Nothing floating around', w.bg === 'none', pigSvg('happy', 'wd-pig', { stage: pigStage(), look: '', bg: '' }))}</div>
     <h2 class="wd-h">Seasons</h2><div class="wd-grid">${bgs.filter((id) => BG_DEFS[id].season).map((id) => wdBgTile(id, fresh.has('bg:' + id), w.bg)).join('')}</div>
     <h2 class="wd-h">Anytime</h2><div class="wd-grid">${bgs.filter((id) => !BG_DEFS[id].season).map((id) => wdBgTile(id, fresh.has('bg:' + id), w.bg)).join('')}</div>`;
-  return `<div class="top"><div><h1>Wardrobe</h1><p class="sub">Pick a hat or outfit, and a background, separately. Hats come from holidays and levels.</p></div><span class="pill sky">${tab === 'hats' ? got + ' / ' + total + ' hats' : bgGot + ' / ' + bgs.length + ' backgrounds'}</span></div>
-  <div class="wd-layout">${side}<div class="wd-main"><div class="seg wd-tabs" role="tablist"><button class="${tab === 'hats' ? 'on' : ''}" data-act="wd-tab" data-v="hats">🎩 Hats &amp; outfits</button><button class="${tab === 'bg' ? 'on' : ''}" data-act="wd-tab" data-v="bg">✨ Backgrounds</button></div>${tab === 'hats' ? hatsTab : bgTab}</div></div>`;
+  return `<div class="top"><div><h1>Wardrobe</h1></div><span class="pill sky">${tab === 'hats' ? got + ' / ' + total + ' hats' : bgGot + ' / ' + bgs.length + ' backgrounds'}</span></div>
+  <div class="tabs" role="tablist"><button class="tab ${tab === 'hats' ? 'on' : ''}" data-act="wd-tab" data-v="hats">🎩 Hats &amp; outfits</button><button class="tab ${tab === 'bg' ? 'on' : ''}" data-act="wd-tab" data-v="bg">✨ Backgrounds</button></div>
+  <div class="wd-layout">${side}<div class="wd-main">${tab === 'hats' ? hatsTab : bgTab}</div></div>`;
 };
 const wdChanged = () => { ui.sideSig = ''; ui.say = ''; render(); };
 Object.assign(ACT, {

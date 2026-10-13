@@ -69,12 +69,12 @@ function sxView() {
       <div class="row" style="margin-top:14px"><button class="primary" data-act="sx-next">Next sentence ➜</button><button class="ghost" data-act="sx-claude" title="Copies a question for Claude (also works in the free version)">✨ Ask Claude to explain more</button></div>
       <p class="muted" style="margin:10px 0 0;font-size:13px">These are rule-of-thumb explanations from word order. Real sentences can be trickier, so ask Claude when something does not fit.</p></div>`;
   }
-  return `<div class="top"><div><h1>Why is it built like this?</h1><p class="sub">Real Dutch sentences, with the word-order rule behind each one.</p></div></div><div class="chips2" style="margin-bottom:12px">${chips}</div>${body}`;
+  return `<div class="chips2" style="margin-bottom:12px">${chips}</div>${body}`;
 }
 const baseGrammar = VIEWS.grammar;
 VIEWS.grammar = () => {
   const tab = (id, label) => `<button class="tab ${(ui.grTab || 'sheets') === id ? 'on' : ''}" data-act="gr-tab" data-v="${id}">${label}</button>`;
-  return `<div class="tabs">${tab('sheets', '📚 Cheat sheets')}${tab('explain', '🔍 Sentence explainer')}${tab('verbs', '🔧 Verb trainer')}</div>${ui.grTab === 'explain' ? sxView() : ui.grTab === 'verbs' ? vtView() : baseGrammar()}`;
+  return `<div class="top"><h1>Grammar</h1></div><div class="tabs">${tab('sheets', '📚 Cheat sheets')}${tab('explain', '🔍 Sentence explainer')}${tab('verbs', '🔧 Verb trainer')}</div>${ui.grTab === 'explain' ? sxView() : ui.grTab === 'verbs' ? vtView() : baseGrammar()}`;
 };
 Object.assign(ACT, {
   'gr-tab': (el) => { ui.grTab = el.dataset.v; render(); },

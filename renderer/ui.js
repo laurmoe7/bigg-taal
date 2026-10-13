@@ -78,7 +78,7 @@ enhanceSelects();
 
 // ---------- ripple on buttons ----------
 document.addEventListener('pointerdown', (e) => {
-  const b = e.target.closest && e.target.closest('.primary, .ghost, .tab, .chip, .seg button, .theme, .dd-btn');
+  const b = e.target.closest && e.target.closest('.primary, .ghost, .tab, .chip, .seg button, .theme');
   if (!b || b.disabled) return;
   const r = b.getBoundingClientRect(), s = Math.max(r.width, r.height) * 2, dot = document.createElement('span');
   dot.className = 'ripple'; dot.style.cssText = `width:${s}px;height:${s}px;left:${e.clientX - r.left - s / 2}px;top:${e.clientY - r.top - s / 2}px`;

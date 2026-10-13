@@ -26,13 +26,14 @@ const wordCard = (w) => `<div class="wcard"><div class="wtop"><div class="wt">${
 
 VIEWS.words = () => {
   const f = ui.words, all = liveWords(), m = L.mastery(S.words);
-  const head = `<div class="top"><div><h1>Words</h1><p class="sub">${all.length} words · ${m.learned} learned · ${m.fresh} not started yet</p></div></div>`;
-  const sec = f.tab === 'dict' || f.tab === 'suggest' ? 'dict' : 'mine';
-  const secBar = `<div class="seg"><button class="${sec === 'mine' ? 'on' : ''}" data-act="wt-sec" data-v="mine">📚 My words <small>${all.length}</small></button><button class="${sec === 'dict' ? 'on' : ''}" data-act="wt-sec" data-v="dict">📖 Dictionary</button></div>`;
-  const tabBtn = (id, label) => `<button class="tab ${f.tab === id ? 'on' : ''}" data-act="wt-tab" data-t="${id}">${label}</button>`;
-  const tabs = secBar + (sec === 'mine'
-    ? `<div class="tabs">${WORD_TABS.map(([id, ic, name, fn]) => tabBtn(id, `${ic} ${name} <small>${all.filter(fn).length}</small>`)).join('')}${tabBtn('add', '➕ Add manually')}</div>`
-    : `<div class="tabs">${tabBtn('dict', '🔎 Look up')}${tabBtn('suggest', '💡 Suggested')}</div>`);
+  const head = `<div class="top"><div><h1>Words</h1></div></div>`;
+  const sec = f.tab === 'recall' ? 'recall' : f.tab === 'dict' || f.tab === 'suggest' ? 'dict' : 'mine';
+  const secBar = `<div class="tabs"><button class="tab ${sec === 'mine' ? 'on' : ''}" data-act="wt-sec" data-v="mine">📚 My words <small>${all.length}</small></button><button class="tab ${sec === 'dict' ? 'on' : ''}" data-act="wt-sec" data-v="dict">📖 Dictionary</button><button class="tab ${sec === 'recall' ? 'on' : ''}" data-act="wt-sec" data-v="recall">🧠 Blank-page recall</button></div>`;
+  const tabBtn = (id, label) => `<button class="${f.tab === id ? 'on' : ''}" data-act="wt-tab" data-t="${id}">${label}</button>`;
+  const tabs = secBar + (sec === 'recall' ? '' : sec === 'mine'
+    ? `<div class="seg">${WORD_TABS.map(([id, ic, name, fn]) => tabBtn(id, `${ic} ${name} <small>${all.filter(fn).length}</small>`)).join('')}${tabBtn('add', '➕ Add manually')}</div>`
+    : `<div class="seg">${tabBtn('dict', '🔎 Look up')}${tabBtn('suggest', '💡 Suggested')}</div>`);
+  if (f.tab === 'recall') return head + tabs + rcPage();
   if (f.tab === 'add') return head + tabs + addWordsTab();
   if (f.tab === 'suggest') return head + tabs + suggestTab();
   if (f.tab === 'dict') return head + tabs + dictTab();
@@ -151,7 +152,7 @@ Object.assign(ACT, {
     const l = $('#ex-list'); if (l) l.innerHTML = exList();
   },
   'ex-use': (el) => { const p = ui.exFound && ui.exFound[+el.dataset.i]; if (!p) return; $('#w-ex').value = p[0]; ui.exEn = p; toast('Using that sentence'); },
-  'wt-sec': (el) => { const f = ui.words; f.tab = el.dataset.v === 'mine' ? (f.lastMine || 'all') : (f.lastDict || 'dict'); f.page = 0; ui.edit = null; render(); $('#main').scrollTop = 0; },
+  'wt-sec': (el) => { const f = ui.words; f.tab = el.dataset.v === 'recall' ? 'recall' : el.dataset.v === 'mine' ? (f.lastMine || 'all') : (f.lastDict || 'dict'); f.page = 0; ui.edit = null; render(); $('#main').scrollTop = 0; },
   'wt-tab': (el) => { const f = ui.words; f.tab = el.dataset.t; if (f.tab === 'dict' || f.tab === 'suggest') f.lastDict = f.tab; else f.lastMine = f.tab; f.page = 0; f.letter = ''; if (f.tab !== 'add') { ui.edit = null; f.back = f.tab; } render(); $('#main').scrollTop = 0; },
   'wt-letter': (el) => { ui.words.letter = el.dataset.v; ui.words.page = 0; render(); },
   'wt-art': (el) => { ui.words.art = el.dataset.v; ui.words.page = 0; render(); },

@@ -388,6 +388,22 @@
   };
   // the words to underline in an example sentence (all forms of the word, and the little word of a separable verb)
   L.exampleForms = (nl, pos) => { const f = L.wordForms(nl, pos), sep = L.sepSplit(nl); return sep ? f.concat(sep.prefix) : f; };
+  // Cloze: the word of the card as it appears in its example sentence, so the sentence can be shown with a gap.
+  // Returns { form, before, after } (the text around the gap) or null when the word is not in the sentence.
+  L.clozeOf = (example, nl, pos) => {
+    const ex = String(example || ''), base = String(nl || '').toLowerCase().replace(/^(de|het|een|zich)\s+/, '').trim(); if (!ex || !base) return null;
+    const forms = new Set(L.wordForms(base, pos)); let hit = null;
+    if (base.includes(' ')) { const i = ex.toLowerCase().indexOf(base); if (i >= 0) hit = { start: i, end: i + base.length }; }
+    else { const re = /\p{L}+(?:['’-]\p{L}+)*/gu; let m; while ((m = re.exec(ex))) if (forms.has(m[0].toLowerCase())) { hit = { start: m.index, end: m.index + m[0].length }; break; } }
+    return hit ? { form: ex.slice(hit.start, hit.end), before: ex.slice(0, hit.start), after: ex.slice(hit.end) } : null;
+  };
+  // Blank-page recall: which of your words did a typed entry mean? exact is false for a typo or missing accent. Returns { w, exact } or null.
+  L.recallMatch = (typed, pool) => {
+    const t = L.norm(String(typed || '').replace(/^\s*(de|het|een)\s+/i, '')); if (!t) return null;
+    for (const w of pool) if (L.norm(w.nl) === t || L.norm(L.stripArticle(w.nl)) === t) return { w, exact: String(typed).trim().toLowerCase().replace(/^(de|het|een)\s+/, '') === w.nl.toLowerCase() };
+    if (t.length > 4) for (const w of pool) { const a = L.norm(L.stripArticle(w.nl)); if (a.length > 4 && L.lev(t, a) <= 1) return { w, exact: false }; }
+    return null;
+  };
   // Words from the frequency list (FREQ = [[dutch, english, rank], ...]) that are not in your list yet, within a rank band.
   L.suggestWords = (freq, words, known, lo, hi) => {
     const have = new Set(words.filter((w) => !w.deleted).map((w) => w.nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '')));

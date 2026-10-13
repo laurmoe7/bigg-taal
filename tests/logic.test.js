@@ -381,3 +381,15 @@ test("'t kofschip picks -te or -de from the stem of the infinitive", () => {
   const s = (v) => L.kofschip(v).suffix;
   assert.deepEqual(['werken', 'maken', 'praten', 'fietsen', 'wonen', 'reizen', 'leren', 'spelen', 'wachten'].map(s), ['te', 'te', 'te', 'te', 'de', 'de', 'de', 'de', 'te']);
 });
+test('cloze: finds the word, with its ending, in the example sentence', () => {
+  const c = L.clozeOf('Zij werkt in een ziekenhuis.', 'werken', 'verb');
+  assert.equal(c.form, 'werkt'); assert.equal(c.before, 'Zij '); assert.equal(c.after, ' in een ziekenhuis.');
+  assert.equal(L.clozeOf('Ik heb een afspraak.', 'de afspraak', 'noun').form, 'afspraak');
+  assert.equal(L.clozeOf('Het regent.', 'afspraak', 'noun'), null); assert.equal(L.clozeOf('', 'huis', 'noun'), null);
+});
+test('recall: typed words are matched to your words, typos allowed', () => {
+  const pool = [L.newWord({ nl: 'afspraak', article: 'de' }), L.newWord({ nl: 'ziekenhuis', article: 'het' })];
+  assert.equal(L.recallMatch('de afspraak', pool).exact, true); assert.equal(L.recallMatch(' Afspraak ', pool).w.nl, 'afspraak');
+  const typo = L.recallMatch('ziekenhuus', pool); assert.equal(typo.w.nl, 'ziekenhuis'); assert.equal(typo.exact, false);
+  assert.equal(L.recallMatch('fiets', pool), null); assert.equal(L.recallMatch('', pool), null);
+});

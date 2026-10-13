@@ -12,15 +12,22 @@ const cardPrefs = () => {
   return p;
 };
 const isStrict = () => { const p = cardPrefs(); return p.mode === 'type' && !!p.strict; };
+const clozeFor = (w) => (w.example ? L.clozeOf(w.example, w.nl, w.pos) : null); // the word as it stands in its example sentence, or null
 const wordLabel = (w) => (w.article ? w.article + ' ' : '') + w.nl;
 
 // ---------- starting a session ----------
 function launchCards(pool, label) {
   const p = cardPrefs();
   if (!pool.length) return toast('Add some words first!');
-  const dirFor = () => (isStrict() ? 'en-nl' : p.dir === 'mixed' ? rnd(['nl-en', 'en-nl']) : p.dir);
+  let note = '';
+  if (p.mode === 'cloze') { // only words whose example sentence contains the word can be a cloze card
+    const all = pool.length; pool = pool.filter((w) => clozeFor(w));
+    if (!pool.length) return toast('Cloze needs words with an example sentence that uses the word. Try Find examples on the Words page.');
+    if (pool.length < all) note = ` (${all - pool.length} without a usable example skipped)`;
+  }
+  const dirFor = () => (isStrict() || p.mode === 'cloze' ? 'en-nl' : p.dir === 'mixed' ? rnd(['nl-en', 'en-nl']) : p.dir);
   ui.cards = {
-    queue: pool.map((w) => ({ id: w.id, dir: dirFor(), again: false })), i: 0, flipped: false, res: null, typed: '', n: 0, good: 0, label: label || '',
+    queue: pool.map((w) => ({ id: w.id, dir: dirFor(), again: false, cz: p.mode === 'cloze' ? clozeFor(w) : null })), i: 0, flipped: false, res: null, typed: '', n: 0, good: 0, label: (label || '') + note,
     streak: 0, phase: 'ask', hint: 0, last: null, coach: { kind: 'start', act: 'in', line: rnd(COACH.start), played: false },
   };
   if (p.auto) autoSpeak();
@@ -70,21 +77,22 @@ const moreCards = () => { // "Do more cards", before and after a session
       <button class="ghost" data-act="cards-more" data-k="random" ${live.length ? '' : 'disabled'}>🎲 Random mix</button></div></div>`;
 };
 // the keyboard shortcuts, shown on the flashcards page (change them in Settings)
-const hotkeyBar = () => { const hk = hotkeys(), k = (id) => `<kbd class="kbd">${esc(keyLabel(hk[id]))}</kbd>`; return `<div class="og hkbar"><span class="muted" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase">Keys</span><span>${k('flip')} flip</span><span>${k('again')} again</span><span>${k('good')} good</span><span>${k('easy')} easy</span><span>${k('speak')} hear it</span><span>${k('hint')} hint</span><button class="ghost mini" data-act="nav" data-v="settings" title="Change the shortcuts in Settings">Change</button></div>`; };
+const kbdIn = (id) => `<kbd class="kbd">${esc(keyLabel(hotkeys()[id]))}</kbd>`; // a key label drawn on the button it triggers
+const speakBtn = (t) => `<span class="speakw"><button class="speak" data-act="say" data-t="${esc(t)}" title="Listen">🔊</button>${kbdIn('speak')}</span>`;
 const modeChip = (m, label) => `<button class="ghost ${cardPrefs().mode === m ? 'on' : ''}" data-act="cpref" data-k="mode" data-v="${m}">${label}</button>`;
 const dirChip = (d, label) => `<button class="ghost ${cardPrefs().dir === d ? 'on' : ''}" data-act="cpref" data-k="dir" data-v="${d}">${label}</button>`;
 
 VIEWS.cards = () => {
   const p = cardPrefs(), c = ui.cards, due = dueList().length, strict = isStrict();
-  const MODE_INFO = { flip: 'See the card, flip it, then rate how well you knew it.', type: 'Type your answer; the app checks it, then you rate yourself.', strict: 'Strict: English → Dutch, counts only if typed right. A miss means retyping it once.' };
+  const MODE_INFO = { flip: 'See the card, flip it, then rate how well you knew it.', type: 'Type your answer; the app checks it, then you rate yourself.', cloze: 'Fill the missing word in its example sentence, in the form the sentence needs. Only words with an example sentence.', strict: 'Strict: English → Dutch, counts only if typed right. A miss means retyping it once.' };
   const dirBtn = (d, label) => strict ? `<button class="ghost ${d === 'en-nl' ? 'on' : ''}" disabled>${label}</button>` : dirChip(d, label);
   const sw = (on, k, label, off, tip) => `<button class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" data-act="cpref" data-k="${k}" data-v="${on ? '' : '1'}" ${off ? 'disabled' : ''} title="${tip}"><i></i>${label}</button>`;
   const prefs = `<div class="fopts compact">
-    <div class="og"><span class="muted">Mode</span>${modeChip('flip', 'Flip')}${modeChip('type', '⌨️ Type')}<span class="sep"></span>${sw(strict, 'strict', 'Strict', p.mode !== 'type', 'Only counts when you type the Dutch right (Type mode)')}</div>
+    <div class="og"><span class="muted">Mode</span>${modeChip('flip', 'Flip')}${modeChip('type', '⌨️ Type')}${modeChip('cloze', '🧩 Cloze')}<span class="sep"></span>${sw(strict, 'strict', 'Strict', p.mode !== 'type', 'Only counts when you type the Dutch right (Type mode)')}</div>
     <div class="og"><span class="muted">Direction</span>${dirBtn('nl-en', 'NL → EN')}${dirBtn('en-nl', 'EN → NL')}${dirBtn('mixed', 'Mixed')}<span class="sep"></span>${sw(p.auto, 'auto', '🔊 Auto-speak', false, 'Say each word out loud when it appears')}</div>
-    <div class="og hint muted">${strict ? MODE_INFO.strict : MODE_INFO[p.mode] || MODE_INFO.flip}</div>${hotkeyBar()}</div>`;
+    <div class="og hint muted">${strict ? MODE_INFO.strict : MODE_INFO[p.mode] || MODE_INFO.flip}</div></div>`;
   if (!c) {
-    return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${due} due today. Spaced repetition shows hard words more often.</p></div></div><div class="fc-wrap">${prefs}
+    return `<div class="top"><div><h1>Flashcards</h1></div></div><div class="fc-wrap">${prefs}
       <div class="card" style="text-align:center;padding:30px">${pigSvg(due ? 'happy' : 'sleep', 'pig-md', { stage: pigStage(), card: true })}
       <p>${due ? `<b>${due}</b> cards are ready. I will be right here to cheer you on!` : 'Nothing is due right now. Nice!'}</p>
       ${due ? '<div class="row" style="justify-content:center"><button class="primary" data-act="cards-start">Start</button></div>' : ''}
@@ -98,17 +106,22 @@ VIEWS.cards = () => {
       <div class="row" style="justify-content:center"><button class="primary" data-act="cards-done">Back to today</button></div>
       ${moreCards()}</div></div>`;
   }
-  const { q, w } = cur, nlFront = q.dir === 'nl-en', type = p.mode === 'type' && !strict;
+  const { q, w } = cur, cz = p.mode === 'cloze' && q.cz, nlFront = q.dir === 'nl-en', type = (p.mode === 'type' && !strict) || !!cz;
   // the coach: Bigg holds a flashcard at the top; his animation plays once, right after something happened
   const co = c.coach || {}, act = co.played ? '' : 'act-' + co.act;
   co.played = true;
   const coach = `<div class="coach">${pigSvg('happy', act, { stage: pigStage(), card: true })}<div class="cbub"><span>${esc(co.line || '')}</span>${c.last ? `<small class="lastw">${c.last.ok ? '✓' : '→'} ${esc(wordLabel(c.last.w))} = ${esc(c.last.w.en)}</small>` : ''}</div></div>`;
-  const frontHtml = nlFront
-    ? `${w.article ? `<div class="fc-art">${esc(w.article)}</div>` : ''}<div class="fc-big">${esc(w.nl)}</div><button class="speak" data-act="say" data-t="${esc(wordLabel(w))}" title="Listen">🔊</button>`
+  const czGap = cz ? `${esc(cz.before)}<span class="vt-gap">___</span>${esc(cz.after)}` : '';
+  const czBack = cz ? `${esc(cz.before)}<b class="fc-form">${esc(cz.form)}</b>${esc(cz.after)}` : '';
+  const frontHtml = cz ? `<div class="ph-big">${czGap}</div>${w.exampleEn ? `<div class="muted">${esc(w.exampleEn)}</div>` : ''}<div class="muted">the word means: <b>${esc(w.en)}</b></div><div class="fc-hint" id="fc-hint">${c.hint ? esc(L.hintText(cz.form, c.hint)) : ''}</div>`
+    : nlFront
+    ? `${w.article ? `<div class="fc-art">${esc(w.article)}</div>` : ''}<div class="fc-big">${esc(w.nl)}</div>${speakBtn(wordLabel(w))}`
     : `<div class="fc-big">${esc(w.en)}</div><div class="muted">in Dutch</div>${strict ? `<div class="fc-hint" id="fc-hint">${c.hint ? esc(L.hintText(w.nl, c.hint)) : ''}</div>` : ''}`;
   const ans = nlFront ? esc(w.en) : `${w.article ? `<span class="fc-art">${esc(w.article)}</span> ` : ''}${esc(w.nl)}`;
   const strictMsg = c.res === 'article' ? `Right word, but it is <b>${esc(w.article)}</b> ${esc(w.nl)}.` : c.res === 'close' ? 'Almost! Check the spelling.' : c.res === 'wrong' ? (c.typed ? `You typed: ${esc(c.typed)}` : 'That is okay, here is the word!') : '';
-  const backHtml = `<div class="fc-big ${c.res ? 'ans ' + (c.res === 'article' ? 'close' : c.res) : ''}">${ans}</div>${!nlFront ? `<button class="speak" data-act="say" data-t="${esc(wordLabel(w))}">🔊</button>` : ''}${w.example ? `<div class="fc-ex">${esc(w.example)}${w.exampleEn ? '<br>' + esc(w.exampleEn) : ''}</div>` : ''}${strict ? (strictMsg ? `<div class="warn">${strictMsg}</div>` : '') : c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : c.res === 'wrong' ? `<div class="warn">You typed: ${esc(c.typed)}</div>` : ''}`;
+  const czBase = cz && c.res === 'close' && L.norm(c.typed) === L.norm(w.nl) && L.norm(c.typed) !== L.norm(cz.form);
+  const backHtml = cz ? `<div class="ph-big ${c.res ? 'ans ' + c.res : ''}">${czBack}</div>${speakBtn(w.example)}<div class="fc-ex">${esc(wordLabel(w))} = ${esc(w.en)}${w.exampleEn ? '<br>' + esc(w.exampleEn) : ''}</div>${czBase ? `<div class="warn">Right word, but this sentence needs <b>${esc(cz.form)}</b>.</div>` : c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : c.res === 'wrong' ? `<div class="warn">${c.typed ? 'You typed: ' + esc(c.typed) : 'That is okay, here it is!'}</div>` : ''}`
+    : `<div class="fc-big ${c.res ? 'ans ' + (c.res === 'article' ? 'close' : c.res) : ''}">${ans}</div>${!nlFront ? speakBtn(wordLabel(w)) : ''}${w.example ? `<div class="fc-ex">${esc(w.example)}${w.exampleEn ? '<br>' + esc(w.exampleEn) : ''}</div>` : ''}${strict ? (strictMsg ? `<div class="warn">${strictMsg}</div>` : '') : c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : c.res === 'wrong' ? `<div class="warn">You typed: ${esc(c.typed)}</div>` : ''}`;
   const sug = c.res === 'wrong' ? 'again' : 'good';
   const iv = L.previewIntervals(w, today());
   const hk = hotkeys(), gradeBtns = `<div class="grades"><button class="g-again ${sug === 'again' ? 'on' : ''}" data-act="grade" data-g="again">Again<small><kbd class="kbd" title="Press this key">${keyLabel(hk.again)}</kbd> today</small></button><button class="g-good" data-act="grade" data-g="good">Good<small><kbd class="kbd" title="Press this key">${keyLabel(hk.good)}</kbd> ${iv.good}d</small></button><button class="g-easy" data-act="grade" data-g="easy">Easy<small><kbd class="kbd" title="Press this key">${keyLabel(hk.easy)}</kbd> ${iv.easy}d</small></button></div><div class="muted keyhint">⌨ Keyboard: press ${keyLabel(hk.again)}, ${keyLabel(hk.good)} or ${keyLabel(hk.easy)} to rate, ${keyLabel(hk.speak)} to hear it</div>`;
@@ -116,11 +129,11 @@ VIEWS.cards = () => {
   if (strict) {
     controls = c.phase === 'miss'
       ? `<p class="muted" style="text-align:center;margin:4px 0 8px">Type it once to move on 🌱</p><input type="text" class="big-in" id="copy" data-focus autocomplete="off" spellcheck="false" placeholder="${esc(wordLabel(w))}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="copy-ok">Continue</button><button class="ghost" data-act="copy-skip">Skip</button></div>`
-      : `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type the Dutch word... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button><button class="ghost" data-act="fc-hint">💡 Hint</button><button class="ghost" data-act="skip">I don't know</button></div>`;
+      : `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type the Dutch word... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button><button class="ghost" data-act="fc-hint">💡 Hint ${kbdIn('hint')}</button><button class="ghost" data-act="skip">I don't know</button></div>`;
   } else {
     controls = c.flipped ? gradeBtns : type
-      ? `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type the ${nlFront ? 'English' : 'Dutch'}... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button><button class="ghost" data-act="skip">I don't know</button></div>`
-      : '<div class="row" style="justify-content:center"><button class="primary" data-act="flip">Show answer</button></div>';
+      ? `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="${cz ? 'Type the missing word... (Enter)' : `Type the ${nlFront ? 'English' : 'Dutch'}... (Enter)`}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button>${cz ? `<button class="ghost" data-act="fc-hint">💡 Hint ${kbdIn('hint')}</button>` : ''}<button class="ghost" data-act="skip">I don't know</button></div>`
+      : `<div class="row" style="justify-content:center"><button class="primary" data-act="flip">Show answer ${kbdIn('flip')}</button></div>`;
   }
   const selfFlip = !type && !strict && !c.flipped;
   return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${c.i + 1} of ${c.queue.length}${c.label ? ' · ' + c.label : ''}</p></div><button class="ghost" data-act="cards-done">End session</button></div>
@@ -144,7 +157,7 @@ function gradeCard(g) {
   if (!cur.w.reps) L.bump(S.log, today(), 'newWords');
   const upd = L.grade(cur.w, g, today()); S.words[S.words.indexOf(cur.w)] = upd;
   c.n++; if (g !== 'again' && !cur.q.again) c.good++;
-  if (g === 'again' && !cur.q.again) c.queue.push({ id: cur.q.id, dir: cur.q.dir, again: true });
+  if (g === 'again' && !cur.q.again) c.queue.push({ id: cur.q.id, dir: cur.q.dir, again: true, cz: cur.q.cz });
   chime(g === 'again' ? 'bad' : 'ok');
   gainXp(g === 'again' ? XP.cardAgain : g === 'easy' ? XP.cardEasy : XP.cardGood);
   bumpDay(g === 'again' ? 'cMiss' : 'cOk'); if (g === 'again') noteMiss(cur.w.nl, 'cards');
@@ -157,6 +170,10 @@ function gradeCard(g) {
   if (!curCard()) { c.coach = { kind: 'done', act: 'cheer', line: rnd(COACH.done), played: true }; chime('goal'); confetti(); gainXp(XP.session); }
   render();
   if (c.coach.burst) burstBits(c.coach.burst);
+}
+function clozeCheck(typed, form, base) { // right | close (a typo, or the dictionary form instead of the form the sentence needs) | wrong
+  const t = L.norm(typed), f = L.norm(form); if (!t) return 'wrong'; if (t === f) return 'right';
+  return t === L.norm(L.stripArticle(base)) || (f.length > 4 && L.lev(t, f) <= 1) ? 'close' : 'wrong';
 }
 function checkTyped() {
   const c = ui.cards, cur = curCard(); if (!cur) return;
@@ -171,8 +188,9 @@ function checkTyped() {
     return;
   }
   if (c.flipped) return;
-  c.typed = typed; c.res = bestCheck(c.typed, cur.w, cur.q.dir); c.flipped = true;
-  chime(c.res === 'wrong' ? 'bad' : 'ok'); if (c.res === 'right' && cur.q.dir === 'en-nl') speak(cur.w.nl); render();
+  const cz = cardPrefs().mode === 'cloze' && cur.q.cz;
+  c.typed = typed; c.res = cz ? clozeCheck(typed, cz.form, cur.w.nl) : bestCheck(c.typed, cur.w, cur.q.dir); c.flipped = true;
+  chime(c.res === 'wrong' ? 'bad' : 'ok'); if (c.res === 'right' && cur.q.dir === 'en-nl') speak(cz ? cur.w.example : cur.w.nl); render();
 }
 function copyContinue(force) { // after a miss in strict mode: type the right word once, then it comes back later
   const c = ui.cards, cur = curCard(); if (!cur || c.phase !== 'miss') return;
@@ -195,7 +213,7 @@ Object.assign(ACT, {
     if (isStrict()) { c.phase = 'miss'; speak(wordLabel(cur.w)); }
     render();
   },
-  'fc-hint': () => { const c = ui.cards, cur = curCard(); if (!cur) return; c.hint = Math.min(2, (c.hint || 0) + 1); const h = $('#fc-hint'); if (h) h.textContent = L.hintText(cur.w.nl, c.hint); const t = $('#typed'); if (t) t.focus(); },
+  'fc-hint': () => { const c = ui.cards, cur = curCard(); if (!cur) return; c.hint = Math.min(2, (c.hint || 0) + 1); const h = $('#fc-hint'); if (h) h.textContent = L.hintText(cardPrefs().mode === 'cloze' && cur.q.cz ? cur.q.cz.form : cur.w.nl, c.hint); const t = $('#typed'); if (t) t.focus(); },
   'copy-ok': () => copyContinue(false), 'copy-skip': () => copyContinue(true),
 });
 document.addEventListener('change', (e) => { if (e.target.id === 'fc-n') { cardPrefs().more = +e.target.value; save(); } });

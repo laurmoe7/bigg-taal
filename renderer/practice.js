@@ -40,8 +40,7 @@ function quickTab() {
   const q = quickPrefs(), live = liveWords(), td = today();
   const nRecent = L.recentWords(live, td, 7).length, nTrouble = L.troubleWords(live).length;
   const src = (k, label, n, tip) => `<button class="chip ${q[k] ? 'on' : ''}" data-act="q-src" data-v="${k}" title="${tip}">${q[k] ? '✓ ' : ''}${label}${n == null ? '' : ' <small>' + n + '</small>'}</button>`;
-  return `<div class="top"><div><h1>Quick practice</h1><p class="sub">Worksheets made right here from the dictionary and real sentences. No copy and paste.</p></div></div>
-  <div class="card" style="max-width:760px"><h2>Which words?</h2>
+  return `<div class="card" style="max-width:760px"><h2>Which words?</h2>
     <div class="chips2">${src('recent', '🌱 Recently learned', nRecent, 'Words you started or reviewed in the last 7 days')}${src('trouble', '🎯 Words I find hard', nTrouble, 'Words you have missed or still rate low')}${src('mine', '📚 Any of my words', live.length, 'A random mix from your whole list')}${src('common', '💡 New common words', null, 'Common Dutch words you do not have yet (top 1,500)')}</div>
     <h2 style="margin-top:16px">What kind of questions?</h2>
     <div class="chips2">${L.LOCAL_TYPES.map(([id, name]) => `<button class="chip ${q.types.includes(id) ? 'on' : ''}" data-act="q-type" data-v="${id}">${q.types.includes(id) ? '✓ ' : ''}${name}</button>`).join('')}</div>
@@ -69,7 +68,7 @@ Object.assign(ACT, {
 
 VIEWS.sheets = () => {
   const tab = (id, label) => `<button class="tab ${ui.wsTab === id ? 'on' : ''}" data-act="ws-tab" data-t="${id}">${label}</button>`;
-  const head = `<div class="tabs">${tab('quick', '⚡ Quick practice')}${tab('practice', '✨ Practice with Claude')}${tab('mistakes', '🎯 My mistakes')}</div>`;
+  const head = `<div class="top"><div><h1>Worksheets</h1></div></div><div class="tabs">${tab('practice', '✨ Practice with Claude')}${tab('quick', '⚡ Quick practice')}${tab('mistakes', '🎯 My mistakes')}</div>`;
   if (ui.wsTab === 'quick') return head + quickTab();
   if (ui.wsTab === 'mistakes') return head + mistakesTab();
   const open = sheetById(ui.sheetId);
@@ -84,8 +83,7 @@ function practiceHome() {
   const chip = (act, v, label, on) => `<button class="chip ${on ? 'on' : ''}" data-act="${act}" data-v="${esc(v)}" data-l="${esc(label)}">${on ? '✓ ' : ''}${esc(label)}</button>`;
   const selRow = (k) => `<div class="row sel-row"><button class="ghost mini" data-act="ws-selall" data-k="${k}" data-on="1">Select all</button><button class="ghost mini" data-act="ws-selall" data-k="${k}" data-on="">Deselect all</button></div>`;
   const section = (id, title, list, body) => `<details class="pick" id="${id}" ${ui.pickOpen[id] ? 'open' : ''}><summary><b>${title}</b><span class="pill ${list.length ? 'sky' : ''}" id="${id}-n">${list.length}</span><span class="muted pv" id="${id}-pv">${esc(previewText(list))}</span></summary>${body}</details>`;
-  return `<div class="top"><div><h1>Worksheets</h1><p class="sub">Claude writes it, you do it here, Claude marks it.</p></div></div>
-  <div class="ws-grid">
+  return `<div class="ws-grid">
     <div class="card"><h2>1 · Ask Claude for a worksheet</h2>
       <div class="row preset-row"><select id="ws-preset" title="Your saved setups"><option value="">📌 Saved setups${(S.presets || []).length ? '' : ' (none yet)'}</option>${(S.presets || []).map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
         <button class="ghost mini" data-act="ws-preset-use">Use</button><button class="ghost mini" data-act="ws-preset-del" title="Delete the selected setup">🗑</button>
@@ -265,7 +263,7 @@ function sheetPage(sh) {
       <div class="row" style="margin-top:8px"><button class="primary" data-act="ws-apply" data-id="${sh.id}">Apply Claude's marking</button></div></div>` : '';
   const wc = wsCoach(sh), coachBar = `<div class="coach ws-coach">${pigSvg('happy', wc.played ? '' : 'act-' + wc.act, { stage: pigStage(), book: !sh.hard })}<div class="cbub"><span>${esc(wc.line)}</span></div>${sh.hard ? '' : '<button class="ghost mini dp-open" data-act="dp-toggle" title="Look a word up while you work">📖 Dictionary</button>'}</div>`;
   wc.played = true;
-  return `${coachBar}<div class="top"><div><button class="ghost" data-act="ws-back">← All worksheets</button><h1 style="margin-top:12px">${esc(sh.title)}</h1><p class="sub">${answered} of ${sh.items.length} answered${sh.checkedAt ? ` · ${sc.got % 1 ? sc.got.toFixed(2).replace(/0$/, '') : sc.got} of ${sc.marked} marked right` : ''}</p></div><span class="pill ${st.cls}">${esc(st.label)}</span></div>
+  return `${coachBar}<div class="top"><div><button class="ghost" data-act="ws-back">← All worksheets</button><h2 style="margin:12px 0 0;font-size:28px;font-weight:900">${esc(sh.title)}</h2><p class="sub">${answered} of ${sh.items.length} answered${sh.checkedAt ? ` · ${sc.got % 1 ? sc.got.toFixed(2).replace(/0$/, '') : sc.got} of ${sc.marked} marked right` : ''}</p></div><span class="pill ${st.cls}">${esc(st.label)}</span></div>
     <div class="row hardrow"><button class="switch ${sh.hard ? 'on' : ''}" role="switch" aria-checked="${!!sh.hard}" data-act="ws-hard" title="Bigg leaves his dictionary at home. Right answers give 50% more XP."><i></i>🔥 Hard mode <small>no dictionary · +50% XP</small></button>
       <span class="muted tipnote">${sh.hard ? 'No dictionary this time. Good luck! 💪' : 'Click Bigg to open his dictionary whenever you need it. 📖'}</span></div>
     ${items}
@@ -280,8 +278,8 @@ function mistakesTab() {
     const acc = (total - wrong) / total, racc = recent.reduce((a, b) => a + b, 0) / recent.length, oacc = older.length ? older.reduce((a, b) => a + b, 0) / older.length : null;
     return { skill, s, total, wrong, acc, trend: oacc == null ? '' : racc > oacc + 0.1 ? '↗ improving' : racc < oacc - 0.1 ? '↘ slipping' : '→ steady' };
   }).sort((a, b) => a.acc - b.acc || b.wrong - a.wrong);
-  if (!all.length) return `<div class="top"><div><h1>My mistakes</h1><p class="sub">Every worksheet answer is recorded here by skill, so you can see what to work on.</p></div></div><div class="empty">${pigSvg('happy', '', { stage: pigStage(), note: true })}<p>Nothing tracked yet. Do a practice worksheet and I'll keep score. 🌸</p><button class="primary" data-act="ws-tab" data-t="practice">Make a worksheet</button></div>`;
-  return `<div class="top"><div><h1>My mistakes</h1><p class="sub">Your last 30 answers per skill. Weakest first.</p></div><button class="primary" data-act="ws-from-weak">✨ Worksheet from my weak spots</button></div>
+  if (!all.length) return `<div class="empty">${pigSvg('happy', '', { stage: pigStage(), note: true })}<p>Nothing tracked yet. Do a practice worksheet and I'll keep score. 🌸</p><button class="primary" data-act="ws-tab" data-t="practice">Make a worksheet</button></div>`;
+  return `<div class="row" style="margin-bottom:14px"><button class="primary" data-act="ws-from-weak">✨ Worksheet from my weak spots</button></div>
     <div class="grid g2">${all.map((x) => `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(skillName(x.skill))}</h2><span class="pill ${x.acc >= 0.8 ? 'mint' : x.acc >= 0.5 ? 'butter' : 'bad'}">${Math.round(x.acc * 100)}%</span></div>
       <div class="bar" style="margin:8px 0"><i style="width:${Math.round(x.acc * 100)}%"></i></div>
       <p class="muted" style="margin:0">Missed ${x.wrong} of your last ${x.total}${x.trend ? ' · ' + x.trend : ''}${x.s.last ? ' · last ' + esc(x.s.last) : ''}</p>
