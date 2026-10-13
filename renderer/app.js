@@ -25,15 +25,17 @@ async function load() {
 }
 
 // ---------- sound, speech, toast ----------
+// the volume slider in Settings (0 to 1) scales the chimes, Bigg's oink and every voice
+const vol = () => { const v = S && S.settings ? S.settings.volume : 1; return v == null || isNaN(v) ? 1 : Math.min(1, Math.max(0, +v)); };
 let actx;
-function chime(kind) {
-  if (!S.settings.sound) return;
+function chime(kind, force) { // force: play even with chimes switched off (the volume slider uses it, so you hear the level)
+  if ((!S.settings.sound && !force) || vol() <= 0) return;
   try {
     actx = actx || new AudioContext();
     const notes = kind === 'goal' ? [523, 659, 784, 1047] : kind === 'bad' ? [262] : [659, 880];
     notes.forEach((f, i) => {
       const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + i * 0.11;
-      o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12 * vol(), t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
       o.connect(g).connect(actx.destination); o.start(t); o.stop(t + 0.32);
     });
   } catch {}
@@ -54,15 +56,20 @@ function confetti() {
   }
 }
 let VOICES = [], PIPER = [];
+// online voices (Azure Speech): set up in Settings; the key itself stays in the main process and never comes here
+let AZ = { hasKey: false, region: 'westeurope', chars: 0, limit: 500000, safe: 450000, secure: true, last: '' };
+const AZ_VOICES = [['nl-NL-ColetteNeural', 'Colette'], ['nl-NL-FennaNeural', 'Fenna'], ['nl-NL-MaartenNeural', 'Maarten'], ['nl-BE-DenaNeural', 'Dena (Flemish)'], ['nl-BE-ArnaudNeural', 'Arnaud (Flemish)']];
+async function loadAzure() { try { if (window.vt && window.vt.azureGet) AZ = Object.assign(AZ, await window.vt.azureGet()); } catch {} }
 let UPD = { status: 'idle' }, APPV = '';
 function loadVoices() { try { VOICES = speechSynthesis.getVoices(); } catch { VOICES = []; } }
 if ('speechSynthesis' in window) { loadVoices(); speechSynthesis.onvoiceschanged = () => { loadVoices(); if (ui.view === 'settings' || ui.view === 'listen') render(); }; }
-async function loadPiper() { try { PIPER = window.vt && window.vt.ttsVoices ? await window.vt.ttsVoices() : []; } catch { PIPER = []; } }
+async function loadPiper() { try { PIPER = window.vt && window.vt.ttsVoices ? await window.vt.ttsVoices() : []; } catch { PIPER = []; } await loadAzure(); }
 const dutchVoices = () => VOICES.filter((v) => /^nl\b|^nl[-_]/i.test(v.lang));
 const VOICE_NAMES = { alex: 'Alex', pim: 'Pim', ronnie: 'Ronnie' };
 // settings.voice is 'piper:alex', 'win:<Windows voice name>', a bare Windows voice name (older saves) or '' (best available)
 function voiceChoice() {
   const v = S.settings.voice || '';
+  if (v.startsWith('azure:') && AZ.hasKey && AZ_VOICES.some((x) => x[0] === v.slice(6))) return { engine: 'azure', id: 'az:' + v.slice(6) }; // an online voice
   if (v.startsWith('piper:') && PIPER.includes(v.slice(6))) return { engine: 'piper', id: v.slice(6) };
   const wname = v.startsWith('win:') ? v.slice(4) : v.startsWith('piper:') ? '' : v;
   const w = dutchVoices().find((x) => x.name === wname);
@@ -70,7 +77,7 @@ function voiceChoice() {
   if (PIPER.length) return { engine: 'piper', id: PIPER[0] };
   return dutchVoices()[0] ? { engine: 'win', voice: dutchVoices()[0] } : null;
 }
-const voiceLabel = () => { const c = voiceChoice(); return !c ? '' : c.engine === 'piper' ? (VOICE_NAMES[c.id] || c.id) + ' (natural)' : c.voice.name.replace(/ - .*/, ''); };
+const voiceLabel = () => { const c = voiceChoice(); return !c ? '' : c.engine === 'azure' ? ((AZ_VOICES.find((x) => 'az:' + x[0] === c.id) || [])[1] || 'Online') + ' (online)' : c.engine === 'piper' ? (VOICE_NAMES[c.id] || c.id) + ' (natural)' : c.voice.name.replace(/ - .*/, ''); };
 const hasVoice = () => !!voiceChoice();
 const lengthScale = (slow) => Math.min(2.5, Math.max(0.5, 0.9 / Math.max(0.3, S.settings.rate * (slow ? 0.65 : 1))));
 let curAudio = null, speakToken = 0;
@@ -78,7 +85,7 @@ function stopSpeech() { speakToken++; try { speechSynthesis.cancel(); } catch {}
 function speakWin(text, slow, voice) {
   const c = voice ? { voice } : voiceChoice();
   const v = c && c.voice; if (!v) return false;
-  const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = Math.max(0.3, S.settings.rate * (slow ? 0.65 : 1));
+  const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = Math.max(0.3, S.settings.rate * (slow ? 0.65 : 1)); u.volume = vol();
   speechSynthesis.speak(u); return true;
 }
 async function speakPiper(text, slow, id) {
@@ -86,18 +93,20 @@ async function speakPiper(text, slow, id) {
   try {
     const bytes = await window.vt.tts(text, id, lengthScale(slow));
     if (my !== speakToken) return; // a newer request replaced this one
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
-    const a = new Audio(url); curAudio = a; a.onended = () => URL.revokeObjectURL(url); await a.play();
+    const url = URL.createObjectURL(new Blob([bytes], { type: bytes[0] === 0x52 ? 'audio/wav' : 'audio/mpeg' })); // Piper makes WAV, the online voices MP3
+    const a = new Audio(url); a.volume = vol(); curAudio = a; a.onended = () => URL.revokeObjectURL(url); await a.play();
   } catch (e) { if (my === speakToken && !speakWin(text, slow, dutchVoices()[0])) toast('Could not play the voice. See Settings > Voice.'); }
 }
 function speak(text, slow) {
   const c = voiceChoice();
   if (!c) { toast('No Dutch voice found. See Settings > Voice.'); return false; }
   stopSpeech();
-  if (c.engine === 'piper') { speakPiper(text, slow, c.id); return true; }
+  if (c.engine === 'piper' || c.engine === 'azure') { speakPiper(text, slow, c.id); return true; } // both come from the main process, as audio
   return speakWin(text, slow);
 }
-function warmSpeech(text) { const c = voiceChoice(); if (c && c.engine === 'piper') { window.vt.tts(text, c.id, lengthScale(false)).catch(() => {}); } }
+// the voice test greeting; an online voice gets no name, so your name is never sent to Microsoft
+const helloText = (rest) => { const c = voiceChoice(), name = userName(); return 'Hoi' + (name && !(c && c.engine === 'azure') ? ' ' + name : '') + rest; };
+function warmSpeech(text) { const c = voiceChoice(); if (c && c.engine !== 'win') { window.vt.tts(text, c.id, lengthScale(false)).catch(() => {}); } }
 
 // ---------- activity ----------
 function count(key, n) {
@@ -129,6 +138,11 @@ function pigLine() {
   else pool.push(...PIG.nothingDue);
   if (lv.max) pool.push('You are max level! A real language legend! 👑');
   else if (lv.level > 1 || lv.into > 20) pool.push(...PIG.level.map((x) => fill(x, { n: lv.level, x: lv.need - lv.into, m: lv.level + 1 })));
+  const now = new Date(), h = now.getHours(), dow = now.getDay(); // the time of day, the weekend, little tips and the Bonus Lessons mix in too
+  pool.push(...(h < 12 ? PIG.morning : h < 18 ? PIG.afternoon : PIG.evening), ...PIG.tips, ...PIG.bonus);
+  if (dow === 0 || dow === 6) pool.push(...PIG.weekend); else if (dow === 1) pool.push(...PIG.monday);
+  if (userName()) pool.push(...PIG.named.map((x) => fill(x, { name: userName() })));
+  if (due) pool.push(...PIG.due.map((x) => fill(x, { n: due }))); // the cards that are due stay the most likely thing he says
   const ctx = contextLines(); // special days and seasons sneak in
   if (ctx.length && Math.random() < (L.holidayOf() ? 0.6 : 0.25)) return rnd(ctx);
   return rnd(pool);
@@ -353,67 +367,80 @@ document.addEventListener('change', (e) => {
     }
     refreshBirthday(); save(); ui.say = ''; ui.sideSig = ''; if (typeof checkEarned === 'function') checkEarned(); render(); return;
   }
+  if (e.target.id === 'fc-group') { cardPrefs().group = e.target.value; save(); render(); return; }
+  if (e.target.id === 's-voice') { // a new voice takes effect (and is saved) as soon as it is picked, and says hello so you can hear it
+    S.settings.voice = e.target.value; save(); speak(helloText(', zo klink ik. Veel plezier met leren!')); return;
+  }
+  if (e.target.id === 's-rate') { S.settings.rate = +e.target.value || 0.9; save(); speak('Zo snel praat ik nu.'); return; }
+  if (['s-goal', 's-new'].includes(e.target.id)) { const g = +$('#s-goal').value, n = +$('#s-new').value; S.settings.dailyGoal = Math.max(3, Math.min(200, g || S.settings.dailyGoal)); S.settings.newPerDay = Math.max(0, Math.min(50, isNaN(n) ? S.settings.newPerDay : n)); e.target.value = e.target.id === 's-goal' ? S.settings.dailyGoal : S.settings.newPerDay; save(); ui.say = ''; return; }
+  if (e.target.id === 's-vol') { S.settings.volume = +e.target.value; save(); chime('ok', true); return; } // a little chime at the new level
+  if (e.target.id === 's-sound') { S.settings.sound = e.target.checked; save(); return; }
+  if (e.target.id === 's-login') { S.settings.login = e.target.checked; save(); if (window.vt) window.vt.launchAtLogin(S.settings.login); return; }
+  if (e.target.id === 's-upd') { S.settings.autoUpdate = e.target.checked; save(); return; }
   if (e.target.id === 's-bgfx') { S.settings.bgfx = e.target.checked; save(); applyBgFx(); }
   if (e.target.id === 's-gloss') { S.settings.gloss = e.target.checked; save(); render(); }
 });
+// while the volume slider moves, whatever is playing follows it
+document.addEventListener('input', (e) => { if (e.target.id !== 's-vol') return; S.settings.volume = +e.target.value; const n = $('#s-vol-n'); if (n) n.textContent = Math.round(vol() * 100) + '%'; if (curAudio) curAudio.volume = vol(); try { speechSynthesis.cancel(); } catch {} });
 // the floating hearts and sparkles behind every page can be switched off in Settings
 function applyBgFx() { document.body.classList.toggle('nofx', S && S.settings && S.settings.bgfx === false); }
 function applyTheme() { const t = (S && S.settings && S.settings.theme) || 'lagoon'; document.documentElement.setAttribute('data-theme', THEMES.some((x) => x[0] === t) ? t : 'lagoon'); }
 
 VIEWS.settings = () => {
-  const s = S.settings, nl = dutchVoices(), vc = voiceChoice(), cur = vc ? (vc.engine === 'piper' ? 'piper:' + vc.id : 'win:' + vc.voice.name) : '';
+  const s = S.settings, nl = dutchVoices(), vc = voiceChoice(), cur = vc ? (vc.engine === 'piper' ? 'piper:' + vc.id : vc.engine === 'azure' ? 'azure:' + vc.id.slice(3) : 'win:' + vc.voice.name) : '';
+  const bday = (() => {
+    const c = /^\d{4}-(\d{2})-(\d{2})$/.exec(S.settings.birthday || ''), bd = ui.bday || {}, m = bd.m != null ? bd.m : c ? +c[1] : 0, d = bd.d != null ? bd.d : c ? +c[2] : 0;
+    const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `<select id="s-bday-m"><option value="">Month</option>${MN.map((n, i) => `<option value="${i + 1}" ${m === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select><select id="s-bday-d"><option value="">Day</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${d === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>`;
+  })();
+  const voiceSel = PIPER.length || nl.length || AZ.hasKey ? `<select id="s-voice" style="width:100%">${AZ.hasKey ? `<optgroup label="Online voices (Azure)">${AZ_VOICES.map(([id, name]) => `<option value="azure:${id}" ${cur === 'azure:' + id ? 'selected' : ''}>${name}</option>`).join('')}</optgroup>` : ''}${PIPER.length ? `<optgroup label="Natural voices (offline)">${PIPER.map((id) => `<option value="piper:${id}" ${cur === 'piper:' + id ? 'selected' : ''}>${VOICE_NAMES[id] || id}</option>`).join('')}</optgroup>` : ''}${nl.length ? `<optgroup label="Windows voices">${nl.map((x) => `<option value="win:${esc(x.name)}" ${cur === 'win:' + x.name ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</optgroup>` : ''}</select>`
+    : `<p class="warn">No Dutch voice found. Windows: Settings → Time &amp; language → Language &amp; region → Add a language → Nederlands, include <i>Text-to-speech</i>, then restart this app.</p>`;
   return `<div class="top"><div><h1>Settings</h1></div></div>
-  <div class="card" style="margin-bottom:16px"><h2>About you</h2>
+  <div class="card set-card"><h2>About you</h2>
     <div class="row"><label class="f" style="flex:1 1 220px">Your name<input type="text" id="s-name" value="${esc(S.settings.name || '')}" placeholder="What should Bigg call you?" autocomplete="off" maxlength="30"></label>
-      <div class="f bday-row" style="flex:1 1 260px"><span>Your birthday</span><div class="row" style="gap:8px;flex-wrap:nowrap">${(() => {
-        const cur = /^\d{4}-(\d{2})-(\d{2})$/.exec(S.settings.birthday || ''), bd = ui.bday || {}, m = bd.m != null ? bd.m : cur ? +cur[1] : 0, d = bd.d != null ? bd.d : cur ? +cur[2] : 0;
-        const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        return `<select id="s-bday-m"><option value="">Month</option>${MN.map((n, i) => `<option value="${i + 1}" ${m === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select><select id="s-bday-d"><option value="">Day</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${d === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>`;
-      })()}</div></div></div></div>
-  <div class="card" style="margin-bottom:16px"><h2>Theme</h2>
-    <div class="themes">${THEMES.map(([id, name, bg, a, b]) => `<button class="theme ${S.settings.theme === id ? 'on' : ''}" data-act="theme" data-v="${id}"><span class="sw" style="background:${bg}"><i style="background:${a}"></i><i style="background:${b}"></i></span>${name}</button>`).join('')}</div></div>
-  <div class="card" style="margin-bottom:16px"><h2>Flashcard shortcuts</h2>
+      <div class="f bday-row" style="flex:1 1 260px"><span>Your birthday</span><div class="row" style="gap:8px;flex-wrap:nowrap">${bday}</div></div></div></div>
+  <div class="card set-card"><h2>Look</h2>
+    <div class="themes">${THEMES.map(([id, name, bg, a, b]) => `<button class="theme ${S.settings.theme === id ? 'on' : ''}" data-act="theme" data-v="${id}"><span class="sw" style="background:${bg}"><i style="background:${a}"></i><i style="background:${b}"></i></span>${name}</button>`).join('')}</div>
+    <label class="row" style="margin-top:12px"><input type="checkbox" id="s-bgfx" ${S.settings.bgfx !== false ? 'checked' : ''}> Floating hearts, flowers and sparkles behind the pages</label></div>
+  <div class="grid g2 set-grid">
+    <div class="card"><h2>Learning</h2>
+      <label class="f">Daily goal (cards)</label><input type="number" id="s-goal" min="3" max="200" value="${s.dailyGoal}" style="width:100px">
+      <label class="f">New words per day</label><input type="number" id="s-new" min="0" max="50" value="${s.newPerDay}" style="width:100px">
+      <label class="row" style="margin-top:12px"><input type="checkbox" id="s-gloss" ${S.settings.gloss !== false ? 'checked' : ''}> Explain grammar terms when I hover over them</label></div>
+    <div class="card"><h2>Sound</h2>
+      <label class="row" style="margin-bottom:10px"><input type="checkbox" id="s-sound" ${s.sound ? 'checked' : ''}> Play chimes</label>
+      <label class="f">Volume <span class="muted" id="s-vol-n">${Math.round(vol() * 100)}%</span></label><input type="range" id="s-vol" min="0" max="1" step="0.05" value="${vol()}" style="margin-bottom:12px">
+      <label class="f">Voice</label>${voiceSel}
+      <label class="f">Speed</label><input type="range" id="s-rate" min="0.5" max="1.3" step="0.05" value="${s.rate}">
+      <div class="row" style="margin-top:10px"><button class="ghost" data-act="voice-test">🔊 Test voice</button></div></div>
+  </div>
+  <div class="card set-card"><h2>Online voices (Azure)</h2>
+    <p class="muted" style="margin:0 0 10px">Natural Dutch voices from Microsoft. They need internet and a free Azure Speech key. The Dutch you listen to is sent to Microsoft, every clip is saved on this PC so repeats work offline, and a built-in voice takes over if Azure is not available. The free plan has 500,000 characters a month; BiggTaal stops before that.</p>
+    ${!window.vt ? '<p class="warn">Online voices work in the BiggTaal app, not in a browser.</p>' : AZ.secure === false ? '<p class="warn">Windows cannot protect a key on this PC, so online voices are switched off.</p>' : `
+    ${AZ.hasKey ? `<div class="az-status"><b>✓ Key saved</b> <span class="muted">· region ${esc(AZ.region)} · pick a voice under Sound</span><div class="bar" style="margin:8px 0 4px"><i style="width:${Math.min(100, (AZ.chars / AZ.limit) * 100)}%"></i></div><span class="muted" style="font-size:13px">${AZ.chars.toLocaleString()} of ${AZ.limit.toLocaleString()} free characters used this month</span>${AZ.last ? `<div class="warn" style="margin-top:6px">Last problem: ${esc({ auth: 'the key was not accepted', limit: 'the free characters are used up', network: 'no connection', bad: 'a bad request', server: 'the service did not answer' }[AZ.last] || AZ.last)}</div>` : ''}</div>` : ''}
+    <div class="row" style="margin-top:10px"><label class="f" style="flex:1 1 150px">Region<input type="text" id="s-az-region" value="${esc(AZ.region)}" placeholder="westeurope" autocomplete="off" spellcheck="false"></label>
+      <label class="f" style="flex:2 1 260px">Speech key<input type="password" id="s-az-key" placeholder="${AZ.hasKey ? 'Saved. Paste a new key to replace it' : 'Paste Key 1 from your Speech resource'}" autocomplete="off" spellcheck="false"></label></div>
+    <div class="row" style="margin-top:10px"><button class="primary" data-act="az-save">Save</button>${AZ.hasKey ? '<button class="ghost" data-act="az-test">▶ Test</button><button class="ghost" data-act="az-clear">Remove key</button>' : ''}</div>
+    <details class="az-help"><summary>How to get a key</summary><ol class="muted"><li>Create a free Azure account at portal.azure.com.</li><li>Create a resource called <b>Speech</b>, choose the pricing tier <b>Free (F0)</b> and a region such as West Europe.</li><li>Open the resource, go to <b>Keys and Endpoint</b>, and copy <b>Key 1</b> and the <b>Location/Region</b> (for example westeurope) into the boxes above, in lowercase without spaces.</li><li>If Azure says a region is not accepting new customers, make the resource in another one, for example <b>North Europe</b> (northeurope), <b>Sweden Central</b> (swedencentral) or <b>Germany West Central</b> (germanywestcentral).</li></ol></details>`}</div>
+  <div class="card set-card"><h2>Flashcard shortcuts</h2>
     <div class="hk-grid">${HOTKEY_DEFS.map(([id, name]) => `<div class="hk-row"><span>${esc(name)}</span><button class="hk-key ${ui.hkCapture === id ? 'wait' : ''}" data-act="hk-set" data-v="${id}" title="Click, then press the key you want">${ui.hkCapture === id ? 'Press a key…' : esc(keyLabel(hotkeys()[id]))}</button></div>`).join('')}</div>
-    <div class="row" style="margin-top:10px"><button class="ghost mini" data-act="hk-reset">↺ Back to the usual keys</button><span class="muted" style="font-size:13px">Click a key, then press the new one. Esc cancels. Enter always works for the answer and for rating.</span></div></div>
-  <div class="card" style="margin-bottom:16px"><h2>Background</h2>
-    <label class="row"><input type="checkbox" id="s-bgfx" ${S.settings.bgfx !== false ? 'checked' : ''}> Show the floating hearts, flowers and sparkles behind the pages</label></div>
-  <div class="card" style="margin-bottom:16px"><h2>Hover help</h2>
-    <label class="row"><input type="checkbox" id="s-gloss" ${S.settings.gloss !== false ? 'checked' : ''}> Explain grammar terms when I hover over them</label>
-    <p class="muted" style="margin:6px 0 0;font-size:13px">Words like "main clause" or "conjugated verb" get a dotted underline and a short explanation in worksheets and on the Grammar page.</p></div>
-  <div class="grid g2">
-  <div class="card"><h2>Daily goals</h2>
-    <label class="f">Daily goal (cards)</label><input type="number" id="s-goal" min="3" max="200" value="${s.dailyGoal}" style="width:100px">
-    <label class="f">New words per day</label><input type="number" id="s-new" min="0" max="50" value="${s.newPerDay}" style="width:100px">
-    <label class="row" style="margin-top:6px"><input type="checkbox" id="s-login" ${s.login ? 'checked' : ''}> Start with Windows</label>
-    <label class="row" style="margin-top:6px"><input type="checkbox" id="s-sound" ${s.sound ? 'checked' : ''}> Sounds</label>
-    <div class="row" style="margin-top:12px"><button class="primary" data-act="settings-save">Save</button></div></div>
-  <div class="card"><h2>Voice</h2>
-    ${PIPER.length || nl.length ? `<select id="s-voice" style="width:100%">${PIPER.length ? `<optgroup label="Natural voices (offline)">${PIPER.map((id) => `<option value="piper:${id}" ${cur === 'piper:' + id ? 'selected' : ''}>${VOICE_NAMES[id] || id}</option>`).join('')}</optgroup>` : ''}${nl.length ? `<optgroup label="Windows voices">${nl.map((x) => `<option value="win:${esc(x.name)}" ${cur === 'win:' + x.name ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</optgroup>` : ''}</select>`
-      : `<p class="warn">No Dutch voice found. Windows: Settings → Time &amp; language → Language &amp; region → Add a language → Nederlands, include <i>Text-to-speech</i>, then restart this app.</p>`}
-    <label class="f">Speed</label><input type="range" id="s-rate" min="0.5" max="1.3" step="0.05" value="${s.rate}">
-    <div class="row" style="margin-top:10px"><button class="ghost" data-act="voice-test">🔊 Test voice</button></div></div>
-  <div class="card"><h2>Your data</h2><p class="muted">Saved on this PC only${window.vt ? '' : ' (browser storage)'}. A backup copy is made once a day.</p>
-    <div class="row"><button class="ghost" data-act="data-reveal">📂 Show data folder</button><button class="ghost" data-act="data-export">⬆ Export everything</button><button class="ghost" data-act="data-import">⬇ Import file</button></div>
-    <div class="row" style="margin-top:8px"><button class="ghost" data-act="reseed">Re-add starter words</button></div></div>
-  <div class="card"><h2>Updates</h2><p class="muted">Version ${esc(APPV || '?')}. ${esc(updateText())}</p>
-    <label class="row"><input type="checkbox" id="s-upd" ${s.autoUpdate !== false ? 'checked' : ''}> Look for new versions automatically</label>
-    <div class="row" style="margin-top:12px"><button class="ghost" data-act="update-check">🔄 Check for updates</button>${UPD.status === 'ready' ? '<button class="primary" data-act="update-install">Restart to update</button>' : ''}</div></div>
+    <div class="row" style="margin-top:10px"><button class="ghost mini" data-act="hk-reset">↺ Back to the usual keys</button><span class="muted" style="font-size:13px">Click a key, then press the new one (Esc cancels). Enter always works for the answer and for rating, and Esc also skips. While you type an answer, letter keys need Ctrl (Ctrl+H); digits work as they are.</span></div></div>
+  <div class="grid g2 set-grid">
+    <div class="card"><h2>Your data</h2><p class="muted">Saved on this PC only${window.vt ? '' : ' (browser storage)'}. A backup copy is made once a day.</p>
+      <div class="row"><button class="ghost" data-act="data-reveal">📂 Show data folder</button><button class="ghost" data-act="data-export">⬆ Export everything</button><button class="ghost" data-act="data-import">⬇ Import file</button></div>
+      <div class="row" style="margin-top:8px"><button class="ghost" data-act="reseed">Re-add starter words</button></div></div>
+    <div class="card"><h2>App</h2><p class="muted">BiggTaal ${esc(APPV || '0.5.0')}. ${esc(updateText())}</p>
+      <label class="row"><input type="checkbox" id="s-login" ${s.login ? 'checked' : ''}> Start with Windows</label>
+      <label class="row" style="margin-top:6px"><input type="checkbox" id="s-upd" ${s.autoUpdate !== false ? 'checked' : ''}> Look for new versions automatically</label>
+      <div class="row" style="margin-top:12px"><button class="ghost" data-act="update-check">🔄 Check for updates</button>${UPD.status === 'ready' ? '<button class="primary" data-act="update-install">Restart to update</button>' : ''}</div></div>
+  </div>
   ${typeof devCard === 'function' ? devCard() : ''}
-  <div class="card"><h2>About</h2><p class="muted">BiggTaal 0.5.0 · Bigg is Varken's little brother, and he thinks you are doing great. 🌸 Dictionary, word lists and sentences come from Wiktionary, OpenSubtitles and Tatoeba (see the data folder). Reviews are scheduled with FSRS.</p></div></div>`;
+  <p class="muted set-about">Bigg is Varken's little brother, and he thinks you are doing great. 🌸 Dictionary, word lists and sentences come from Wiktionary, OpenSubtitles and Tatoeba (see the data folder). Reviews are scheduled with FSRS.</p>`;
 };
 function updateText() {
   const u = UPD;
   return { idle: 'Updates are checked a few seconds after BiggTaal starts.', checking: 'Checking for updates...', current: 'You have the newest version. 💗', downloading: `Downloading version ${u.version} (${u.percent || 0}%)...`, ready: `Version ${u.version} is ready. Restart to install it.`, unavailable: 'Updates work in the installed app.', error: 'Could not check just now (' + (u.error || 'no connection') + '). I will try again later.' }[u.status] || '';
 }
-function saveSettings() {
-  const s = S.settings;
-  s.dailyGoal = Math.max(3, +$('#s-goal').value || 10); s.newPerDay = Math.max(0, +$('#s-new').value);
-  s.autoUpdate = $('#s-upd').checked; s.login = $('#s-login').checked; s.sound = $('#s-sound').checked;
-  const v = $('#s-voice'); if (v) s.voice = v.value; s.rate = +$('#s-rate').value || 0.9;
-  save(); if (window.vt) { window.vt.save(S); window.vt.launchAtLogin(s.login); }
-  toast('Saved'); ui.say = ''; render();
-}
-
 // ---------- actions ----------
 function importText(text) {
   const r = L.parseImport(text);
@@ -450,11 +477,21 @@ const ACT = {
   },
   'word-del': (el) => { const w = S.words.find((x) => x.id === el.dataset.id); w.deleted = true; save(); toast('Deleted ' + w.nl); render(); },
   'bulk-add': () => { const t = $('#w-bulk').value; if (!t.trim()) return; if (importText(t)) ui.draftText = ''; render(); },
-  'settings-save': saveSettings,
   theme: (el) => { S.settings.theme = el.dataset.v; applyTheme(); save(); render(); },
+  'az-save': async () => {
+    const key = ($('#s-az-key') || {}).value || '', region = ($('#s-az-region') || {}).value || '';
+    if (!key.trim() && !AZ.hasKey) return toast('Paste your Speech key first.');
+    try { await window.vt.azureSet(key, region); await loadAzure(); toast(key.trim() ? 'Key saved. Pick an online voice under Sound.' : 'Region saved.'); render(); }
+    catch (e) { toast(String(e && e.message ? e.message : e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); }
+  },
+  'az-test': async () => {
+    toast('Asking Azure...'); const r = await window.vt.azureTest(); await loadAzure(); render();
+    if (r.ok) toast('Azure works. 🎉'); else toast({ auth: 'Azure did not accept the key or region. Check both.', limit: 'The free characters are used up (or you are going too fast).', network: 'Could not reach Azure. Is the internet on?' }[r.code] || 'Azure did not answer (' + r.message + ').');
+  },
+  'az-clear': async () => { await window.vt.azureClear(); await loadAzure(); if ((S.settings.voice || '').startsWith('azure:')) { S.settings.voice = ''; save(); } toast('Key removed.'); render(); },
   'hk-set': (el) => { ui.hkCapture = ui.hkCapture === el.dataset.v ? '' : el.dataset.v; render(); },
   'hk-reset': () => { delete S.settings.keys; ui.hkCapture = ''; save(); toast('Shortcuts are back to the usual keys.'); render(); },
-  'voice-test': () => { const v = $('#s-voice'); if (v) S.settings.voice = v.value; S.settings.rate = +$('#s-rate').value || 0.9; speak('Hoi' + (userName() ? ' ' + userName() : '') + '! Welkom bij BiggTaal. Veel plezier met leren!'); },
+  'voice-test': () => { const v = $('#s-voice'); if (v) S.settings.voice = v.value; S.settings.rate = +$('#s-rate').value || 0.9; speak(helloText('! Welkom bij BiggTaal. Veel plezier met leren!')); },
   'data-reveal': () => window.vt && window.vt.reveal(),
   'data-export': async () => { if (!window.vt) return toast('Export works in the installed app.'); const f = await window.vt.exportFile(JSON.stringify(S, null, 1), 'BiggTaal-backup.json'); if (f) toast('Exported'); },
   'data-import': async () => { if (!window.vt) return; const f = await window.vt.importFile(); if (f) { importText(f.text); render(); } },
@@ -476,6 +513,12 @@ document.addEventListener('keydown', (e) => {
     if (other) { keys[other] = keys[act]; toast(keyLabel(k) + ' was used for "' + HOTKEY_DEFS.find((d) => d[0] === other)[1] + '", so the two keys swapped.'); }
     keys[act] = k; ui.hkCapture = ''; save(); return render();
   }
+  if (ui.view === 'cards' && ['typed', 'copy', 'ph-in', 'ph-copy'].includes(e.target.id)) { // while the typing box has focus: the skip key (or Esc) = I don't know, the hint key = hint
+    const hk = hotkeys(), k = keyOf(e), plain = !e.ctrlKey && !e.altKey && !e.metaKey;
+    const hit = (key) => (/^\p{L}$/u.test(key) ? e.ctrlKey && !e.altKey && k === key : plain && k === key); // a letter needs Ctrl, or it would be typed
+    if (e.key === 'Escape' || hit(hk.skip)) { e.preventDefault(); ACT[{ typed: 'skip', copy: 'copy-skip', 'ph-in': 'ph-skip', 'ph-copy': 'ph-copy-skip' }[e.target.id]](); return; }
+    if (hit(hk.hint)) { const b = document.querySelector('[data-act="fc-hint"],[data-act="ph-hint"]'); if (b) { e.preventDefault(); b.click(); } return; }
+  }
   const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (e.key === 'Enter' && e.target.id === 'copy') { e.preventDefault(); copyContinue(false); return; }
   if (e.key === 'Enter' && e.target.id === 'typed') { e.preventDefault(); ui.view === 'cards' ? checkTyped() : listenCheck(); return; }
@@ -486,6 +529,7 @@ document.addEventListener('keydown', (e) => {
     if (!c.flipped && (k === hk.flip || e.key === 'Enter') && cardPrefs().mode === 'flip') { e.preventDefault(); ACT.flip(); }
     else if (c.flipped && (k === hk.again || k === hk.good || k === hk.easy)) { e.preventDefault(); gradeCard(k === hk.again ? 'again' : k === hk.good ? 'good' : 'easy'); }
     else if (c.flipped && e.key === 'Enter') { e.preventDefault(); gradeCard(c.res === 'wrong' ? 'again' : 'good'); }
+    else if (k === hk.skip && !c.flipped && document.querySelector('[data-act="skip"]')) { e.preventDefault(); ACT.skip(); }
     else if (k === hk.speak) { const w = curCard().w; speak((w.article ? w.article + ' ' : '') + w.nl); }
     else if (k === hk.hint && !c.flipped) { const b = document.querySelector('[data-act="fc-hint"]'); if (b) { e.preventDefault(); b.click(); } }
   } else if (ui.view === 'listen' && ui.listen) {
@@ -496,6 +540,10 @@ document.addEventListener('keydown', (e) => {
 load().then(loadPiper).then(() => (document.readyState === 'loading' ? new Promise((r) => document.addEventListener('DOMContentLoaded', r)) : 0)).then(async () => { // wait until every script has run
   if (window.vt && window.vt.version) {
     try { APPV = await window.vt.version(); UPD = await window.vt.updateState(); } catch {}
+    if (window.vt.onAzureProblem) window.vt.onAzureProblem((code) => {
+      toast({ auth: 'Azure did not accept the key, so a built-in voice is reading for now. Check it in Settings.', limit: 'The free online-voice characters for this month are used up, so a built-in voice is reading until next month.', network: 'Could not reach Azure (no internet?), so a built-in voice is reading for now.' }[code] || 'The online voice did not work just now, so a built-in voice is reading.');
+      loadAzure().then(() => { if (ui.view === 'settings') render(); });
+    });
     window.vt.onUpdate((s) => {
       UPD = s;
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');

@@ -1,5 +1,5 @@
 // Flashcard keyboard shortcuts. The keys can be changed in Settings (S.settings.keys); Enter always works too.
-const HOTKEY_DEFS = [['flip', 'Show the answer', ' '], ['again', 'Rate: Again', '1'], ['good', 'Rate: Good', '2'], ['easy', 'Rate: Easy', '3'], ['speak', 'Hear the word', 'p'], ['hint', 'Show a hint (typing mode)', 'h']];
+const HOTKEY_DEFS = [['flip', 'Show the answer', ' '], ['again', 'Rate: Again', '1'], ['good', 'Rate: Good', '2'], ['easy', 'Rate: Easy', '3'], ['speak', 'Hear the word', 'p'], ['hint', 'Show a hint (typing mode)', 'h'], ['skip', "I don't know / skip (typing mode)", '4']];
 const hotkeys = () => Object.assign(Object.fromEntries(HOTKEY_DEFS.map((d) => [d[0], d[2]])), (S && S.settings && S.settings.keys) || {});
 const keyOf = (e) => e.key.toLowerCase();
 const keyLabel = (k) => ({ ' ': 'Space', arrowleft: '←', arrowright: '→', arrowup: '↑', arrowdown: '↓' })[k] || (k.length === 1 ? k.toUpperCase() : k.charAt(0).toUpperCase() + k.slice(1));
@@ -7,7 +7,7 @@ const keyLabel = (k) => ({ ' ': 'Space', arrowleft: '←', arrowright: '→', ar
 // with Bigg as a coach: he holds a flashcard, drops in at the top when you start and reacts as you go.
 // Loads after app.js and shares its scope.
 const cardPrefs = () => {
-  const p = (S.cardPrefs = Object.assign({ mode: 'flip', dir: 'nl-en', auto: false, strict: false, more: 20 }, S.cardPrefs || {}));
+  const p = (S.cardPrefs = Object.assign({ mode: 'flip', dir: 'nl-en', auto: false, strict: false, more: 20, group: '' }, S.cardPrefs || {}));
   if (p.mode === 'typing') { p.mode = 'type'; p.strict = true; } // the old separate strict mode is now a switch on Type
   return p;
 };
@@ -15,14 +15,31 @@ const isStrict = () => { const p = cardPrefs(); return p.mode === 'type' && !!p.
 const clozeFor = (w) => (w.example ? L.clozeOf(w.example, w.nl, w.pos) : null); // the word as it stands in its example sentence, or null
 const wordLabel = (w) => (w.article ? w.article + ' ' : '') + w.nl;
 
+// ---------- the group of words to practise ----------
+// Like the Group list of the phrases: all your words, one of the Words page tabs (nouns, verbs, needs work...) or one lesson.
+const cardGroupFn = () => {
+  const g = cardPrefs().group || '';
+  if (g.startsWith('lesson:')) { const l = g.slice(7); return (w) => w.lesson === l; }
+  const t = typeof WORD_TABS !== 'undefined' && WORD_TABS.find((x) => x[0] === g);
+  return t ? t[3] : () => true;
+};
+const cardPool = () => S.words.filter((w) => !w.deleted && cardGroupFn()(w));
+const cardDue = () => L.queue(cardPool(), today(), S.settings.newPerDay, todayStats().newWords); // today's cards, from the chosen group
+function cardGroupSel() {
+  const g = cardPrefs().group || '', live = liveWords(), lessons = {};
+  live.forEach((w) => { if (w.lesson) lessons[w.lesson] = (lessons[w.lesson] || 0) + 1; });
+  const tabs = typeof WORD_TABS !== 'undefined' ? WORD_TABS.filter((t) => t[0] !== 'all') : [];
+  return `<select id="fc-group"><option value="">📚 All words (${live.length})</option>${tabs.map((t) => `<option value="${t[0]}" ${g === t[0] ? 'selected' : ''}>${t[1]} ${esc(t[2])} (${live.filter(t[3]).length})</option>`).join('')}${Object.keys(lessons).length ? `<optgroup label="Lessons">${Object.keys(lessons).sort().map((l) => `<option value="lesson:${esc(l)}" ${g === 'lesson:' + l ? 'selected' : ''}>${esc(l)} (${lessons[l]})</option>`).join('')}</optgroup>` : ''}</select>`;
+}
+
 // ---------- starting a session ----------
 function launchCards(pool, label) {
   const p = cardPrefs();
   if (!pool.length) return toast('Add some words first!');
   let note = '';
-  if (p.mode === 'cloze') { // only words whose example sentence contains the word can be a cloze card
+  if (p.mode === 'cloze') { // only words whose example sentence contains the word can be a fill-the-blank card
     const all = pool.length; pool = pool.filter((w) => clozeFor(w));
-    if (!pool.length) return toast('Cloze needs words with an example sentence that uses the word. Try Find examples on the Words page.');
+    if (!pool.length) return toast('Fill the blank needs words with an example sentence that uses the word. Try Find examples on the Words page.');
     if (pool.length < all) note = ` (${all - pool.length} without a usable example skipped)`;
   }
   const dirFor = () => (isStrict() || p.mode === 'cloze' ? 'en-nl' : p.dir === 'mixed' ? rnd(['nl-en', 'en-nl']) : p.dir);
@@ -34,13 +51,13 @@ function launchCards(pool, label) {
   render();
 }
 function startCards() { // today's cards: everything due, plus the day's new words
-  const pool = dueList();
+  const pool = cardDue();
   if (!pool.length) return toast('Nothing is due. Use "Do more cards" below!');
   launchCards(pool.slice(0, 300), '');
 }
 // Do more than the daily amount: new words, earlier words ahead of schedule, or a random mix.
 function startMore(kind) {
-  const n = cardPrefs().more || 20, live = liveWords();
+  const n = cardPrefs().more || 20, live = cardPool();
   let pool, label;
   if (kind === 'new') { pool = live.filter((w) => !w.reps).slice(0, n); label = 'new words'; if (!pool.length) return toast('No unseen words left. Add more on the Words page!'); }
   else if (kind === 'review') { pool = live.filter((w) => w.reps > 0 && !L.isDue(w, today())).sort((x, y) => (x.due || '').localeCompare(y.due || '')).slice(0, n); label = 'review ahead'; if (!pool.length) return toast('Nothing else to review yet.'); }
@@ -69,7 +86,7 @@ function strictResult(typed, w) { // right | article (right word, wrong de/het) 
 
 // ---------- the screens ----------
 const moreCards = () => { // "Do more cards", before and after a session
-  const live = liveWords(), fresh = live.filter((w) => !w.reps).length, ahead = live.filter((w) => w.reps > 0 && !L.isDue(w, today())).length;
+  const live = cardPool(), fresh = live.filter((w) => !w.reps).length, ahead = live.filter((w) => w.reps > 0 && !L.isDue(w, today())).length;
   return `<div class="more"><div class="muted" style="margin-bottom:8px">Want to do more?</div>
     <div class="row" style="justify-content:center"><label class="muted">Cards <select id="fc-n">${[10, 20, 30, 50, 100].map((n) => `<option ${(cardPrefs().more || 20) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <button class="ghost" data-act="cards-more" data-k="new" ${fresh ? '' : 'disabled'}>🌱 New words <span class="muted">${fresh}</span></button>
@@ -77,19 +94,23 @@ const moreCards = () => { // "Do more cards", before and after a session
       <button class="ghost" data-act="cards-more" data-k="random" ${live.length ? '' : 'disabled'}>🎲 Random mix</button></div></div>`;
 };
 // the keyboard shortcuts, shown on the flashcards page (change them in Settings)
+// While the typing box has focus a letter key would type itself, so letters need Ctrl there (Ctrl+H); digits and other keys work directly. Esc always skips.
+const typingKbd = (id) => { const k = hotkeys()[id]; return `<kbd class="kbd">${/^\p{L}$/u.test(k) ? 'Ctrl+' : ''}${esc(keyLabel(k))}</kbd>`; };
+const skipKey = () => `<small class="btn-key">${typingKbd('skip')}</small>`; // the key shown under the "I don't know" / Skip button
 const kbdIn = (id) => `<kbd class="kbd">${esc(keyLabel(hotkeys()[id]))}</kbd>`; // a key label drawn on the button it triggers
 const speakBtn = (t) => `<span class="speakw"><button class="speak" data-act="say" data-t="${esc(t)}" title="Listen">🔊</button>${kbdIn('speak')}</span>`;
 const modeChip = (m, label) => `<button class="ghost ${cardPrefs().mode === m ? 'on' : ''}" data-act="cpref" data-k="mode" data-v="${m}">${label}</button>`;
 const dirChip = (d, label) => `<button class="ghost ${cardPrefs().dir === d ? 'on' : ''}" data-act="cpref" data-k="dir" data-v="${d}">${label}</button>`;
 
 VIEWS.cards = () => {
-  const p = cardPrefs(), c = ui.cards, due = dueList().length, strict = isStrict();
+  const p = cardPrefs(), c = ui.cards, due = cardDue().length, strict = isStrict();
   const MODE_INFO = { flip: 'See the card, flip it, then rate how well you knew it.', type: 'Type your answer; the app checks it, then you rate yourself.', cloze: 'Fill the missing word in its example sentence, in the form the sentence needs. Only words with an example sentence.', strict: 'Strict: English → Dutch, counts only if typed right. A miss means retyping it once.' };
   const dirBtn = (d, label) => strict ? `<button class="ghost ${d === 'en-nl' ? 'on' : ''}" disabled>${label}</button>` : dirChip(d, label);
   const sw = (on, k, label, off, tip) => `<button class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" data-act="cpref" data-k="${k}" data-v="${on ? '' : '1'}" ${off ? 'disabled' : ''} title="${tip}"><i></i>${label}</button>`;
   const prefs = `<div class="fopts compact">
-    <div class="og"><span class="muted">Mode</span>${modeChip('flip', 'Flip')}${modeChip('type', '⌨️ Type')}${modeChip('cloze', '🧩 Cloze')}<span class="sep"></span>${sw(strict, 'strict', 'Strict', p.mode !== 'type', 'Only counts when you type the Dutch right (Type mode)')}</div>
+    <div class="og"><span class="muted">Mode</span>${modeChip('flip', 'Flip')}${modeChip('type', '⌨️ Type')}${modeChip('cloze', '✏️ Fill the blank')}<span class="sep"></span>${sw(strict, 'strict', 'Strict', p.mode !== 'type', 'Only counts when you type the Dutch right (Type mode)')}</div>
     <div class="og"><span class="muted">Direction</span>${dirBtn('nl-en', 'NL → EN')}${dirBtn('en-nl', 'EN → NL')}${dirBtn('mixed', 'Mixed')}<span class="sep"></span>${sw(p.auto, 'auto', '🔊 Auto-speak', false, 'Say each word out loud when it appears')}</div>
+    <div class="og"><span class="muted">Group</span>${cardGroupSel()}</div>
     <div class="og hint muted">${strict ? MODE_INFO.strict : MODE_INFO[p.mode] || MODE_INFO.flip}</div></div>`;
   if (!c) {
     return `<div class="top"><div><h1>Flashcards</h1></div></div><div class="fc-wrap">${prefs}
@@ -128,11 +149,11 @@ VIEWS.cards = () => {
   let controls;
   if (strict) {
     controls = c.phase === 'miss'
-      ? `<p class="muted" style="text-align:center;margin:4px 0 8px">Type it once to move on 🌱</p><input type="text" class="big-in" id="copy" data-focus autocomplete="off" spellcheck="false" placeholder="${esc(wordLabel(w))}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="copy-ok">Continue</button><button class="ghost" data-act="copy-skip">Skip</button></div>`
-      : `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type the Dutch word... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button><button class="ghost" data-act="fc-hint">💡 Hint ${kbdIn('hint')}</button><button class="ghost" data-act="skip">I don't know</button></div>`;
+      ? `<p class="muted" style="text-align:center;margin:4px 0 8px">Type it once to move on 🌱</p><input type="text" class="big-in" id="copy" data-focus autocomplete="off" spellcheck="false" placeholder="${esc(wordLabel(w))}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="copy-ok">Continue</button><button class="ghost keyed" data-act="copy-skip">Skip${skipKey()}</button></div>`
+      : `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type the Dutch word... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button><button class="ghost" data-act="fc-hint">💡 Hint ${typingKbd('hint')}</button><button class="ghost keyed" data-act="skip">I don't know${skipKey()}</button></div>`;
   } else {
     controls = c.flipped ? gradeBtns : type
-      ? `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="${cz ? 'Type the missing word... (Enter)' : `Type the ${nlFront ? 'English' : 'Dutch'}... (Enter)`}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button>${cz ? `<button class="ghost" data-act="fc-hint">💡 Hint ${kbdIn('hint')}</button>` : ''}<button class="ghost" data-act="skip">I don't know</button></div>`
+      ? `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="${cz ? 'Type the missing word... (Enter)' : `Type the ${nlFront ? 'English' : 'Dutch'}... (Enter)`}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button>${cz ? `<button class="ghost" data-act="fc-hint">💡 Hint ${typingKbd('hint')}</button>` : ''}<button class="ghost keyed" data-act="skip">I don't know${skipKey()}</button></div>`
       : `<div class="row" style="justify-content:center"><button class="primary" data-act="flip">Show answer ${kbdIn('flip')}</button></div>`;
   }
   const selfFlip = !type && !strict && !c.flipped;

@@ -44,6 +44,10 @@ function pathOf(rings, proj, tol, minArea, always) { // one path string and the 
 
 // ----- the continents: Lambert azimuthal equal-area maps -----
 // win = [lon min, lat min, lon max, lat max] of what is kept (lon in 0-360 when wrap is set); skip = countries that should not stretch the frame
+// the Natural Earth projection (Savric et al.): a friendly whole-world map
+function naturalEarth(R) {
+  return (lo, la) => { const l = lo * rad, p = la * rad, p2 = p * p, p4 = p2 * p2; return [R * l * (0.8707 - 0.131979 * p2 + p4 * (-0.013791 + p4 * (0.003971 * p2 - 0.001529 * p4))), -R * p * (1.007226 + p2 * (0.015085 + p4 * (-0.044475 + 0.028874 * p2 - 0.005916 * p4)))]; };
+}
 const REGIONS = {
   europe: { items: G.EUROPE, lam0: 10, phi0: 52, R: 560, win: [-25, 33.5, 45, 72], skip: ['ru'] },
   asia: { items: G.ASIA, lam0: 85, phi0: 28, R: 330, win: [25, -12, 150, 56], skip: [] },
@@ -51,16 +55,18 @@ const REGIONS = {
   namerica: { items: G.NAMERICA, lam0: -95, phi0: 25, R: 420, win: [-170, 5, -50, 72], skip: [] },
   samerica: { items: G.SAMERICA, lam0: -60, phi0: -20, R: 460, win: [-85, -58, -30, 14], skip: [] },
   oceania: { items: G.OCEANIA, lam0: 165, phi0: -15, R: 560, win: [110, -50, 215, 22], skip: [], wrap: true },
+  americas: { items: G.AMERICAS, lam0: -80, phi0: 5, R: 330, win: [-170, -58, -30, 72], skip: [] }, // North and South America together, for the flags lesson
+  world: { items: G.WORLD, proj: naturalEarth(185), tol: 1.5, ownMin: 0.2, ctxMin: 30, smallFrac: 0.00008, win: [-180, -58, 180, 84], skip: [] }, // everything on one map (Natural Earth projection), without Antarctica
 };
 // places that are too small to survive on a map (or missing in the data): [lat, lon]
 const SPOTS = { mc: [43.74, 7.42], va: [41.9, 12.45], mt: [35.9, 14.4], li: [47.14, 9.55], sm: [43.94, 12.46], ad: [42.55, 1.58] };
 const laeaOf = ({ lam0, phi0, R }) => { const l0 = lam0 * rad, p0 = phi0 * rad; return (lo, la) => { const l = lo * rad, p = la * rad, k = Math.sqrt(2 / (1 + Math.sin(p0) * Math.sin(p) + Math.cos(p0) * Math.cos(p) * Math.cos(l - l0))); return [R * k * Math.cos(p) * Math.sin(l - l0), -R * k * (Math.cos(p0) * Math.sin(p) - Math.sin(p0) * Math.cos(p) * Math.cos(l - l0))]; }; };
 
 function buildRegion(name, cfg) {
-  const proj = laeaOf(cfg), mine = new Set(cfg.items.map((c) => c.id)), [w0, w1, w2, w3] = cfg.win;
+  const proj = cfg.proj || laeaOf(cfg), mine = new Set(cfg.items.map((c) => c.id)), [w0, w1, w2, w3] = cfg.win;
   const lon = (lo) => (cfg.wrap && lo < 0 ? lo + 360 : lo);
   const inWin = (ring) => ring.some(([lo, la]) => lon(lo) > w0 && lon(lo) < w2 && la > w1 && la < w3);
-  const tol = cfg.R * 0.0016, own = cfg.R * cfg.R * 1.6e-6, ctx = cfg.R * cfg.R * 4.5e-5;
+  const tol = cfg.tol || cfg.R * 0.0016, own = cfg.ownMin || cfg.R * cfg.R * 1.6e-6, ctx = cfg.ctxMin || cfg.R * cfg.R * 4.5e-5;
   const out = { shapes: [], pts: {}, small: [] }, frame = [], areas = {};
   for (const f of ne.features.filter((x) => x.geometry && x.properties)) {
     const iso = String(f.properties.ISO_A2_EH || '').toLowerCase(), isMine = mine.has(iso);
@@ -83,7 +89,7 @@ function buildRegion(name, cfg) {
   out.vb = [Math.floor(Math.min(...xs) - M), Math.floor(Math.min(...ys) - M), 0, 0];
   out.vb[2] = Math.ceil(Math.max(...xs) + M - out.vb[0]); out.vb[3] = Math.ceil(Math.max(...ys) + M - out.vb[1]);
   const fa = out.vb[2] * out.vb[3]; out.r = Math.round(out.vb[2] * 0.04);
-  for (const id of Object.keys(areas)) if (areas[id] < fa * 0.0006) out.small.push(id);
+  for (const id of Object.keys(areas)) if (areas[id] < fa * (cfg.smallFrac || 0.0006)) out.small.push(id);
   return { out, proj };
 }
 

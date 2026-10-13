@@ -213,14 +213,14 @@ if (typeof S !== 'undefined' && S && S.settings) { render(); if (typeof checkEar
 
 // ---------- mini Bigg in the corner oinks when you click him ----------
 function oink() {
-  if (S && S.settings && S.settings.sound === false) return;
+  if ((S && S.settings && S.settings.sound === false) || vol() <= 0) return;
   try {
     actx = actx || new AudioContext(); const ctx = actx, t = ctx.currentTime, p = 0.9 + Math.random() * 0.22; // a slightly different pitch each time
-    const burst = (start, f0, f1, dur, vol, band) => {
+    const v = vol(), burst = (start, f0, f1, dur, vol, band) => {
       const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
       o.type = 'sawtooth'; o.frequency.setValueAtTime(f0 * p, t + start); o.frequency.exponentialRampToValueAtTime(f1 * p, t + start + dur);
       f.type = 'bandpass'; f.frequency.value = band; f.Q.value = 2.2;
-      g.gain.setValueAtTime(0.0001, t + start); g.gain.exponentialRampToValueAtTime(vol, t + start + 0.025); g.gain.exponentialRampToValueAtTime(0.0001, t + start + dur);
+      g.gain.setValueAtTime(0.0001, t + start); g.gain.exponentialRampToValueAtTime(vol * v, t + start + 0.025); g.gain.exponentialRampToValueAtTime(0.0001, t + start + dur);
       o.connect(f).connect(g).connect(ctx.destination); o.start(t + start); o.stop(t + start + dur + 0.03);
     };
     burst(0, 200, 115, 0.2, 0.5, 650);    // "oi": a low grunt

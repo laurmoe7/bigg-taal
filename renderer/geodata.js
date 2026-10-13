@@ -53,7 +53,7 @@ const EUROPE_RAW = [
   ['by', 'Wit-Rusland', 'Belarus', 'Minsk', 'Minsk', 'east', { name: ['Belarus'] }],
   ['ru', 'Rusland', 'Russia', 'Moskou', 'Moscow', 'east'],
 ];
-const EUROPE = EUROPE_RAW.map(([id, name, en, cap, capEn, region, alt]) => ({ id, name, en, cap, capEn, region, nameAlt: (alt && alt.name) || [], capAlt: (alt && alt.cap) || [], flag: (cls) => flagImg(id, cls) }));
+const EUROPE = EUROPE_RAW.map(([id, name, en, cap, capEn, region, alt]) => ({ id, name, en, cap, capEn, region, cont: 'europe', nameAlt: (alt && alt.name) || [], capAlt: (alt && alt.cap) || [], flag: (cls) => flagImg(id, cls) }));
 const EUROPE_REGIONS = [['west', 'West'], ['north', 'North'], ['central', 'Central'], ['south', 'South & Balkans'], ['east', 'East']];
 
 // the twelve provinces: [id, name, English name if different, capital, capital in English, a small fact]
@@ -137,6 +137,10 @@ const OCEANIA = mkCountries([
   ['tv', 'Tuvalu', 'Tuvalu', 'Funafuti', '', 'pol'], ['ws', 'Samoa', 'Samoa', 'Apia', '', 'pol'], ['to', 'Tonga', 'Tonga', "Nuku'alofa", '', 'pol'],
 ], 'oceania');
 
+// the whole world as one list, grouped by continent (a copy of each country whose region is its continent)
+const WORLD_REGIONS = [['europe', 'Europe'], ['asia', 'Asia'], ['africa', 'Africa'], ['namerica', 'North & Central America'], ['samerica', 'South America'], ['oceania', 'Oceania']];
+const WORLD = [EUROPE, ASIA, AFRICA, NAMERICA, SAMERICA, OCEANIA].flatMap((list) => list.map((c) => Object.assign({}, c, { region: c.cont })));
+
 // seas, rivers and mountains of Europe: no flags and no capitals; where they are drawn is in mapdata.js (built from the coordinates in scripts/build-maps.js)
 const WATERS_REGIONS = [['sea', 'Seas'], ['river', 'Rivers'], ['mountain', 'Mountains']];
 const WATERS = [
@@ -201,4 +205,4 @@ function geoOptions(items, item, key, count, rnd) {
   return shuffle(out.concat(item));
 }
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { EUROPE, EUROPE_REGIONS, PROVINCES, flagImg, ASIA, ASIA_REGIONS, AFRICA, AFRICA_REGIONS, NAMERICA, NAMERICA_REGIONS, SAMERICA, AMERICAS, AMERICAS_REGIONS, OCEANIA, OCEANIA_REGIONS, WATERS, WATERS_REGIONS, geoJudge, geoLevel, geoPickQueue, geoOptions };
+if (typeof module !== 'undefined' && module.exports) module.exports = { EUROPE, EUROPE_REGIONS, PROVINCES, flagImg, ASIA, ASIA_REGIONS, AFRICA, AFRICA_REGIONS, NAMERICA, NAMERICA_REGIONS, SAMERICA, AMERICAS, AMERICAS_REGIONS, WORLD, WORLD_REGIONS, OCEANIA, OCEANIA_REGIONS, WATERS, WATERS_REGIONS, geoJudge, geoLevel, geoPickQueue, geoOptions };

@@ -1,10 +1,11 @@
 // BiggTaal main process: window, saved data, voices, updates.
-const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
+const azure = require('./azure.js');
 
 app.setAppUserModelId('com.laurmoe.biggtaal');
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -87,14 +88,43 @@ function piperVoices() {
   } catch { return []; }
 }
 ipcMain.handle('tts:voices', () => piperVoices());
-const ttsInflight = new Map(); // identical requests share one piper run
-function synth(text, voice, ls) {
-  const cache = path.join(app.getPath("userData"), "tts-cache");
-  fs.mkdirSync(cache, { recursive: true });
-  const out = path.join(cache, crypto.createHash("sha1").update(voice + "|" + ls.toFixed(2) + "|" + text).digest("hex") + ".wav");
-  if (fs.existsSync(out)) { const now = new Date(); try { fs.utimesSync(out, now, now); } catch {} return Promise.resolve(fs.readFileSync(out)); }
-  if (ttsInflight.has(out)) return ttsInflight.get(out);
-  const job = new Promise((resolve, reject) => {
+// Online voices (Azure Speech). The key is encrypted with Windows' own protection (safeStorage) and kept in its own file next to the data,
+// never in data.json, so it does not end up in exports or backups. Every clip is cached, so a word you have heard once plays offline later.
+const azFile = () => path.join(app.getPath('userData'), 'azure.json');
+const azRead = () => { try { return JSON.parse(fs.readFileSync(azFile(), 'utf8')); } catch { return {}; } };
+const azWrite = (o) => { const tmp = azFile() + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(o)); fs.renameSync(tmp, azFile()); };
+function azKey() { const c = azRead(); if (!c.key || !safeStorage.isEncryptionAvailable()) return ''; try { return safeStorage.decryptString(Buffer.from(c.key, 'base64')); } catch { return ''; } }
+let azLast = ''; const azTold = {};
+function azProblem(e) { // remember what went wrong and tell the page, at most once every five minutes per kind of problem
+  azLast = e.code || 'server';
+  if (win && !win.isDestroyed() && Date.now() - (azTold[azLast] || 0) > 300000) { azTold[azLast] = Date.now(); win.webContents.send('azure:problem', azLast); }
+}
+async function azSynth(text, voice, ls) {
+  const key = azKey(), month = azure.monthOf(), c = azRead();
+  if (!key) throw new azure.AzureError('auth', 'no key');
+  if (!azure.canSpend(c.usage, month, text.length)) throw new azure.AzureError('limit', 'the free characters of this month are used up');
+  const buf = await azure.synthesize({ key, region: c.region || 'westeurope', voice, text, ls });
+  const c2 = azRead(); c2.usage = azure.addUsage(c2.usage, month, text.length); azWrite(c2);
+  return buf;
+}
+ipcMain.handle('azure:get', () => { const c = azRead(), m = azure.monthOf(); return { hasKey: !!azKey(), region: c.region || 'westeurope', month: m, chars: azure.usedIn(c.usage, m), limit: azure.FREE_CHARS, safe: azure.SAFE_CHARS, secure: safeStorage.isEncryptionAvailable(), last: azLast }; });
+ipcMain.handle('azure:set', (_e, key, region) => {
+  region = String(region || '').trim().toLowerCase(); key = String(key || '').trim();
+  if (!azure.validRegion(region)) return Promise.reject(new Error('That region does not look right. It is a short name like westeurope.'));
+  const c = azRead(); c.region = region;
+  if (key) {
+    if (!/^[A-Za-z0-9_-]{20,120}$/.test(key)) return Promise.reject(new Error('That does not look like a Speech key. Copy "Key 1" from the Azure portal.'));
+    if (!safeStorage.isEncryptionAvailable()) return Promise.reject(new Error('Windows could not protect the key on this PC, so it was not saved.'));
+    c.key = safeStorage.encryptString(key).toString('base64');
+  }
+  azWrite(c); azLast = ''; return true;
+});
+ipcMain.handle('azure:clear', () => { const c = azRead(); delete c.key; azWrite(c); azLast = ''; return true; });
+ipcMain.handle('azure:test', async () => { try { await azSynth('Hallo, dit is een test van mijn stem.', 'nl-NL-ColetteNeural', 1); azLast = ''; return { ok: true }; } catch (e) { return { ok: false, code: e.code || 'server', message: e.message }; } });
+
+const ttsInflight = new Map(); // identical requests share one run
+function piperJob(out, text, voice, ls) {
+  return new Promise((resolve, reject) => {
     const tmp = out + ".tmp";
     const p = spawn(piperExe(), ["--model", path.join(voicesDir(), "models", `nl_NL-${voice}-medium.onnx`), "--output_file", tmp, "--length_scale", String(ls)], { cwd: path.dirname(piperExe()), windowsHide: true });
     let err = "";
@@ -105,14 +135,35 @@ function synth(text, voice, ls) {
       else reject(new Error("piper failed (" + code + "): " + err.slice(-200)));
     });
     p.stdin.end(text + '\n');
-  }).finally(() => ttsInflight.delete(out));
+  });
+}
+async function azureJob(out, text, voice, ls) {
+  try {
+    const buf = await azSynth(text, voice, ls);
+    const tmp = out + '.tmp'; fs.writeFileSync(tmp, buf); fs.renameSync(tmp, out);
+    return buf;
+  } catch (e) { // no key, no internet, the free characters used up...: the page is told, and an offline voice reads it instead
+    azProblem(e);
+    const fb = piperVoices()[0];
+    if (!fb) throw e;
+    return synth(text, fb, ls);
+  }
+}
+function synth(text, voice, ls) { // voice: a Piper name like "alex", or "az:nl-NL-ColetteNeural" for an Azure voice
+  const online = voice.startsWith('az:'), cache = path.join(app.getPath("userData"), "tts-cache");
+  fs.mkdirSync(cache, { recursive: true });
+  const out = path.join(cache, crypto.createHash("sha1").update(voice + "|" + ls.toFixed(2) + "|" + text).digest("hex") + (online ? ".mp3" : ".wav"));
+  if (fs.existsSync(out)) { const now = new Date(); try { fs.utimesSync(out, now, now); } catch {} return Promise.resolve(fs.readFileSync(out)); }
+  if (ttsInflight.has(out)) return ttsInflight.get(out);
+  const job = (online ? azureJob(out, text, voice.slice(3), ls) : piperJob(out, text, voice, ls)).finally(() => ttsInflight.delete(out));
   ttsInflight.set(out, job);
   return job;
 }
 ipcMain.handle("tts:speak", (_e, text, voice, lengthScale) => {
   text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 600);
   if (!text) return Promise.reject(new Error("empty text"));
-  if (!piperVoices().includes(voice)) return Promise.reject(new Error("unknown voice"));
+  voice = String(voice || '');
+  if (voice.startsWith('az:') ? !azure.validVoice(voice.slice(3)) : !piperVoices().includes(voice)) return Promise.reject(new Error("unknown voice"));
   return synth(text, voice, Math.min(2.5, Math.max(0.5, Number(lengthScale) || 1)));
 });
 function trimCache() { // keep the audio cache from growing forever: drop clips not used for a month

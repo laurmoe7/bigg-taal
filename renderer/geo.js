@@ -15,7 +15,7 @@ function geoMapSvg(d, o) {
   };
   const top = (id) => (id && !plain ? m.shapes.filter((x) => x[0] === id) : []), rest = m.shapes.filter((x) => plain || !x[0] || (x[0] !== o.hi && x[0] !== o.sel));
   const r = m.r || 16, ringAt = (p) => (p ? `<circle class="ring" cx="${p[0]}" cy="${p[1]}" r="${r}"/>` : ''), ring = (id) => ringAt(m.pts[id]);
-  const mark = plain ? '' : [o.hi, o.sel].filter((id) => id && m.small && m.small.includes(id)).map(ring).join('');
+  const mark = plain ? '' : [o.hi, o.sel].filter((id) => id && (d.ringHi || (m.small && m.small.includes(id)))).map(ring).join(''); // on the world map every lit-up country gets a ring
   let feats = '';
   if (plain) { // lines for rivers, dots for seas, triangles for mountains
     feats = d.items.filter((it) => m.feat[it.id] && (o.all || o.hi === it.id || o.sel === it.id)).map((it) => {
@@ -31,7 +31,7 @@ function geoMapSvg(d, o) {
     return `<circle class="sdot${c}" cx="${m.pts[id][0]}" cy="${m.pts[id][1]}" r="${r * 0.14}"/><circle class="fp-hit" cx="${m.pts[id][0]}" cy="${m.pts[id][1]}" r="${r * 0.4}" data-act="geo-map" data-id="${id}">${o.titles ? `<title>${esc(by(id).name)}</title>` : ''}</circle>`;
   }).join('') : '';
   const labels = o.labels && m.ctr ? Object.keys(m.ctr).map((id) => `<text class="mlabel" x="${m.ctr[id][0]}" y="${m.ctr[id][1] + 4}">${esc(by(id).name)}</text>`).join('') : '';
-  const dots = o.dots && d.id === 'provinces' ? Object.keys(m.pts).map((id) => `<circle class="mdot" cx="${m.pts[id][0]}" cy="${m.pts[id][1]}" r="4"/>`).join('') : '';
+  const dots = o.dots && d.map === 'provinces' ? Object.keys(m.pts).map((id) => `<circle class="mdot" cx="${m.pts[id][0]}" cy="${m.pts[id][1]}" r="4"/>`).join('') : '';
   return `<svg class="geo-map ${o.cls || ''}" viewBox="${m.vb.join(' ')}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${rest.map(path).join('')}${top(o.sel).map(path).join('')}${top(o.hi).map(path).join('')}${mark}${tiny}${feats}${dots}${labels}</svg>`;
 }
 // what stands for an item: its flag, or a little map with it lit up
@@ -55,18 +55,23 @@ const GEO_K = {
   tp: { id: 'tp', askF: 'cap', label: '⌨️ Type the province', desc: 'See a capital, type its province.', type: 'type', field: 'name', ask: (it) => geoName({ name: it.cap }), prompt: 'Type the province this is the capital of.' },
   m2p: { id: 'm2p', optF: 'name', label: '🗺️ Map → province', desc: 'A province is lit up on the map: pick its name.', type: 'choice', ask: geoMapAsk, prompt: 'Which province is lit up on the map?', opt: (it) => esc(it.name), key: (it) => it.name },
   tmp: { id: 'tmp', label: '⌨️ Type from the map', desc: 'A province is lit up: type its name.', type: 'type', field: 'name', ask: geoMapAsk, prompt: 'Type the name of the lit-up province.' },
+  f2p: { id: 'f2p', optF: 'name', label: '🏳️ Flag → province', desc: 'See a flag, pick the province.', type: 'choice', ask: (it) => `<div class="geo-flag">${it.flag()}</div>`, prompt: 'Which province does this flag belong to?', opt: (it) => esc(it.name), key: (it) => it.name },
+  p2f: { id: 'p2f', askF: 'name', label: '🚩 Province → flag', desc: 'See a province, pick its flag.', type: 'choice', ask: geoName, prompt: 'Which flag belongs to this province?', opt: (it) => it.flag(), key: (it) => it.id, optClass: 'flags' },
+  tfp: { id: 'tfp', label: '⌨️ Type the province', desc: 'See a flag, type the province.', type: 'type', field: 'name', ask: (it) => `<div class="geo-flag">${it.flag()}</div>`, prompt: 'Type the name of this province.' },
   m2w: { id: 'm2w', optF: 'name', label: '🗺️ Map → name', desc: 'Something is marked on the map: pick its name.', type: 'choice', ask: geoMapAsk, prompt: 'What is marked on the map?', opt: (it) => esc(it.name), key: (it) => it.name },
   tmw: { id: 'tmw', label: '⌨️ Type from the map', desc: 'Something is marked: type its Dutch name.', type: 'type', field: 'name', ask: geoMapAsk, prompt: 'Type the Dutch name of what is marked.' },
 };
-const geoCountryDeck = (id, title, icon, items, regions) => ({ id: 'g-' + id, section: 'geo', icon, title, full: 'Geography of ' + title, items, regions, map: id, visual: 'map', showCap: true, noun: 'country', nounPl: 'countries', part: 'Which part?', kinds: ['m2n', 'tmn', 'c2n', 'cap2n', 'tc'].map((k) => GEO_K[k]) });
-const geoFlagDeck = (id, title, icon, items, regions) => ({ id: 'f-' + id, section: 'flags', icon, title, full: 'Flags of ' + title, items, regions, map: null, visual: 'flag', showCap: false, noun: 'country', nounPl: 'countries', part: 'Which part?', kinds: ['f2n', 'n2f', 'tn'].map((k) => GEO_K[k]) });
+const geoCountryDeck = (id, title, icon, items, regions, full) => ({ id: 'g-' + id, section: 'geo', icon, title, full: full || 'Geography of ' + title, ringHi: id === 'world', items, regions, map: id, visual: 'map', showCap: true, noun: 'country', nounPl: 'countries', part: 'Which part?', kinds: ['m2n', 'tmn', 'c2n', 'cap2n', 'tc'].map((k) => GEO_K[k]) });
+const geoFlagDeck = (id, title, icon, items, regions, full, kinds) => ({ id: 'f-' + id, section: 'flags', icon, title, full: full || 'Flags of ' + title, ringHi: id === 'world', items, regions, map: id, visual: 'flag', showCap: false, noun: 'country', nounPl: 'countries', part: 'Which part?', kinds: (kinds || ['f2n', 'n2f', 'tn']).map((k) => GEO_K[k]) });
+const PROVINCE_FLAGS = PROVINCES.map((p) => Object.assign({}, p, { flag: (cls) => flagImg('nl-' + p.id, cls) })); // the same provinces, with their flags
 const GEO_DECKS = [
-  geoCountryDeck('europe', 'Europe', '🏰', EUROPE, EUROPE_REGIONS), geoCountryDeck('asia', 'Asia', '🏯', ASIA, ASIA_REGIONS), geoCountryDeck('africa', 'Africa', '🦒', AFRICA, AFRICA_REGIONS),
+  geoCountryDeck('world', 'World', '🌐', WORLD, WORLD_REGIONS, 'Geography of the world'), geoCountryDeck('europe', 'Europe', '🏰', EUROPE, EUROPE_REGIONS), geoCountryDeck('asia', 'Asia', '🏯', ASIA, ASIA_REGIONS), geoCountryDeck('africa', 'Africa', '🦒', AFRICA, AFRICA_REGIONS),
   geoCountryDeck('namerica', 'North & Central America', '🗽', NAMERICA, NAMERICA_REGIONS), geoCountryDeck('samerica', 'South America', '🦙', SAMERICA, null), geoCountryDeck('oceania', 'Oceania', '🦘', OCEANIA, OCEANIA_REGIONS),
   { id: 'provinces', section: 'geo', icon: '🌷', title: 'Dutch provinces', full: 'Provinces of the Netherlands', items: PROVINCES, regions: null, map: 'provinces', visual: 'map', showCap: true, noun: 'province', nounPl: 'provinces', part: 'Which part?', kinds: ['m2p', 'tmp', 'p2c', 'c2p', 'tcp', 'tp'].map((k) => GEO_K[k]) },
   { id: 'waters', section: 'geo', icon: '🌊', title: 'Seas, rivers & mountains', full: 'Seas, rivers & mountains', items: WATERS, regions: WATERS_REGIONS, map: 'europe', feat: true, visual: 'map', showCap: false, noun: 'place', nounPl: 'places', part: 'Which kind?', kinds: ['m2w', 'tmw'].map((k) => GEO_K[k]) },
-  geoFlagDeck('europe', 'Europe', '🏰', EUROPE, EUROPE_REGIONS), geoFlagDeck('asia', 'Asia', '🏯', ASIA, ASIA_REGIONS), geoFlagDeck('africa', 'Africa', '🦒', AFRICA, AFRICA_REGIONS),
+  geoFlagDeck('world', 'World', '🌐', WORLD, WORLD_REGIONS, 'Flags of the world'), geoFlagDeck('europe', 'Europe', '🏰', EUROPE, EUROPE_REGIONS), geoFlagDeck('asia', 'Asia', '🏯', ASIA, ASIA_REGIONS), geoFlagDeck('africa', 'Africa', '🦒', AFRICA, AFRICA_REGIONS),
   geoFlagDeck('americas', 'the Americas', '🗽', AMERICAS, AMERICAS_REGIONS), geoFlagDeck('oceania', 'Oceania', '🦘', OCEANIA, OCEANIA_REGIONS),
+  Object.assign(geoFlagDeck('provinces', 'Dutch provinces', '🌷', PROVINCE_FLAGS, null, 'Flags of the Dutch provinces', ['f2p', 'p2f', 'tfp']), { noun: 'province', nounPl: 'provinces' }),
 ];
 GEO_DECKS.find((d) => d.id === 'f-americas').title = 'The Americas';
 const GEO_SECTIONS = [['geo', '🗺️ Geography'], ['flags', '🚩 Flags']];
@@ -113,9 +118,9 @@ function geoLearn(d) {
 }
 function geoMapView(d, cover) {
   const sel = d.items.find((x) => x.id === geo.sel), stats = geoStats(d);
-  const map = geoMapSvg(d, { click: true, sel: geo.sel, lv: stats, titles: !geo.cover, labels: d.id === 'provinces' && !geo.cover, dots: d.id === 'provinces', all: true, cls: 'big' });
+  const map = geoMapSvg(d, { click: true, sel: geo.sel, lv: stats, titles: !geo.cover, labels: d.map === 'provinces' && !geo.cover, dots: d.map === 'provinces', all: true, cls: 'big' });
   const panel = sel ? `<div class="card geo-res-main geo-sel">${d.visual === 'flag' ? `<div class="geo-flag sm">${sel.flag()}</div>` : ''}<div class="geo-res-txt">${geoInfo(d, sel)}<div class="row" style="margin-top:8px">${geoSayBtns(d, sel)}</div></div></div>` : `<div class="card muted">Tap a ${d.noun} on the map to see its name and hear it.</div>`;
-  const legend = d.feat ? '<span style="color:#5aa9e6">●</span> sea · <span style="color:#5aa9e6">━</span> river · <span style="color:#c9a27a">▲</span> mountain' : `<span style="color:var(--mint)">■</span> known · <span style="color:var(--butter)">■</span> learning${d.id === 'provinces' ? ' · ● capital' : ''}`;
+  const legend = d.feat ? '<span style="color:#5aa9e6">●</span> sea · <span style="color:#5aa9e6">━</span> river · <span style="color:#c9a27a">▲</span> mountain' : `<span style="color:var(--mint)">■</span> known · <span style="color:var(--butter)">■</span> learning${d.map === 'provinces' && d.section === 'geo' ? ' · ● capital' : ''}`;
   return `${cover}<div class="geo-mapview"><div class="card geo-mapcard">${map}</div><div>${panel}<p class="muted" style="font-size:13px;margin:10px 2px">${d.feat ? '' : 'Colours: '}${legend}</p></div></div>`;
 }
 function geoCards(d, cover) {
@@ -195,7 +200,7 @@ function geoSession() {
 
 // ---------- actions ----------
 Object.assign(ACT, {
-  'geo-open': (el) => { const d = GEO_DECKS.find((x) => x.id === el.dataset.v); geo.deck = d.id; geo.tab = 'learn'; geo.view = d.map ? 'map' : 'cards'; geo.sel = ''; geo.region = 'all'; geo.qregion = 'all'; geo.kind = 'mix'; geo.rev = {}; geo.sess = null; render(); },
+  'geo-open': (el) => { const d = GEO_DECKS.find((x) => x.id === el.dataset.v); geo.deck = d.id; geo.tab = 'learn'; geo.view = d.map && d.section === 'geo' ? 'map' : 'cards'; geo.sel = ''; geo.region = 'all'; geo.qregion = 'all'; geo.kind = 'mix'; geo.rev = {}; geo.sess = null; render(); },
   'geo-home': () => { geo.deck = null; geo.sess = null; render(); },
   'geo-tab': (el) => { geo.tab = el.dataset.v; render(); },
   'geo-en': () => { S.geoEn = !geoEnOn(); save(); const t = ($('#geo-in') || {}).value || ''; render(); const i = $('#geo-in'); if (i) { i.value = t; i.focus(); } },

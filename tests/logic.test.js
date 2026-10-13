@@ -46,6 +46,12 @@ test('check: exact, accent-insensitive, typo, alternatives, wrong', () => {
   assert.equal(L.check('cafe', 'café'), 'close');
   assert.equal(L.check('to explain', 'to explain / to clarify'), 'right');
   assert.equal(L.check('to clarify', 'to explain / to clarify'), 'right');
+  assert.equal(L.check('wage', 'wage, salary'), 'right'); // one of several meanings is enough
+  assert.equal(L.check('Salary', 'wage, salary'), 'right');
+  assert.equal(L.check('salery', 'wage, salary'), 'close');
+  assert.equal(L.check('run', 'to run (fast, slow)'), 'wrong'); // a comma inside brackets is a note, not a second meaning
+  assert.equal(L.check('to run', 'to run (fast, slow)'), 'right');
+  assert.equal(L.check('fast', 'to run (fast, slow)'), 'wrong');
   assert.equal(L.check('house', 'appointment'), 'wrong');
   assert.equal(L.check('', 'x'), 'wrong');
   assert.equal(L.check('cat', 'cut'), 'wrong'); // short words: no typo forgiveness
@@ -392,4 +398,9 @@ test('recall: typed words are matched to your words, typos allowed', () => {
   assert.equal(L.recallMatch('de afspraak', pool).exact, true); assert.equal(L.recallMatch(' Afspraak ', pool).w.nl, 'afspraak');
   const typo = L.recallMatch('ziekenhuus', pool); assert.equal(typo.w.nl, 'ziekenhuis'); assert.equal(typo.exact, false);
   assert.equal(L.recallMatch('fiets', pool), null); assert.equal(L.recallMatch('', pool), null);
+});
+test('settings: the volume starts at full and old saves get it', () => {
+  assert.equal(L.defaultSettings().volume, 1);
+  assert.equal(L.fixState({ settings: { rate: 0.8 } }).settings.volume, 1);
+  assert.equal(L.fixState({ settings: { volume: 0.4 } }).settings.volume, 0.4);
 });

@@ -128,29 +128,42 @@ const PROVERBS = [
 
 // Bigg's lines. He is Varken's little brother: sweet, cheery, always kind. {n} = number, {s} = streak, {t} = title
 const PIG = {
-  welcome: ["Hoi! I am Bigg, Varken's little brother! Let us learn Dutch together! 🌸", 'Welkom! Add a few words and we can start. I am so excited! ✨'],
-  due: ['{n} cards are ready, and I think you are going to do wonderfully! 💗', 'Yay, {n} cards! Just a few minutes is perfect. 🌸', 'Every card you review makes my little plant grow. {n} to go! 🌱', 'I saved {n} cards for you. We can do this together! ✨'],
-  nothingDue: ['All caught up! You are amazing. Maybe a little listening for fun? 🎧', 'Nothing due right now. How about a worksheet? Or a rest, you earned it! 💗', 'You are all done for now. I am so proud of you! 🌸'],
-  goal: ['You reached your goal! I am doing a happy wiggle! 🎉', 'Goed gedaan! That is today done, and anything extra is a lovely bonus. 💗', 'Wheee! Daily goal complete! Varken will be so proud of you! ✨'],
-  level: ['You are level {n}! Look how far you have come! 🌟', '{x} XP to level {m}. You can do it! 💗', 'Level {n} already? I am so proud of you! ✨', 'My plant is blooming because of you, level {n}! 🌼'],
-  night: ['It is late. Sweet dreams, we will learn more tomorrow! 🌙', 'Zzz.. you did lovely today. Sleep well! 💤'],
-  right: ['Goed zo!', 'Precies! 🌸', 'Yay, you got it!', 'Lekker bezig!', 'Wonderful!', 'Super!'],
-  close: ['So close! You almost had it! 💗', 'Nearly perfect, just a tiny spelling thing!', 'Bijna! Great try!'],
-  wrong: ['That is okay, every try helps you remember! 💗', 'No worries! Now it will stick even better. 🌸', 'You are learning, and that is what counts!', 'Niet erg! We will see it again soon.'],
-  poke: ['Hehe, that tickles! 💗', 'Oink-oink! Hoi!', 'Varken says hi from the other room!', 'You are doing so well!', 'Bigg believes in you! 🌸', 'Yay yay yay!', 'Spreek je Nederlands? Een beetje? You are great at it! ✨', 'Big hug! 🤗'],
+  welcome: ["Hoi! I am Bigg, Varken's little brother! Let us learn Dutch together! 🌸", 'Welkom! Add a few words and we can start. I am so excited! ✨', 'Hoi! Add a few words and I will help you remember them. 🌱', 'A fresh start! Let us collect some Dutch words together. ✨'],
+  due: ['{n} cards are ready, and I think you are going to do wonderfully! 💗', 'Yay, {n} cards! Just a few minutes is perfect. 🌸', 'Every card you review makes my little plant grow. {n} to go! 🌱', 'I saved {n} cards for you. We can do this together! ✨', '{n} cards are waiting for you. Shall we? 🌸', 'Psst, {n} cards want to say hoi! 👋', 'A little practice now means less to remember later. {n} cards! ✨', 'Ready when you are! {n} cards, no rush. 🌱', '{n} cards today. I will cheer for every single one! 🎉', 'Small steps, big progress. Let us do these {n}! 🐾', 'Your brain is going to love these {n} cards. 🧠'],
+  nothingDue: ['All caught up! You are amazing. Maybe a little listening for fun? 🎧', 'Nothing due right now. How about a worksheet? Or a rest, you earned it! 💗', 'You are all done for now. I am so proud of you! 🌸', 'Nothing is due, so everything from here on is a bonus! ✨', 'Mooi, all clear! Want to try the Bonus Lessons? 🌍', 'You are up to date! Maybe listen to a few sentences? 🎧', 'Rest day for the cards. A quick flag quiz, perhaps? 🚩', 'All done here. Fancy some blank-page recall? 📝'],
+  goal: ['You reached your goal! I am doing a happy wiggle! 🎉', 'Goed gedaan! That is today done, and anything extra is a lovely bonus. 💗', 'Wheee! Daily goal complete! Varken will be so proud of you! ✨', 'Daily goal done! You can stop now, or keep going for fun. 🌟', 'Hoera! Goal reached. I am doing a little spin! 🌀', 'Dat is een mooie dag! Goal complete! 🌸', 'Look at you, hitting your goal again! ✨'],
+  level: ['You are level {n}! Look how far you have come! 🌟', '{x} XP to level {m}. You can do it! 💗', 'Level {n} already? I am so proud of you! ✨', 'My plant is blooming because of you, level {n}! 🌼', 'Level {n} looks good on you! 🌟', 'Only {x} XP until level {m}! Almost there! 🚀', 'Every card adds a little XP. You are at level {n}! 🌱', 'Level {n}, and still growing! 🌼'],
+  night: ['It is late. Sweet dreams, we will learn more tomorrow! 🌙', 'Zzz.. you did lovely today. Sleep well! 💤', 'Slaap lekker! The words will still be here tomorrow. 🌙', 'Late-night learning? Mooi, but sleep helps memory too! 💤', 'Shh, the stars are out. Maybe one more card, then bed? ⭐', 'Even Bigg needs his beauty sleep. Welterusten! 😴'],
+  right: ['Goed zo!', 'Precies! 🌸', 'Yay, you got it!', 'Lekker bezig!', 'Wonderful!', 'Super!', 'Heel goed!', 'Klopt!', 'Mooi zo!', 'Dat is correct! ✨', 'Nailed it!', 'Top!'],
+  close: ['So close! You almost had it! 💗', 'Nearly perfect, just a tiny spelling thing!', 'Bijna! Great try!', 'Just one little slip, you know it! 🌸', 'So near! Check the spelling once more.', 'Haast goed! Almost there!'],
+  wrong: ['That is okay, every try helps you remember! 💗', 'No worries! Now it will stick even better. 🌸', 'You are learning, and that is what counts!', 'Niet erg! We will see it again soon.', 'Oeps! That is how we learn. 🌱', 'Een foutje, geen ramp! 🌸', 'It will click soon, I promise! ✨', 'Mistakes are tiny teachers. 🐷'],
+  poke: ['Hehe, that tickles! 💗', 'Oink-oink! Hoi!', 'Varken says hi from the other room!', 'You are doing so well!', 'Bigg believes in you! 🌸', 'Yay yay yay!', 'Spreek je Nederlands? Een beetje? You are great at it! ✨', 'Big hug! 🤗', 'Oink! That was my favourite spot. 🐽', 'You found me! Hoi hoi! 🌸', 'Did you know Dutch has the word "gezellig"? Nothing else quite like it! ✨', 'Hihi! Again, again! 🎉', 'I was just thinking about stroopwafels. 🧇', 'Een, twee, drie... oink! 🎶', 'Keep going, you are closer than you think! 🌟', 'Tiny pig, big cheering. Doei doei! 👋'],
 };
+
+// Extra things Bigg says on Today: by time of day, weekend, Monday, little Dutch tips and facts, the Bonus Lessons, and by name once you have given yours.
+PIG.morning = ['Goedemorgen! A few cards with your coffee? ☕', 'Good morning! Fresh brain, perfect time for new words. 🌅', 'Goedemorgen! The day is young. 🌸'];
+PIG.afternoon = ['Goedemiddag! Time for a little Dutch break? 🌿', 'Good afternoon! A few cards will wake you right up. ✨', 'Hoi! Afternoon slump? A quick quiz helps! ☀️'];
+PIG.evening = ['Goedenavond! A calm round of cards before dinner? 🍽️', 'Good evening! Let us wrap up the day with some Dutch. 🌆', 'Goedenavond! Your words are ready for you. 🌙'];
+PIG.weekend = ['Fijn weekend! No pressure, just a little fun with Dutch. 🌈', 'It is the weekend! Even five minutes counts. 🌸', 'Weekend mode: relaxed learning only! 🛋️'];
+PIG.monday = ['Goede maandag! A fresh week, a fresh start. 🌱', 'Monday! Your weekly recap is waiting on this page. 📅'];
+PIG.tips = ['Tip: say new words out loud. Press the speaker and copy me! 🔊', 'Tip: "de" and "het" have to be learned with each noun, so always learn them together. 🏷️', 'Tip: Dutch word order puts the verb in second place: "Vandaag eet ik soep." 🍲',
+  'Tip: the Dutch "g" is made at the back of your throat. Try saying "goed"! 🗣️', 'Fun fact: "oei" is a very Dutch way to say oops. 🙈', 'Fun fact: Dutch has diminutives: huis becomes huisje, and everything gets cuter. 🏡',
+  'Fun fact: about 25 million people speak Dutch, in the Netherlands, Belgium and Suriname. 🌍', 'Tip: little and often beats long and rarely. Five minutes a day is great! ⏱️', 'Fun fact: "gezellig" has no exact English word. It means cozy, friendly and together. 🕯️',
+  'Tip: try Blank-page recall on the Words page to find what you really remember. 📝', 'Tip: words you miss come back more often. That is the system helping you! 🔁', 'Fun fact: the Dutch eat "hagelslag", chocolate sprinkles, on bread for breakfast! 🍫'];
+PIG.bonus = ['Have you tried the Bonus Lessons? Maps, capitals and flags! 🗺️', 'Quick flag quiz? I will go easy on you. 🚩', 'Do you know all the Dutch provinces? Let us find out! 🌷', 'The world has 195 countries. How many can you name in Dutch? 🌍', 'The Bonus Lessons have seas, rivers and mountains too. 🌊'];
+PIG.named = ['Hoi {name}! Fijn dat je er bent! 🌸', '{name}, you are doing great! ✨', 'Goed bezig, {name}! 🎉', 'Ready when you are, {name}! 🌱', '{name}, I saved you a seat. Let us learn! 🐷'];
 
 // What Bigg says while you go through flashcards. One list per moment (see L.coachMoment).
 const COACH = {
-  start: ['Here we go! You have got this! 🌸', 'Ready? I will cheer for every card! ✨', 'Let us do this together! 💗', 'Take your time, I am right here! 🌱'],
-  right: ['Yay, goed zo! 🌸', 'Wonderful!', 'That one is yours now! ✨', 'Nice one! 💗', 'You remembered it!', 'Look at you go! 🌟', 'Precies!'],
-  again: ['That is okay, it will come back soon. 💗', 'No worries, we will see it again!', 'Every try helps it stick. 🌱', 'You are doing great, keep going!', 'Mistakes are how it sticks. 🌸'],
-  streak3: ['Three in a row! ⭐', 'Three right, you are warming up! 🔥'],
-  streak5: ['Five in a row! You are on fire! 🔥', 'Five! I am doing a spin for you! ✨'],
+  start: ['Here we go! You have got this! 🌸', 'Ready? I will cheer for every card! ✨', 'Let us do this together! 💗', 'Take your time, I am right here! 🌱', 'Fijn dat je er bent! Let us begin. 🌸', 'Deep breath, and off we go! ✨'],
+  right: ['Yay, goed zo! 🌸', 'Wonderful!', 'That one is yours now! ✨', 'Nice one! 💗', 'You remembered it!', 'Look at you go! 🌟', 'Precies!', 'Heel goed! 🌸', 'Klopt precies!', 'You are on a roll! 🎉', 'Mooi zo!'],
+  again: ['That is okay, it will come back soon. 💗', 'No worries, we will see it again!', 'Every try helps it stick. 🌱', 'You are doing great, keep going!', 'Mistakes are how it sticks. 🌸', 'Oeps, that one is tricky. It will come back! 🌱', 'A good miss! Now it will stay. 🐷', 'Niet erg, next one! 🌸'],
+  streak3: ['Three in a row! ⭐', 'Three right, you are warming up! 🔥', 'Drie op een rij! ⭐'],
+  streak5: ['Five in a row! You are on fire! 🔥', 'Five! I am doing a spin for you! ✨', 'Vijf op een rij! Wat een held! 🔥'],
   streak8: ['Eight in a row?! Amazing! 🎉', 'A whole streak! I am so proud of you! 💗'],
-  half: ['Halfway there! 🌟', 'Half done, you are flying! ✨'],
-  last: ['Last card! Finish strong! 💪', 'One more and you are done! 🌸'],
-  done: ['All done! I am so proud of you! 🎉', 'Klaar! You did so well today! 💗', 'Goed gedaan! Time for a little rest. 🌸'],
+  half: ['Halfway there! 🌟', 'Half done, you are flying! ✨', 'Over halfway! Doorgaan! 🌟'],
+  last: ['Last card! Finish strong! 💪', 'One more and you are done! 🌸', 'Nog eentje! 🌸'],
+  done: ['All done! I am so proud of you! 🎉', 'Klaar! You did so well today! 💗', 'Goed gedaan! Time for a little rest. 🌸', 'Dat was het! Doe je goed. 🌼', 'Klaar! Take a sip of water, you earned it. 💧'],
 };
 
 // Two phrases and two words show up on Today each day (chosen from the date, so they change every morning).

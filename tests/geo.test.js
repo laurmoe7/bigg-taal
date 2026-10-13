@@ -40,6 +40,7 @@ test('options: four different answers including the right one', () => {
   const p = G.geoOptions(G.PROVINCES, G.PROVINCES[0], (x) => x.cap); assert.equal(p.length, 4);
 });
 const LISTS = { europe: G.EUROPE, asia: G.ASIA, africa: G.AFRICA, namerica: G.NAMERICA, samerica: G.SAMERICA, oceania: G.OCEANIA };
+const CONTINENTS = Object.assign({}, LISTS);
 test('every continent: unique ids, names, capitals, a flag file and a map position', () => {
   const seen = new Set();
   for (const [name, list] of Object.entries(LISTS)) {
@@ -52,6 +53,18 @@ test('every continent: unique ids, names, capitals, a flag file and a map positi
   }
   assert.ok(seen.size > 190, 'about the whole world: ' + seen.size);
   for (const c of G.SAMERICA) assert.equal(c.region, 'sa');
+});
+test('the Americas map (for the flags lesson) has every country of both continents', () => {
+  const drawn = new Set(MAPS.americas.shapes.map((x) => x[0]));
+  for (const c of G.AMERICAS) assert.ok(MAPS.americas.pts[c.id] && (drawn.has(c.id) || MAPS.americas.small.includes(c.id)), c.id);
+});
+test('the world lists every country once, grouped by continent, and has a map of its own', () => {
+  const total = Object.values(CONTINENTS).reduce((n, l) => n + l.length, 0);
+  assert.equal(G.WORLD.length, total); assert.equal(new Set(G.WORLD.map((c) => c.id)).size, total);
+  for (const c of G.WORLD) { assert.ok(G.WORLD_REGIONS.some((r) => r[0] === c.region), c.id + ' continent ' + c.region); assert.ok(MAPS.world.pts[c.id], c.id + ' on the world map'); }
+});
+test('every Dutch province has a flag file', () => {
+  for (const p of G.PROVINCES) { const f = path.join(__dirname, '..', 'renderer', 'flags', 'nl-' + p.id + '.svg'); assert.ok(fs.existsSync(f), p.id); const t = fs.readFileSync(f, 'utf8'); assert.ok(t.includes('<svg') && !/<script|onload=|javascript:/i.test(t), p.id + ' is a plain svg'); }
 });
 test('maps: every country and province can be lit up, tiny states get a ring, nothing is broken', () => {
   for (const [name, list] of Object.entries(LISTS)) {

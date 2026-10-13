@@ -70,7 +70,7 @@ const cardsTabs = () => `<div class="tabs">${[['words', '🃏 My words'], ['phra
 function phrasesPage() {
   if (ph.sess) return phSession();
   const head = '<div class="top"><div><h1>Flashcards</h1></div></div>';
-  return head + cardsTabs() + phTabs() + (ph.tab === 'browse' ? phBrowse() : ph.tab === 'patterns' ? phPatterns() : phStartScreen());
+  return head + `<div class="tabrow">${cardsTabs()}${phTabs()}</div>` + (ph.tab === 'browse' ? phBrowse() : ph.tab === 'patterns' ? phPatterns() : phStartScreen());
 }
 const phPrevCards = VIEWS.cards;
 VIEWS.cards = () => {
@@ -137,9 +137,9 @@ function phSession() {
     : `<div class="ph-big ${s.res ? 'ans ' + s.res : ''}">${esc(p.nl)}</div>${speakBtn(p.nl)}<div class="fc-ex">${esc(p.en)}</div>${verdict}`;
   const sug = s.res === 'wrong' ? 'again' : 'good', iv = L.previewIntervals(phRec(p), today()), hk = hotkeys();
   const grades = `<div class="grades"><button class="g-again ${sug === 'again' ? 'on' : ''}" data-act="ph-grade" data-g="again">Again<small><kbd class="kbd">${keyLabel(hk.again)}</kbd> today</small></button><button class="g-good" data-act="ph-grade" data-g="good">Good<small><kbd class="kbd">${keyLabel(hk.good)}</kbd> ${iv.good}d</small></button><button class="g-easy" data-act="ph-grade" data-g="easy">Easy<small><kbd class="kbd">${keyLabel(hk.easy)}</kbd> ${iv.easy}d</small></button></div><div class="muted keyhint">⌨ Keyboard: press ${keyLabel(hk.again)}, ${keyLabel(hk.good)} or ${keyLabel(hk.easy)} to rate</div>`;
-  const strict = phStrict(kind), copyIn = `<p class="muted" style="text-align:center;margin:4px 0 8px">Type it once to move on 🌱</p><input type="text" class="big-in" id="ph-copy" data-focus data-enter="ph-copy-ok" autocomplete="off" spellcheck="false" placeholder="${esc(target)}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="ph-copy-ok">Continue</button><button class="ghost" data-act="ph-copy-skip">Skip</button></div>`;
+  const strict = phStrict(kind), copyIn = `<p class="muted" style="text-align:center;margin:4px 0 8px">Type it once to move on 🌱</p><input type="text" class="big-in" id="ph-copy" data-focus data-enter="ph-copy-ok" autocomplete="off" spellcheck="false" placeholder="${esc(target)}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="ph-copy-ok">Continue</button><button class="ghost keyed" data-act="ph-copy-skip">Skip${skipKey()}</button></div>`;
   const controls = strict && s.flipped ? copyIn : s.flipped ? grades : typing
-    ? `<input type="text" class="big-in" id="ph-in" data-focus data-enter="ph-check" autocomplete="off" spellcheck="false" placeholder="${kind === 'fill' ? 'Type the missing word... (Enter)' : 'Type the Dutch sentence... (Enter)'}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="ph-check">Check</button><button class="ghost" data-act="ph-hint">💡 Hint ${kbdIn('hint')}</button><button class="ghost" data-act="ph-skip">I don't know</button></div>`
+    ? `<input type="text" class="big-in" id="ph-in" data-focus data-enter="ph-check" autocomplete="off" spellcheck="false" placeholder="${kind === 'fill' ? 'Type the missing word... (Enter)' : 'Type the Dutch sentence... (Enter)'}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="ph-check">Check</button><button class="ghost" data-act="ph-hint">💡 Hint ${typingKbd('hint')}</button><button class="ghost keyed" data-act="ph-skip">I don't know${skipKey()}</button></div>`
     : `<div class="row" style="justify-content:center"><button class="primary" data-act="ph-flip">Show answer ${kbdIn('flip')}</button></div>`;
   const selfFlip = !typing && !s.flipped;
   return `<div class="top"><div><h1>Phrases</h1><p class="sub">${s.i + 1} of ${s.queue.length}${s.label ? ' · ' + esc(s.label) : ''}</p></div><button class="ghost" data-act="ph-end">End session</button></div>
@@ -210,5 +210,6 @@ document.addEventListener('keydown', (e) => {
   else if (s.flipped && (k === hk.again || k === hk.good || k === hk.easy)) { e.preventDefault(); phGrade(k === hk.again ? 'again' : k === hk.good ? 'good' : 'easy'); }
   else if (s.flipped && e.key === 'Enter') { e.preventDefault(); phGrade(s.res === 'wrong' ? 'again' : 'good'); }
   else if (k === hk.speak) speak(c.p.nl);
+  else if (k === hk.skip && !s.flipped && c.q.kind !== 'flip') { e.preventDefault(); ACT['ph-skip'](); }
   else if (k === hk.hint && !s.flipped && c.q.kind !== 'flip') { e.preventDefault(); ACT['ph-hint'](); }
 });

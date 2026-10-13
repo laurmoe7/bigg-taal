@@ -9,7 +9,7 @@
   L.uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // ---------- state ----------
-  L.defaultSettings = () => ({ dailyGoal: 10, newPerDay: 10, autoUpdate: true, rate: 0.9, voice: '', login: false, sound: true, theme: 'lagoon', looks: true });
+  L.defaultSettings = () => ({ dailyGoal: 10, newPerDay: 10, autoUpdate: true, rate: 0.9, volume: 1, voice: '', login: false, sound: true, theme: 'lagoon', looks: true });
   L.emptyState = () => ({ v: 1, words: [], lessons: [], log: {}, settings: L.defaultSettings(), seeded: false });
   L.fixState = (s) => {
     const e = L.emptyState();
@@ -99,11 +99,12 @@
     }
     return prev[n];
   };
-  // 'right' | 'close' (one typo or a missing accent) | 'wrong'. `answer` may hold alternatives split by / or ;
+  // 'right' | 'close' (one typo or a missing accent) | 'wrong'. `answer` may hold several meanings split by / ; or a comma ("wage, salary"):
+  // typing any one of them is enough. Text in (brackets) is a note and is ignored, so commas inside it do not split anything.
   L.check = (typed, answer) => {
     const t = L.norm(typed); if (!t) return 'wrong';
-    const alts = String(answer).split(/[\/;]/).map((a) => a.replace(/\(.*?\)/g, '')).map(L.norm).filter(Boolean);
-    if (alts.includes(t)) return String(answer).split(/[\/;]/).some((a) => a.trim().toLowerCase() === typed.trim().toLowerCase()) ? 'right' : 'close';
+    const parts = String(answer).replace(/\(.*?\)/g, '').split(/[\/;,]/).map((a) => a.trim()).filter(Boolean), alts = parts.map(L.norm).filter(Boolean);
+    if (alts.includes(t)) return parts.some((a) => a.toLowerCase() === typed.trim().toLowerCase()) ? 'right' : 'close';
     if (alts.some((a) => a.length > 4 && L.lev(t, a) <= 1)) return 'close';
     return 'wrong';
   };
