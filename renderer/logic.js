@@ -9,7 +9,7 @@
   L.uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // ---------- state ----------
-  L.defaultSettings = () => ({ dailyGoal: 10, newPerDay: 10, autoUpdate: true, rate: 0.9, volume: 1, voice: '', login: false, sound: true, theme: 'lagoon', looks: true });
+  L.defaultSettings = () => ({ dailyGoal: 10, newPerDay: 10, autoUpdate: true, rate: 0.9, volume: 1, voice: '', login: false, sound: true, theme: 'slate', looks: true });
   L.emptyState = () => ({ v: 1, words: [], lessons: [], log: {}, settings: L.defaultSettings(), seeded: false });
   L.fixState = (s) => {
     const e = L.emptyState();
@@ -765,9 +765,9 @@
 
   // ---------- levels (XP) ----------
   // 99 levels, shaped like RuneScape: each level costs a little more than the last, and the cost doubles about every 7 levels, so the
-  // last levels take most of the XP (level 92 is roughly halfway to 99). Cost of level n -> n+1 = 150 + 0.75 x 2^(n/7).
+  // last levels take most of the XP (level 92 is roughly halfway to 99). Cost of level n -> n+1 = 2 x (150 + 0.75 x 2^(n/7)); the x2 slows levelling down.
   L.MAX_LEVEL = 99;
-  L.XP_TO = (() => { const t = [0, 0]; for (let n = 1; n < 99; n++) t[n + 1] = t[n] + Math.round(150 + 0.75 * Math.pow(2, n / 7)); return t; })(); // XP_TO[n] = total XP to reach level n
+  L.XP_TO = (() => { const t = [0, 0]; for (let n = 1; n < 99; n++) t[n + 1] = t[n] + 2 * Math.round(150 + 0.75 * Math.pow(2, n / 7)); return t; })(); // XP_TO[n] = total XP to reach level n
   // Dutch names spread over the 99 levels: [first level, Dutch name, English hint]
   L.LEVEL_NAMES = [[1, 'Zaadje', 'little seed'], [5, 'Kiem', 'sprout'], [10, 'Spruit', 'shoot'], [16, 'Scheut', 'new growth'], [22, 'Knop', 'bud'], [29, 'Bloempje', 'little flower'], [36, 'Boompje', 'little tree'], [43, 'Bosje', 'little grove'],
     [50, 'Taalvriend', 'language friend'], [57, 'Prater', 'chatterbox'], [64, 'Woordenheld', 'word hero'], [71, 'Taalheld', 'language hero'], [78, 'Taalridder', 'language knight'], [85, 'Taalmeester', 'language master'], [92, 'Taalkoning', 'language king'],

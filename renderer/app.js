@@ -263,7 +263,7 @@ VIEWS.listen = () => {
     const target = l.mode === 'sentence' ? w.example : l.mode === 'meaning' ? w.en : l.mode === 'article' ? w.article + ' ' + w.nl : (w.article ? w.article + ' ' : '') + w.nl;
     let detail = '';
     if (l.mode === 'sentence' && l.diff) {
-      detail = `<div class="chips">${l.diff.words.map((x) => `<button class="wchip ${x.status}" data-act="listen-word" data-w="${esc(x.w)}" title="Click to hear this word">${esc(x.w)}${x.status !== 'ok' ? `<small>${x.typed ? 'you: ' + esc(x.typed) : 'missed'}</small>` : ''}</button>`).join('')}</div>${l.diff.extra.length ? `<div class="muted">Extra words: ${esc(l.diff.extra.join(', '))}</div>` : ''}<div class="muted" style="margin-top:6px">${esc(w.exampleEn || w.en)}</div><div class="muted tapnote">Tap a word to hear it and see its meaning</div>`;
+      detail = `<div class="chips">${l.diff.words.map((x) => `<button class="wchip ${x.status}" data-act="listen-word" data-w="${esc(x.w)}" title="Click to hear this word">${esc(x.w)}${x.status !== 'ok' ? `<small>${x.typed ? 'you: ' + esc(x.typed) : 'missed'}</small>` : ''}</button>`).join('')}</div>${l.diff.extra.length ? `<div class="muted">Extra words: ${esc(l.diff.extra.join(', '))}</div>` : ''}<div class="muted" style="margin-top:6px">${esc(w.exampleEn || w.en)}</div>`;
     } else if (l.mode === 'word' && l.diff) {
       detail = `<button class="wordbtn" data-act="listen-mean" data-w="${esc(w.nl)}" title="Tap for the meaning"><div class="ltrs">${w.article ? `<span class="fc-art" style="margin-right:8px">${esc(w.article)}</span>` : ''}${l.diff.cells.map((c) => `<span class="ltr ${c.ok ? 'ok' : 'bad'}">${esc(c.c)}</span>`).join('')}</div></button>${l.diff.extra.length ? `<div class="muted">Extra letters you typed: ${esc(l.diff.extra.join(' '))}</div>` : ''}`;
     } else detail = `<div style="font-size:20px;margin:8px 0">${esc(target)}</div>${l.mode === 'meaning' ? `<div class="muted">${esc(w.nl)}</div>` : ''}`;
@@ -355,8 +355,8 @@ async function sentenceData() { await loadData('sentences'); if (!SENT_INDEX) SE
 async function examplesFor(nl, pos, n) { const idx = await sentenceData(); return L.sentencesFor(nl, pos, idx, SENTENCES, n); }
 
 // ---------- settings ----------
-const THEMES = [['lagoon', 'Lagoon', '#0b1a28', '#ff8f7e', '#6fd3ee'], ['plum', 'Plum', '#1a1226', '#ff8fb1', '#b79cff'], ['midnight', 'Midnight', '#0d1020', '#ffc857', '#7aa2ff'],
-  ['slate', 'Slate', '#14161c', '#ff8f7e', '#8fb4ff'], ['cream', 'Cream (light)', '#fff6ee', '#f2705f', '#1fa3c4'], ['blossom', 'Blossom (light)', '#fff0f5', '#e8588a', '#7a6ad8']];
+const THEMES = [['slate', 'Slate', '#14161c', '#ff8f7e', '#8fb4ff'], ['lagoon', 'Lagoon', '#0b1a28', '#ff8f7e', '#6fd3ee'], ['plum', 'Plum', '#1a1226', '#ff8fb1', '#b79cff'], ['forest', 'Forest', '#0e1a15', '#ffb86b', '#7fd8a8'], ['dusty', 'Dusty', '#2a2024', '#ff9aae', '#a9d6b8'],
+  ['cream', 'Cream', '#fff6ee', '#f2705f', '#1fa3c4'], ['blossom', 'Blossom', '#fff0f5', '#e8588a', '#7a6ad8']];
 document.addEventListener('change', (e) => {
   if (e.target.id === 's-name' || e.target.id === 's-bday-m' || e.target.id === 's-bday-d') {
     if (e.target.id === 's-name') S.settings.name = e.target.value.trim();
@@ -385,7 +385,7 @@ document.addEventListener('change', (e) => {
 document.addEventListener('input', (e) => { if (e.target.id !== 's-vol') return; S.settings.volume = +e.target.value; const n = $('#s-vol-n'); if (n) n.textContent = Math.round(vol() * 100) + '%'; if (curAudio) curAudio.volume = vol(); try { speechSynthesis.cancel(); } catch {} });
 // the floating hearts and sparkles behind every page can be switched off in Settings
 function applyBgFx() { document.body.classList.toggle('nofx', S && S.settings && S.settings.bgfx === false); }
-function applyTheme() { const t = (S && S.settings && S.settings.theme) || 'lagoon'; document.documentElement.setAttribute('data-theme', THEMES.some((x) => x[0] === t) ? t : 'lagoon'); }
+function applyTheme() { const t = (S && S.settings && S.settings.theme) || 'slate'; document.documentElement.setAttribute('data-theme', THEMES.some((x) => x[0] === t) ? t : 'slate'); }
 
 VIEWS.settings = () => {
   const s = S.settings, nl = dutchVoices(), vc = voiceChoice(), cur = vc ? (vc.engine === 'piper' ? 'piper:' + vc.id : vc.engine === 'azure' ? 'azure:' + vc.id.slice(3) : 'win:' + vc.voice.name) : '';
@@ -520,13 +520,14 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || hit(hk.skip)) { e.preventDefault(); ACT[{ typed: 'skip', copy: 'copy-skip', 'ph-in': 'ph-skip', 'ph-copy': 'ph-copy-skip', 'geo-in': 'geo-skip' }[e.target.id]](); return; }
     if (hit(hk.hint)) { const b = document.querySelector('[data-act="fc-hint"],[data-act="ph-hint"],[data-act="geo-hint"]'); if (b) { e.preventDefault(); b.click(); } return; }
   }
-  if (e.key === ' ' && e.target.id === 'typed' && ui.view === 'cards' && ui.cards && curCard() && curCard().q.cz && cardPrefs().mode === 'cloze' && !/\s/.test(curCard().q.cz.form) && e.target.value.trim()) { e.preventDefault(); checkTyped(); return; } // fill the blank answers are one word, so Space checks
+  if (e.key === ' ' && e.target.id === 'typed' && ui.view === 'cards' && ui.cards && spaceChecks(curCard()) && e.target.value.trim()) { e.preventDefault(); checkTyped(); return; } // a one-word answer: Space checks
+  if (e.key === ' ' && e.target.id === 'ph-in' && typeof phSpace === 'function' && phSpace() && e.target.value.trim()) { e.preventDefault(); ACT['ph-check'](); return; } // a one-word fill the blank answer: Space checks
   const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (e.key === 'Enter' && e.target.id === 'copy') { e.preventDefault(); copyContinue(false); return; }
   if (e.key === 'Enter' && e.target.id === 'typed') { e.preventDefault(); ui.view === 'cards' ? checkTyped() : listenCheck(); return; }
   if (e.key === 'Enter' && e.target.dataset && e.target.dataset.enter) { ACT[e.target.dataset.enter](); return; }
   if (inField) return;
-  if (ui.view === 'cards' && ui.cards && curCard() && !isStrict()) {
+  if (ui.view === 'cards' && ui.cards && curCard() && ui.cards.phase !== 'miss') {
     const c = ui.cards, hk = hotkeys(), k = keyOf(e);
     if (!c.flipped && (k === hk.flip || e.key === 'Enter') && cardPrefs().mode === 'flip') { e.preventDefault(); ACT.flip(); }
     else if (c.flipped && (k === hk.again || k === hk.good || k === hk.easy)) { e.preventDefault(); gradeCard(k === hk.again ? 'again' : k === hk.good ? 'good' : 'easy'); }
