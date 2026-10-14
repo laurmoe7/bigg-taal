@@ -520,6 +520,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || hit(hk.skip)) { e.preventDefault(); ACT[{ typed: 'skip', copy: 'copy-skip', 'ph-in': 'ph-skip', 'ph-copy': 'ph-copy-skip', 'geo-in': 'geo-skip' }[e.target.id]](); return; }
     if (hit(hk.hint)) { const b = document.querySelector('[data-act="fc-hint"],[data-act="ph-hint"],[data-act="geo-hint"]'); if (b) { e.preventDefault(); b.click(); } return; }
   }
+  if (e.key === ' ' && e.target.id === 'typed' && ui.view === 'cards' && ui.cards && curCard() && curCard().q.cz && cardPrefs().mode === 'cloze' && !/\s/.test(curCard().q.cz.form) && e.target.value.trim()) { e.preventDefault(); checkTyped(); return; } // fill the blank answers are one word, so Space checks
   const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (e.key === 'Enter' && e.target.id === 'copy') { e.preventDefault(); copyContinue(false); return; }
   if (e.key === 'Enter' && e.target.id === 'typed') { e.preventDefault(); ui.view === 'cards' ? checkTyped() : listenCheck(); return; }

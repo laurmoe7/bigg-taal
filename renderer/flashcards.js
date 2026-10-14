@@ -12,6 +12,8 @@ const cardPrefs = () => {
   return p;
 };
 const isStrict = () => { const p = cardPrefs(); return p.mode === 'type' && !!p.strict; };
+// the English for a card's example sentence: the one saved on the word, else the matching pair from the sentence bank
+const exEnOf = (w) => w.exampleEn || (w.example && typeof SENTENCES !== 'undefined' && Array.isArray(SENTENCES) ? (SENTENCES.find((x) => x[0] === w.example) || [])[1] || '' : '');
 const clozeFor = (w) => (w.example ? L.clozeOf(w.example, w.nl, w.pos) : null); // the word as it stands in its example sentence, or null
 const wordLabel = (w) => (w.article ? w.article + ' ' : '') + w.nl;
 
@@ -37,7 +39,7 @@ function launchCards(pool, label) {
   const p = cardPrefs();
   if (!pool.length) return toast('Add some words first!');
   let note = '';
-  if (p.mode === 'cloze') { // only words whose example sentence contains the word can be a fill-the-blank card
+  if (p.mode === 'cloze') { loadData('sentences'); // only words whose example sentence contains the word can be a fill-the-blank card
     const all = pool.length; pool = pool.filter((w) => clozeFor(w));
     if (!pool.length) return toast('Fill the blank needs words with an example sentence that uses the word. Try Find examples on the Words page.');
     if (pool.length < all) note = ` (${all - pool.length} without a usable example skipped)`;
@@ -141,7 +143,7 @@ VIEWS.cards = () => {
   const ans = nlFront ? esc(w.en) : `${w.article ? `<span class="fc-art">${esc(w.article)}</span> ` : ''}${esc(w.nl)}`;
   const strictMsg = c.res === 'article' ? `Right word, but it is <b>${esc(w.article)}</b> ${esc(w.nl)}.` : c.res === 'close' ? 'Almost! Check the spelling.' : c.res === 'wrong' ? (c.typed ? `You typed: ${esc(c.typed)}` : 'That is okay, here is the word!') : '';
   const czBase = cz && c.res === 'close' && L.norm(c.typed) === L.norm(w.nl) && L.norm(c.typed) !== L.norm(cz.form);
-  const backHtml = cz ? `<div class="ph-big ${c.res ? 'ans ' + c.res : ''}">${czBack}</div>${speakBtn(w.example)}<div class="fc-ex">${esc(wordLabel(w))} = ${esc(w.en)}${w.exampleEn ? '<br>' + esc(w.exampleEn) : ''}</div>${czBase ? `<div class="warn">Right word, but this sentence needs <b>${esc(cz.form)}</b>.</div>` : c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : c.res === 'wrong' ? `<div class="warn">${c.typed ? 'You typed: ' + esc(c.typed) : 'That is okay, here it is!'}</div>` : ''}`
+  const backHtml = cz ? `<div class="ph-big ${c.res ? 'ans ' + c.res : ''}">${czBack}</div>${speakBtn(w.example)}<div class="fc-ex">${esc(wordLabel(w))} = ${esc(w.en)}</div>${czBase ? `<div class="warn">Right word, but this sentence needs <b>${esc(cz.form)}</b>.</div>` : c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : c.res === 'wrong' ? (c.typed || !exEnOf(w) ? `<div class="warn">${c.typed ? 'You typed: ' + esc(c.typed) : 'That is okay, here it is!'}</div>` : '') : ''}${exEnOf(w) ? `<div class="${c.res === 'wrong' && !c.typed ? 'warn' : 'cz-en'}">${esc(exEnOf(w))}</div>` : ''}`
     : `<div class="fc-big ${c.res ? 'ans ' + (c.res === 'article' ? 'close' : c.res) : ''}">${ans}</div>${!nlFront ? speakBtn(wordLabel(w)) : ''}${w.example ? `<div class="fc-ex">${esc(w.example)}${w.exampleEn ? '<br>' + esc(w.exampleEn) : ''}</div>` : ''}${strict ? (strictMsg ? `<div class="warn">${strictMsg}</div>` : '') : c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : c.res === 'wrong' ? `<div class="warn">You typed: ${esc(c.typed)}</div>` : ''}`;
   const sug = c.res === 'wrong' ? 'again' : 'good';
   const iv = L.previewIntervals(w, today());
@@ -153,7 +155,7 @@ VIEWS.cards = () => {
       : `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="Type the Dutch word... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button><button class="ghost keyed" data-act="fc-hint">💡 Hint<small class="btn-key">${typingKbd('hint')}</small></button><button class="ghost keyed" data-act="skip">I don't know${skipKey()}</button></div>`;
   } else {
     controls = c.flipped ? gradeBtns : type
-      ? `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="${cz ? 'Type the missing word... (Enter)' : `Type the ${nlFront ? 'English' : 'Dutch'}... (Enter)`}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button>${cz ? `<button class="ghost keyed" data-act="fc-hint">💡 Hint<small class="btn-key">${typingKbd('hint')}</small></button>` : ''}<button class="ghost keyed" data-act="skip">I don't know${skipKey()}</button></div>`
+      ? `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="${cz ? 'Type the missing word... (Enter)' : `Type the ${nlFront ? 'English' : 'Dutch'}... (Enter)`}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="check">Check</button>${cz && !/\s/.test(cz.form) ? '<span class="muted" style="font-weight:800;display:inline-flex;align-items:center;gap:6px"><kbd class="kbd">Space</kbd> or <kbd class="kbd">Enter</kbd></span>' : ''}${cz ? `<button class="ghost keyed" data-act="fc-hint">💡 Hint<small class="btn-key">${typingKbd('hint')}</small></button>` : ''}<button class="ghost keyed" data-act="skip">I don't know${skipKey()}</button></div>`
       : `<div class="row" style="justify-content:center"><button class="primary keyed" data-act="flip">Show answer<small class="btn-key">${kbdIn('flip')}</small></button></div>`;
   }
   const selfFlip = !type && !strict && !c.flipped;

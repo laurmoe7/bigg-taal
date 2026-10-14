@@ -34,8 +34,9 @@ function openDd(wrap, sel) {
   });
   document.body.appendChild(list);
   const b = wrap.getBoundingClientRect(), vh = window.innerHeight;
-  list.style.width = b.width + 'px'; // the list is exactly as wide as the button it belongs to
-  list.style.left = Math.max(8, Math.min(b.left, window.innerWidth - b.width - 8)) + 'px';
+  list.style.minWidth = b.width + 'px'; list.style.width = 'max-content'; list.style.maxWidth = (window.innerWidth - 16) + 'px'; // at least as wide as the button, and wider when the items need it
+  const lw = Math.max(b.width, list.offsetWidth);
+  list.style.left = Math.max(8, Math.min(b.left, window.innerWidth - lw - 8)) + 'px';
   const h = Math.min(list.scrollHeight, 340), below = vh - b.bottom - 14;
   if (below >= h || below >= 180) { list.style.top = b.bottom + 6 + 'px'; list.style.maxHeight = Math.min(340, below) + 'px'; list.classList.add('down'); }
   else { list.style.maxHeight = Math.min(340, b.top - 14) + 'px'; list.style.top = Math.max(8, b.top - Math.min(h, b.top - 14) - 6) + 'px'; list.classList.add('up'); }

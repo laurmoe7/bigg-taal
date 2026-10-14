@@ -408,6 +408,8 @@ details summary { cursor: pointer; font-weight: 800; color: var(--lav); }
 
 /* ---------- polish: themed dropdowns ---------- */
 .dd-wrap { position: relative; display: inline-block; vertical-align: middle; max-width: 100%; } .dd-wrap.full { display: block; width: 100%; }
+/* a menu button grows to fit its longest option instead of squeezing the text (the full-width ones fill their box) */
+.dd-wrap:where(:not(.full)) { flex: none; max-width: none; } .dd-wrap:where(:not(.full)) .dd-lw { min-width: max-content; }
 .dd-btn { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; background: linear-gradient(180deg, var(--deep), color-mix(in srgb, var(--deep) 86%, var(--card)));
   border: 1px solid var(--line); border-radius: 14px; padding: 9px 14px; font-weight: 800; color: var(--text); box-shadow: inset 0 -2px 0 #00000014; overflow: hidden; }
 .dd-btn:hover { border-color: var(--hl); background: linear-gradient(180deg, var(--card-hi), var(--deep)); }
@@ -789,3 +791,6 @@ body.nofx .sparkles { display: none; }
 .geo-wrap .opts button { position: relative; } .geo-wrap .opts button .kbd { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); margin: 0; }
 .grades .gl { display: inline-flex; align-items: center; gap: 8px; } .grades button small { margin-top: 2px; }
 .speakw { flex-direction: row-reverse; gap: 6px; }
+
+/* English translation of the sentence on a fill-the-blank card's back */
+.cz-en { color: var(--butter); font-weight: 800; margin-top: 10px; }
