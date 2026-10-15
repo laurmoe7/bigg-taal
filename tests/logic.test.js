@@ -274,6 +274,16 @@ test('dictionary lookup: word, plural, past tense and English', () => {
   assert.equal(L.dictToWord(['dag', 'n', 'de/het', '', 'day']).article, '');
 });
 
+test('dictionary lookup: Dutch spelling for past plurals, present forms, adjective endings and little words', () => {
+  const D = [['krijgen', 'v', '', 'kreeg,gekregen', 'to get'], ['gaan', 'v', '', 'ging,gegaan,zijn', 'to go'], ['geven', 'v', '', 'gaf,gegeven', 'to give'], ['winnen', 'v', '', 'won,gewonnen', 'to win'],
+    ['draaien', 'v', '', 'draaide,gedraaid', 'to turn'], ['zijn', 'v', '', 'was,geweest', 'to be'], ['binnenkomen', 'v', '', 'binnenkwam,binnengekomen,zijn', 'to enter'], ['studeren', 'v', '', 'studeerde,gestudeerd', 'to study'],
+    ['groot', 'a', '', 'groter,grootst', 'big'], ['wit', 'a', '', 'witter,witst', 'white'], ['europees', 'a', '', '', 'European'], ['feest', 'n', 'het', 'feesten', 'party'], ['keuze', 'n', 'de', 'keuzen', 'choice'], ['elk', 'e', '', '', 'each']];
+  const ix = L.buildDictIndex(D), hit = (q) => (L.dictSearch(D, ix, q, 1)[0] || { e: [''] }).e[0];
+  for (const [q, w] of [['kregen', 'krijgen'], ['gaat', 'gaan'], ['geeft', 'geven'], ['gaven', 'geven'], ['wonnen', 'winnen'], ['draait', 'draaien'], ['is', 'zijn'], ['waren', 'zijn'], ['binnenkomt', 'binnenkomen'],
+    ['studeert', 'studeren'], ['grote', 'groot'], ['grootste', 'groot'], ['witte', 'wit'], ['europese', 'europees'], ['feestje', 'feest'], ['keuzes', 'keuze'], ['elke', 'elk']]) assert.equal(hit(q), w, q);
+  assert.equal(L.verbStem('maken'), 'maak'); assert.equal(L.verbStem('liggen'), 'lig'); assert.equal(L.verbStem('wandelen'), 'wandel'); assert.equal(L.verbStem('doen'), 'doe');
+});
+
 test('dictionary: grammar-only meanings become plain English with the root word', () => {
   const D = [['binnenkomen', 'v', '', 'binnenkwam,binnengekomen,zijn', 'to enter, to come inside'], ['komen', 'v', '', 'kwam,gekomen,zijn', 'to come'],
     ['binnenkwam', 'v', '', '', 'singular dependent-clause past indicative of binnenkomen'], ['binnenkwame', 'v', '', '', 'singular dependent-clause past subjunctive of binnenkomen'],

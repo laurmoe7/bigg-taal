@@ -416,12 +416,48 @@
   L.POS_NAMES = { n: 'noun', v: 'verb', a: 'adjective', d: 'adverb', p: 'preposition', c: 'conjunction', r: 'pronoun', e: 'determiner', i: 'interjection', u: 'number', t: 'article', h: 'phrase', x: 'particle' };
   L.POS_KEYS = { n: 'noun', v: 'verb' }; // what the Words page calls them
   // every form a lookup should find: the word, a noun's plural, a verb's past/participle and present forms, an adjective's comparative and superlative
+  // Dutch spelling when an ending is added or taken off: groot → grote, wit → witte, lief → lieve, maken → maak, geven → geef
+  const UNSTRESSED = /[aeiouy][^aeiouy]*(el|er|en|em)$|(ig|lijk|isch)$/; // endings that are not stressed: wandel, lekker, prettig (but not snel, nem)
+  L.addE = (w, end) => { // end: 'e' or 'en'
+    if (/e$/.test(w)) return w + end.slice(1);
+    let m = w.match(/^(.*?)([aeou])\2([^aeiouyw])$/); // a double vowel opens up: groot → grote, kreeg → kregen
+    if (m) return m[1] + m[2] + ({ f: 'v', s: 'z' }[m[3]] || m[3]) + end;
+    if (/[lr]f$/.test(w)) return w.slice(0, -1) + 'v' + end; // half → halve
+    if (/(ie|ij|ei|ui|ou|eu|oe|au)[fs]$/.test(w)) return w.slice(0, -1) + { f: 'v', s: 'z' }[w.slice(-1)] + end; // lief → lieve, wijs → wijze
+    if (!UNSTRESSED.test(w) && /(^|[^aeiou])[aeiou][bdfgklmnprst]$/.test(w)) return w + w.slice(-1) + end; // a short vowel keeps its sound: wit → witte
+    return w + end;
+  };
+  L.verbStem = (inf) => {
+    let s = inf.toLowerCase(); if (!/en$/.test(s) || /^[^aeiou]*(oe|ie)n$/.test(s)) return s.replace(/n$/, '').replace(/([aeou])\1$/, '$1'); // gaan → ga, doen → doe, zien → zie
+    s = s.slice(0, -2);
+    if (/([^aeiou])\1$/.test(s)) s = s.slice(0, -1); // liggen → lig
+    else if (!UNSTRESSED.test(s) && /(^|[^aeiou])[aeou][^aeiouyw]$/.test(s)) s = s.slice(0, -1) + s.slice(-2, -1) + s.slice(-1); // maken → maak, eten → eet
+    return s.replace(/v$/, 'f').replace(/z$/, 's'); // geven → geef, lezen → lees
+  };
+  const pastPlural = (p) => /e$/.test(p) ? p + 'n' : /[aeiouj]$/.test(p) ? p + 'den' : /(^|[^aeiou])o[^aeiou]$/.test(p) ? p + p.slice(-1) + 'en' : /(^|[^aeiou])[aeiu][^aeiou]$/.test(p) ? p.replace(/f$/, 'v').replace(/s$/, 'z') + 'en' : L.addE(p, 'en'); // kreeg → kregen, won → wonnen, gaf → gaven, zei → zeiden
+  const IRREGULAR = { zijn: 'ben bent is zijt waren', hebben: 'heb hebt heeft hadden', kunnen: 'kan kunt kun konden', willen: 'wil wilt wou wilden', zullen: 'zal zult zul zou zouden', mogen: 'mag', komen: 'kom komt', worden: 'word wordt' };
+  const DET_E = { ons: 'onze', mijn: 'mijne', jouw: 'jouwe', uw: 'uwe' };
   L.dictForms = (e) => {
-    const out = [e[0].toLowerCase()], f = e[3] ? e[3].split(',') : [];
-    if (e[1] === 'n' && f[0]) out.push(f[0].toLowerCase());
-    if (e[1] === 'v') { f.slice(0, 2).forEach((x) => out.push(x.toLowerCase())); const w = e[0].toLowerCase(); if (/en$/.test(w) && f[0]) { const st = w.slice(0, -2); out.push(st, st + 't', st + 'en', f[0] + 'n'); } }
-    if (e[1] === 'a') f.forEach((x) => out.push(x.toLowerCase()));
-    return out;
+    const w = e[0].toLowerCase(), out = [w], f = e[3] ? e[3].toLowerCase().split(',') : [], one = !/\s/.test(w);
+    if (e[1] === 'n') {
+      if (f[0]) out.push(f[0]); if (f[0] && /(el|er|em|en|aar|je|e)$/.test(w)) out.push(w + 's'); // appelen / appels, keuzen / keuzes
+      if (one && !/je$/.test(w)) for (const d of [w + 'je', w + 'tje', w + 'pje', L.addE(w, 'etje')]) out.push(d, d + 's'); // little forms: feestje, biertje
+    }
+    if (e[1] === 'v') {
+      f.slice(0, 2).forEach((x) => x && out.push(x));
+      if (one && /n$/.test(w) && w !== 'zijn') { const st = L.verbStem(w); out.push(st, /t$/.test(st) ? st : !w.endsWith(st + 'en') && !/t$/.test(w.slice(0, -1)) && /[aeiou]$/.test(st) ? w.slice(0, -1) + 't' : st + 't'); // werk(t), draai(t), gaat, doet
+        if (/ijd$/.test(st)) out.push(st.slice(0, -1)); // snij(d)
+        if (/[aeou][lr]$/.test(st)) { const s2 = st.slice(0, -1) + st.slice(-2); out.push(s2, s2 + 't'); } // studeer(t), next to luister(t)
+        if (f[0]) out.push(pastPlural(f[0])); out.push(w + 'd', w + 'de'); } // komend, komende
+      const irr = Object.keys(IRREGULAR).find((k) => w.endsWith(k)); // also binnenkomen → binnenkomt
+      if (irr) out.push(...IRREGULAR[irr].split(' ').map((x) => w.slice(0, -irr.length) + x));
+    }
+    if ((e[1] === 'e' || e[1] === 'r') && one) out.push(DET_E[w] || L.addE(w, 'e'), L.addE(w, 'en')); // elke, welke, onze, sommigen
+    if (e[1] === 'a') { // groot, grote, groter, grotere, grootste, iets groots, de groten; Europees → Europese keeps its s
+      f.forEach((x) => x && out.push(x, x + 'e'));
+      if (one) { const ae = L.addE(w, 'e'); out.push(ae, ae.replace(/ze$/, 'se'), L.addE(w, 'en'), /s$/.test(w) ? w : w + 's'); }
+    }
+    return out.filter((x, i) => x && out.indexOf(x) === i);
   };
   L.buildDictIndex = (dict) => { const forms = new Map(); dict.forEach((e, i) => { for (const f of L.dictForms(e)) { const a = forms.get(f); if (a) { if (!a.includes(i)) a.push(i); } else forms.set(f, [i]); } }); return { forms }; };
   // Dutch or English lookup. Results: exact words first, then other forms of a word (plural, past tense...), then words starting with it, then English matches.
