@@ -281,6 +281,10 @@ test('dictionary lookup: Dutch spelling for past plurals, present forms, adjecti
   const ix = L.buildDictIndex(D), hit = (q) => (L.dictSearch(D, ix, q, 1)[0] || { e: [''] }).e[0];
   for (const [q, w] of [['kregen', 'krijgen'], ['gaat', 'gaan'], ['geeft', 'geven'], ['gaven', 'geven'], ['wonnen', 'winnen'], ['draait', 'draaien'], ['is', 'zijn'], ['waren', 'zijn'], ['binnenkomt', 'binnenkomen'],
     ['studeert', 'studeren'], ['grote', 'groot'], ['grootste', 'groot'], ['witte', 'wit'], ['europese', 'europees'], ['feestje', 'feest'], ['keuzes', 'keuze'], ['elke', 'elk']]) assert.equal(hit(q), w, q);
+  const D2 = D.concat([['was', 'n', 'de', 'wassen', 'laundry'], ['wassen', 'v', '', 'waste,gewassen', 'to wash'], ['niet', 'n', 'de', 'nieten', 'staple'], ['nieten', 'v', '', 'niette,geniet', 'to staple']]), ix2 = L.buildDictIndex(D2);
+  assert.deepEqual(L.alsoFormOf(D2, ix2, 'was').map((x) => x.e[0] + ':' + x.label), ['zijn:past tense', 'wassen:present tense']);
+  assert.deepEqual(L.alsoFormOf(D2, ix2, 'niet', new Map([['niet', 1], ['zijn', 2]])), []); // a rare look-alike stays out
+  assert.equal(L.formLabel(D[0], 'kregen'), 'past tense');
   assert.equal(L.verbStem('maken'), 'maak'); assert.equal(L.verbStem('liggen'), 'lig'); assert.equal(L.verbStem('wandelen'), 'wandel'); assert.equal(L.verbStem('doen'), 'doe');
 });
 

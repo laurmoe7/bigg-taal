@@ -435,30 +435,40 @@
     return s.replace(/v$/, 'f').replace(/z$/, 's'); // geven → geef, lezen → lees
   };
   const pastPlural = (p) => /e$/.test(p) ? p + 'n' : /[aeiouj]$/.test(p) ? p + 'den' : /(^|[^aeiou])o[^aeiou]$/.test(p) ? p + p.slice(-1) + 'en' : /(^|[^aeiou])[aeiu][^aeiou]$/.test(p) ? p.replace(/f$/, 'v').replace(/s$/, 'z') + 'en' : L.addE(p, 'en'); // kreeg → kregen, won → wonnen, gaf → gaven, zei → zeiden
-  const IRREGULAR = { zijn: 'ben bent is zijt waren', hebben: 'heb hebt heeft hadden', kunnen: 'kan kunt kun konden', willen: 'wil wilt wou wilden', zullen: 'zal zult zul zou zouden', mogen: 'mag', komen: 'kom komt', worden: 'word wordt' };
+  const IRREGULAR = { zijn: 'ben bent is zijt|waren', hebben: 'heb hebt heeft|hadden', kunnen: 'kan kunt kun|konden', willen: 'wil wilt|wou wilden', zullen: 'zal zult zul|zou zouden', mogen: 'mag|', komen: 'kom komt|', worden: 'word wordt|' }; // present | past
   const DET_E = { ons: 'onze', mijn: 'mijne', jouw: 'jouwe', uw: 'uwe' };
-  L.dictForms = (e) => {
-    const w = e[0].toLowerCase(), out = [w], f = e[3] ? e[3].toLowerCase().split(',') : [], one = !/\s/.test(w);
+  // every form with what it is: [['kregen', 'past tense'], ...]; the word itself comes first, with no label
+  L.dictFormsLabeled = (e) => {
+    const w = e[0].toLowerCase(), out = [[w, '']], f = e[3] ? e[3].toLowerCase().split(',') : [], one = !/\s/.test(w), add = (k, ...xs) => xs.forEach((x) => x && out.push([x, k]));
     if (e[1] === 'n') {
-      if (f[0]) out.push(f[0]); if (f[0] && /(el|er|em|en|aar|je|e)$/.test(w)) out.push(w + 's'); // appelen / appels, keuzen / keuzes
-      if (one && !/je$/.test(w)) for (const d of [w + 'je', w + 'tje', w + 'pje', L.addE(w, 'etje')]) out.push(d, d + 's'); // little forms: feestje, biertje
+      add('plural', f[0]); if (f[0] && /(el|er|em|en|aar|je|e)$/.test(w)) add('plural', w + 's'); // appelen / appels, keuzen / keuzes
+      if (one && !/je$/.test(w)) for (const d of [w + 'je', w + 'tje', w + 'pje', L.addE(w, 'etje')]) { add('little form', d); add('little form, plural', d + 's'); } // feestje, biertje
     }
     if (e[1] === 'v') {
-      f.slice(0, 2).forEach((x) => x && out.push(x));
-      if (one && /n$/.test(w) && w !== 'zijn') { const st = L.verbStem(w); out.push(st, /t$/.test(st) ? st : !w.endsWith(st + 'en') && !/t$/.test(w.slice(0, -1)) && /[aeiou]$/.test(st) ? w.slice(0, -1) + 't' : st + 't'); // werk(t), draai(t), gaat, doet
-        if (/ijd$/.test(st)) out.push(st.slice(0, -1)); // snij(d)
-        if (/[aeou][lr]$/.test(st)) { const s2 = st.slice(0, -1) + st.slice(-2); out.push(s2, s2 + 't'); } // studeer(t), next to luister(t)
-        if (f[0]) out.push(pastPlural(f[0])); out.push(w + 'd', w + 'de'); } // komend, komende
-      const irr = Object.keys(IRREGULAR).find((k) => w.endsWith(k)); // also binnenkomen → binnenkomt
-      if (irr) out.push(...IRREGULAR[irr].split(' ').map((x) => w.slice(0, -irr.length) + x));
+      add('past tense', f[0]); add('past participle', f[1]);
+      if (one && /n$/.test(w) && w !== 'zijn') { const st = L.verbStem(w); add('present tense', st, /t$/.test(st) ? st : !w.endsWith(st + 'en') && !/t$/.test(w.slice(0, -1)) && /[aeiou]$/.test(st) ? w.slice(0, -1) + 't' : st + 't'); // werk(t), draai(t), gaat, doet
+        if (/ijd$/.test(st)) add('present tense', st.slice(0, -1)); // snij(d)
+        if (/[aeou][lr]$/.test(st)) { const s2 = st.slice(0, -1) + st.slice(-2); add('present tense', s2, s2 + 't'); } // studeer(t), next to luister(t)
+        if (f[0]) add('past tense', pastPlural(f[0])); add('present participle', w + 'd', w + 'de'); } // komend, komende
+      const irr = Object.keys(IRREGULAR).find((k) => w.endsWith(k)), pre = irr ? w.slice(0, -irr.length) : ''; // also binnenkomen → binnenkomt
+      if (irr) IRREGULAR[irr].split('|').forEach((xs, k) => xs && add(k ? 'past tense' : 'present tense', ...xs.split(' ').map((x) => pre + x)));
     }
-    if ((e[1] === 'e' || e[1] === 'r') && one) out.push(DET_E[w] || L.addE(w, 'e'), L.addE(w, 'en')); // elke, welke, onze, sommigen
+    if ((e[1] === 'e' || e[1] === 'r') && one) add('form with -e', DET_E[w] || L.addE(w, 'e'), L.addE(w, 'en')); // elke, welke, onze, sommigen
     if (e[1] === 'a') { // groot, grote, groter, grotere, grootste, iets groots, de groten; Europees → Europese keeps its s
-      f.forEach((x) => x && out.push(x, x + 'e'));
-      if (one) { const ae = L.addE(w, 'e'); out.push(ae, ae.replace(/ze$/, 'se'), L.addE(w, 'en'), /s$/.test(w) ? w : w + 's'); }
+      if (f[0]) add('comparative', f[0], f[0] + 'e'); if (f[1]) add('superlative', f[1], f[1] + 'e');
+      if (one) { const ae = L.addE(w, 'e'); add('form with -e', ae, ae.replace(/ze$/, 'se'), L.addE(w, 'en')); if (!/s$/.test(w)) add('form with -s', w + 's'); }
     }
-    return out.filter((x, i) => x && out.indexOf(x) === i);
+    return out.filter((x, i) => out.findIndex((y) => y[0] === x[0]) === i);
   };
+  L.dictForms = (e) => L.dictFormsLabeled(e).map((x) => x[0]);
+  L.formLabel = (e, q) => { q = q.toLowerCase(); const x = L.dictFormsLabeled(e).find((y) => y[0] === q); return x ? x[1] : ''; }; // 'past tense', 'plural'... or '' for the word itself
+  // other dictionary words that this word is a form of: "was" is also the past tense of zijn
+  // Only clear forms are kept, and with a frequency list (rank: Map of word → rank) only fairly common words, so rare look-alikes (niet → nieten) stay out.
+  const ALSO_KINDS = ['past tense', 'past participle', 'present tense', 'comparative', 'superlative', 'plural'];
+  L.alsoFormOf = (dict, ix, q, rank, n) => { q = q.toLowerCase().trim();
+    return (ix.forms.get(q) || []).map((i) => dict[i]).filter((d) => d[0].toLowerCase() !== q && (!rank || (rank.get(d[0].toLowerCase()) ?? 1e9) < 4000))
+      .map((d) => ({ e: d, label: L.formLabel(d, q) })).filter((x) => ALSO_KINDS.includes(x.label))
+      .sort((x, y) => (rank ? (rank.get(x.e[0].toLowerCase()) ?? 1e9) - (rank.get(y.e[0].toLowerCase()) ?? 1e9) : 0)).slice(0, n || 2); };
   L.buildDictIndex = (dict) => { const forms = new Map(); dict.forEach((e, i) => { for (const f of L.dictForms(e)) { const a = forms.get(f); if (a) { if (!a.includes(i)) a.push(i); } else forms.set(f, [i]); } }); return { forms }; };
   // Dutch or English lookup. Results: exact words first, then other forms of a word (plural, past tense...), then words starting with it, then English matches.
   L.dictSearch = (dict, ix, q, n) => {

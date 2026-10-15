@@ -303,7 +303,7 @@ function meaningHtml(word, cur) {
   const r = L.dictSearch(DICT, dictIndex(), key, 1)[0];
   if (!r) return `<b>${esc(word)}</b> <span class="muted">is not in the dictionary</span>`;
   const e = r.e, fl = formsLine(e), dm = dictMean(e);
-  return `<b>${e[2] === 'de' || e[2] === 'het' ? e[2] + ' ' : ''}${esc(e[0])}</b> <span class="muted">${L.POS_NAMES[e[1]] || ''}</span> = ${esc(dm.mean.split('; ').slice(0, 3).join('; '))}${dm.note ? `<div class="muted" style="font-size:13px">${esc(dm.note)}</div>` : ''}${fl ? `<div class="muted" style="font-size:13px">${esc(fl)}</div>` : ''}${r.how === 'form' ? '<div class="muted" style="font-size:13px">(a form of this word)</div>' : ''}`;
+  return `<b>${e[2] === 'de' || e[2] === 'het' ? e[2] + ' ' : ''}${esc(e[0])}</b> <span class="muted">${L.POS_NAMES[e[1]] || ''}</span> = ${esc(dm.mean.split('; ').slice(0, 3).join('; '))}${dm.note ? `<div class="muted" style="font-size:13px">${esc(dm.note)}</div>` : ''}${fl ? `<div class="muted" style="font-size:13px">${esc(fl)}</div>` : ''}${r.how === 'form' ? `<div class="muted" style="font-size:13px">(${esc(key)} is the ${esc(formLabel(e, key))})</div>` : alsoLine(key) ? `<div class="muted" style="font-size:13px">${esc(alsoLine(key))}</div>` : ''}`;
 }
 function noteSlips(pairs) {
   const l = ui.listen, tags = new Set();
