@@ -72,7 +72,7 @@ function phAutoSay() { const c = phCur(); if (c && phPrefs().auto && c.q.kind ==
 // ---------- the screens ----------
 // Phrases live on the Flashcards page as a second folder tab next to your words
 const phTabs = () => `<div class="seg">${[['practice', '🃏 Practise'], ['browse', '📖 Browse'], ['patterns', '🧩 Patterns']].map(([id, n]) => `<button class="${ph.tab === id ? 'on' : ''}" data-act="ph-tab" data-v="${id}">${n}</button>`).join('')}</div>`;
-const cardsTabs = () => `<div class="tabs">${[['words', '🃏 My words'], ['phrases', '💬 Phrases']].map(([id, n]) => `<button class="tab ${(ui.cardsTab || 'words') === id ? 'on' : ''}" data-act="cards-tab" data-v="${id}">${n}</button>`).join('')}</div>`;
+const cardsTabs = () => `<div class="tabs">${[['words', '🃏 My words'], ['phrases', '💬 Phrases'], ['forms', '🔤 Word forms']].map(([id, n]) => `<button class="tab ${(ui.cardsTab || 'words') === id ? 'on' : ''}" data-act="cards-tab" data-v="${id}">${n}</button>`).join('')}</div>`;
 function phrasesPage() {
   if (ph.sess) return phSession();
   const head = '<div class="top"><div><h1>Flashcards</h1></div></div>';

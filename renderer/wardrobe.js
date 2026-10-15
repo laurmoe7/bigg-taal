@@ -36,25 +36,26 @@ function earn(id) { // id: a look id, or 'bg:<id>'. The celebration comes once e
 const earnLook = (id) => !!LOOK_DEFS[id] && earn(id);
 const earnBg = (id) => !!BG_DEFS[id] && earn('bg:' + id);
 // called when the app opens, when you come back to it, and when you level up
-function checkEarned() {
-  if (!S || !S.settings) return;
+function collectEarned() { // earns everything that is due now and returns the new ids, without showing anything
+  if (!S || !S.settings) return [];
   const h = L.holidayOf(new Date());
   if (h && lookIsHoliday(h)) earnLook(h);
   if (h === 'birthday') earnBg('confetti');
   const lv = levelNow().level;
   for (const id of Object.keys(LOOK_DEFS)) if (lookIsLevel(id) && lv >= LOOK_DEFS[id].level) earnLook(id);
-  const batch = ui.earnBatch || []; ui.earnBatch = []; if (batch.length) celebrate(batch);
+  const batch = ui.earnBatch || []; ui.earnBatch = []; return batch;
 }
+function checkEarned() { const batch = collectEarned(); if (batch.length) celebrate(batch); }
 // the celebration: Bigg cheers in his new hat (or with his new background), with confetti. Several at once show as a row.
 const celebName = (x) => (x.startsWith('bg:') ? BG_DEFS[x.slice(3)].emoji + ' ' + BG_DEFS[x.slice(3)].name : lookEmoji(x) + ' ' + lookName(x));
 const celebWhy = (x) => (x.startsWith('bg:') ? 'Unlocked on ' + lookName('birthday') + '! 🎂' : lookIsLevel(x) ? 'Earned by reaching level ' + LOOK_DEFS[x].level + '!' : 'Earned by opening BiggTaal on ' + lookName(x) + '!');
-function celebrate(ids) {
+function celebrate(ids, lv) { // lv: the level you just reached (when a level up and new hats arrive together, they share this one window)
   document.querySelectorAll('.celeb').forEach((x) => x.remove());
   const one = ids.length === 1 ? ids[0] : '', isBg = one.startsWith('bg:');
   const box = document.createElement('div'); box.className = 'celeb';
   box.innerHTML = `<div class="celeb-card"><div class="celeb-sparks">${['✨', '🎉', '💗', '⭐', '🌸', '✨'].map((e, i) => `<span style="--a:${i * 60}deg;--d:${i * 0.12}s">${e}</span>`).join('')}</div>
     <div class="celeb-stage">${pigSvg('happy', 'celeb-pig act-cheer', { stage: 3, look: one && !isBg ? one : '', bg: isBg ? one.slice(3) : '' })}</div>
-    <div class="celeb-big">${one ? (isBg ? 'New background!' : 'New hat!') : ids.length + ' new things!'}</div>
+    ${lv ? `<div class="lvl-line">Level ${lv.level}! <small>${esc(lv.title[0])} · ${esc(lv.title[1])}</small></div>` : ''}<div class="celeb-big">${one ? (isBg ? 'New background!' : 'New hat!') : ids.length + ' new things!'}</div>
     ${one ? `<div class="celeb-name">${esc(celebName(one))}</div><p class="muted" style="margin:4px 0 14px">${esc(celebWhy(one))}</p>` : `<div class="celeb-row">${ids.slice(0, 14).map((x) => `<span title="${esc(celebName(x))}">${x.startsWith('bg:') ? esc(BG_DEFS[x.slice(3)].emoji) : pigSvg('happy', 'celeb-mini', { stage: 3, look: x, bg: '' })}</span>`).join('')}</div><p class="muted" style="margin:6px 0 14px">They are all in your wardrobe now.</p>`}
     <div class="row" style="justify-content:center">${one ? `<button class="primary" data-act="celeb-wear" data-v="${esc(one)}">Wear it</button>` : ''}<button class="${one ? 'ghost' : 'primary'}" data-act="celeb-go">Open wardrobe</button><button class="ghost" data-act="celeb-close">Close</button></div></div>`;
   document.body.appendChild(box); confetti(); chime('goal'); setTimeout(() => confetti(), 700);

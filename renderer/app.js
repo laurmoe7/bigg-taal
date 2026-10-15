@@ -451,7 +451,7 @@ function importText(text) {
   return m.added;
 }
 const ACT = {
-  nav: (el) => { ui.cards = ui.cards && ui.view === 'cards' ? ui.cards : null; go(el.dataset.v); },
+  nav: (el) => { go(el.dataset.v); }, // a flashcard session in progress is kept, so coming back to Flashcards carries on where you left off
   say: (el) => speak(el.dataset.t),
   'listen-start': (el) => startListen(el.dataset.m, el.dataset.s),
   rate: (el) => { S.settings.rate = +el.dataset.r; save(); render(); speak('Hoi, dit is de snelheid.'); },
@@ -514,14 +514,15 @@ document.addEventListener('keydown', (e) => {
     if (other) { keys[other] = keys[act]; toast(keyLabel(k) + ' was used for "' + HOTKEY_DEFS.find((d) => d[0] === other)[1] + '", so the two keys swapped.'); }
     keys[act] = k; ui.hkCapture = ''; save(); return render();
   }
-  if ((ui.view === 'cards' && ['typed', 'copy', 'ph-in', 'ph-copy'].includes(e.target.id)) || (ui.view === 'bonus' && e.target.id === 'geo-in')) { // while the typing box has focus: the skip key (or Esc) = I don't know, the hint key = hint
+  if ((ui.view === 'cards' && ['typed', 'copy', 'ph-in', 'ph-copy', 'fm-in', 'fm-copy'].includes(e.target.id)) || (ui.view === 'bonus' && e.target.id === 'geo-in')) { // while the typing box has focus: the skip key (or Esc) = I don't know, the hint key = hint
     const hk = hotkeys(), k = keyOf(e), plain = !e.ctrlKey && !e.altKey && !e.metaKey;
     const hit = (key) => (/^\p{L}$/u.test(key) ? e.ctrlKey && !e.altKey && k === key : plain && k === key); // a letter needs Ctrl, or it would be typed
-    if (e.key === 'Escape' || hit(hk.skip)) { e.preventDefault(); ACT[{ typed: 'skip', copy: 'copy-skip', 'ph-in': 'ph-skip', 'ph-copy': 'ph-copy-skip', 'geo-in': 'geo-skip' }[e.target.id]](); return; }
-    if (hit(hk.hint)) { const b = document.querySelector('[data-act="fc-hint"],[data-act="ph-hint"],[data-act="geo-hint"]'); if (b) { e.preventDefault(); b.click(); } return; }
+    if (e.key === 'Escape' || hit(hk.skip)) { e.preventDefault(); ACT[{ typed: 'skip', copy: 'copy-skip', 'ph-in': 'ph-skip', 'ph-copy': 'ph-copy-skip', 'fm-in': 'fm-skip', 'fm-copy': 'fm-copy-skip', 'geo-in': 'geo-skip' }[e.target.id]](); return; }
+    if (hit(hk.hint)) { const b = document.querySelector('[data-act="fc-hint"],[data-act="ph-hint"],[data-act="fm-hint"],[data-act="geo-hint"]'); if (b) { e.preventDefault(); b.click(); } return; }
   }
   if (e.key === ' ' && e.target.id === 'typed' && ui.view === 'cards' && ui.cards && spaceChecks(curCard()) && e.target.value.trim()) { e.preventDefault(); checkTyped(); return; } // a one-word answer: Space checks
   if (e.key === ' ' && e.target.id === 'ph-in' && typeof phSpace === 'function' && phSpace() && e.target.value.trim()) { e.preventDefault(); ACT['ph-check'](); return; } // a one-word fill the blank answer: Space checks
+  if (e.key === ' ' && e.target.id === 'fm-in' && e.target.value.trim()) { e.preventDefault(); ACT['fm-check'](); return; } // word forms are single words: Space checks
   const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (e.key === 'Enter' && e.target.id === 'copy') { e.preventDefault(); copyContinue(false); return; }
   if (e.key === 'Enter' && e.target.id === 'typed') { e.preventDefault(); ui.view === 'cards' ? checkTyped() : listenCheck(); return; }

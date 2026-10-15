@@ -39,7 +39,8 @@ function xpPop(n) {
 }
 // a big happy moment
 function levelUp(info) {
-  if (typeof checkEarned === 'function') setTimeout(checkEarned, 700); // level hats
+  const earned = typeof collectEarned === 'function' ? collectEarned() : []; // level hats: when there are new ones, the level up and the hats share one window
+  if (earned.length) { celebrate(earned, info); ui.say = ''; return; }
   chime('goal'); confetti();
   const old = document.querySelector('.lvlup'); if (old) old.remove();
   const name = info.title;
@@ -55,6 +56,12 @@ const homeSub = (info) => (info.max ? 'Max level reached! 👑' : (info.need - i
 const LEVEL_SAYS = ['I am doing a happy dance! You worked so hard! 💗', 'Look how far you have come! I am so proud of you! 🌟', 'Your Dutch is growing, just like my sprout! 🌱', 'You are amazing! Keep going, I am right here! ✨', 'A new level! I knew you could do it! 🎉'];
 Object.assign(ACT, { 'lvl-ok': () => { const b = document.querySelector('.lvlup'); if (b) b.remove(); } });
 document.addEventListener('click', (e) => { if (e.target.classList && e.target.classList.contains('lvlup')) e.target.remove(); });
+// Space or Enter closes a level up or new hat window (and is not passed on, so it cannot also check a flashcard answer)
+document.addEventListener('keydown', (e) => {
+  if (e.key !== ' ' && e.key !== 'Enter') return;
+  const pop = document.querySelector('.celeb') || document.querySelector('.lvlup'); if (!pop) return;
+  e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); pop.remove();
+}, true);
 
 // ---------- where the XP comes from ----------
 // (called from the places where you practise: gradeCard, finishListen, recordResult, and so on)

@@ -800,3 +800,13 @@ body.nofx .sparkles { display: none; }
 
 /* the flashcard option rows: tighter switches so Retype and Repeat share one line */
 .fopts.compact .switch { padding: 4px 6px 4px 3px; gap: 6px; } .fopts.compact .sep { margin: 2px 2px; }
+
+/* the back of the card takes its border and glow from how you answered: green when right, a softer lime when the article was left off, yellow when close */
+.fc.r-right .fc-face.back { border-color: color-mix(in srgb, var(--mint) 60%, transparent); box-shadow: 0 20px 40px -18px #000, inset 0 0 60px -30px var(--mint); }
+.fc.r-right.noart .fc-face.back { border-color: color-mix(in srgb, #b9f08f 60%, transparent); box-shadow: 0 20px 40px -18px #000, inset 0 0 60px -30px #b9f08f; }
+.fc.r-close .fc-face.back { border-color: color-mix(in srgb, var(--butter) 60%, transparent); box-shadow: 0 20px 40px -18px #000, inset 0 0 60px -30px var(--butter); }
+
+.fm-base { font-size: 1.25em; color: var(--text); }
+
+.lvl-line { font-size: 30px; font-weight: 900; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; } .lvl-line small { font-size: 15px; font-weight: 800; color: var(--muted); -webkit-text-fill-color: var(--muted); }
+.celeb .lvl-line + .celeb-big { font-size: 28px; }

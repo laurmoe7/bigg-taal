@@ -162,7 +162,7 @@ VIEWS.cards = () => {
   const selfFlip = !type && !c.flipped;
   return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${c.i + 1} of ${c.queue.length}${c.label ? ' · ' + c.label : ''}</p></div><button class="ghost" data-act="cards-done">End session</button></div>
     <div class="fc-wrap">${coach}<div class="bar"><i style="width:${(c.i / c.queue.length) * 100}%"></i></div>
-    <div class="fc ${c.flipped ? 'flip' : ''}" ${selfFlip ? 'data-act="flip"' : ''}><div class="fc-in"><div class="fc-face">${frontHtml}${selfFlip ? '<div class="muted">click or press Space to flip</div>' : ''}</div><div class="fc-face back">${backHtml}</div></div></div>
+    <div class="fc ${c.flipped ? 'flip' : ''} ${c.flipped && c.res ? 'r-' + (c.res === 'article' ? 'close' : c.res) : ''}${c.flipped && c.res === 'right' && w.article && !cz && !nlFront && L.norm(c.typed) === L.norm(w.nl) ? ' noart' : ''}" ${selfFlip ? 'data-act="flip"' : ''}><div class="fc-in"><div class="fc-face">${frontHtml}${selfFlip ? '<div class="muted">click or press Space to flip</div>' : ''}</div><div class="fc-face back">${backHtml}</div></div></div>
     ${controls}</div>`;
 };
 
