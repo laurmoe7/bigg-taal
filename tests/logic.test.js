@@ -274,6 +274,17 @@ test('dictionary lookup: word, plural, past tense and English', () => {
   assert.equal(L.dictToWord(['dag', 'n', 'de/het', '', 'day']).article, '');
 });
 
+test('dictionary: grammar-only meanings become plain English with the root word', () => {
+  const D = [['binnenkomen', 'v', '', 'binnenkwam,binnengekomen,zijn', 'to enter, to come inside'], ['komen', 'v', '', 'kwam,gekomen,zijn', 'to come'],
+    ['binnenkwam', 'v', '', '', 'singular dependent-clause past indicative of binnenkomen'], ['binnenkwame', 'v', '', '', 'singular dependent-clause past subjunctive of binnenkomen'],
+    ['sigaar', 'n', 'de', 'sigaren', 'cigar'], ['cigaar', 'n', 'de', '', 'dated spelling of sigaar']];
+  const ix = L.buildDictIndex(D), ex = (w) => L.dictExplain(D, ix, D.find((d) => d[0] === w));
+  assert.deepEqual(ex('binnenkwam'), { mean: 'past tense of binnenkomen (to enter, to come inside)', note: 'In a side clause it stays one word: …dat hij binnenkwam. In a main clause it splits: hij kwam binnen.' });
+  assert.match(ex('binnenkwame').mean, /^old-fashioned wish form/); assert.equal(ex('cigaar').mean, 'old spelling of sigaar (cigar)');
+  assert.deepEqual(ex('komen'), { mean: 'to come', note: '' });
+  assert.equal(L.dictToWord(D[2], ex('binnenkwam').mean).en, 'past tense of binnenkomen (to enter, to come inside)');
+});
+
 test('worksheets built from the downloaded data', () => {
   const dict = [['werken', 'v', '', 'werkte,gewerkt,hebben', 'to work'], ['huis', 'n', 'het', 'huizen', 'house'], ['fiets', 'n', 'de', 'fietsen', 'bicycle'], ['boek', 'n', 'het', 'boeken', 'book'], ['stad', 'n', 'de', 'steden', 'city'], ['water', 'n', 'het', '', 'water']];
   const sentences = [['Ik werk elke dag in de stad.', 'I work every day in the city.'], ['Het huis is erg groot.', 'The house is very big.'], ['Wij werken samen op kantoor.', 'We work together.']];

@@ -440,8 +440,34 @@
     hits.sort((x, y) => x[0] - y[0] || x[1] - y[1]).forEach((h) => add(h[2], 'english'));
     return out;
   };
-  // an entry as a ready-to-add word
-  L.dictToWord = (e) => ({ nl: e[0], en: e[4].split('; ').slice(0, 2).join('; '), article: e[2] === 'de' || e[2] === 'het' ? e[2] : '', pos: e[1] === 'n' ? 'noun' : e[1] === 'v' ? 'verb' : 'other' });
+  // Wiktionary describes some words only as grammar ("singular dependent-clause past indicative of binnenkomen").
+  // This rewrites those parts in plain English and adds what the root word means. Returns { mean, note }.
+  const FORM_OF = [
+    [/^singular (dependent-clause past indicative|past indicative dependent-clause)$/, 'past tense', 'past'],
+    [/^singular dependent-clause present indicative$/, 'present tense', 'present'],
+    [/^singular dependent-clause (present|past) subjunctive$/, 'old-fashioned wish form (subjunctive)', 'old'],
+    [/^(dative|genitive) [a-z/]+$/, 'old case form', 'case'],
+    [/^dated spelling$/i, 'old spelling'], [/^official spelling$/i, 'official spelling'], [/^eggcorn$/, 'common mix-up'],
+    [/^abbreviation$/, 'short form'], [/^alternative form$/, 'another form'], [/^syncopic form$/, 'shortened form'],
+  ];
+  L.dictExplain = (dict, ix, e) => {
+    const exact = (w, t) => { const a = (ix.forms.get(w.toLowerCase()) || []).map((i) => dict[i]).filter((d) => d[0].toLowerCase() === w.toLowerCase()); return a.find((d) => d[1] === t) || a[0]; };
+    const notes = [];
+    const mean = e[4].split('; ').map((sg) => {
+      const m = sg.match(/^(.+?) of (\S+)$/); if (!m) return sg;
+      const rule = FORM_OF.find((r) => r[0].test(m[1])); if (!rule) return sg;
+      const root = m[2], re = exact(root, e[1]), rm = re ? re[4].split('; ')[0] : '';
+      if (rule[2] === 'past' || rule[2] === 'present') { // a separable verb stays in one piece after dat/omdat/als, but splits in a main clause
+        let part = ''; for (let k = 2; k <= root.length - 4 && !part; k++) { const b = exact(root.slice(k), 'v'); if (b && b[1] === 'v' && e[0].toLowerCase().startsWith(root.slice(0, k).toLowerCase())) part = root.slice(0, k); }
+        if (part) notes.push(`In a side clause it stays one word: …dat hij ${e[0]}. In a main clause it splits: hij ${e[0].slice(part.length)} ${part}.`);
+      } else if (rule[2] === 'old') notes.push('Hardly used today, apart from a few fixed sayings.');
+      else if (rule[2] === 'case') notes.push('Only found in old-fashioned or fixed phrases.');
+      return `${rule[1]} of ${root}${rm ? ' (' + rm + ')' : ''}`;
+    });
+    return { mean: mean.filter((x, i) => mean.indexOf(x) === i).join('; '), note: notes.filter((x, i) => notes.indexOf(x) === i).join(' ') };
+  };
+  // an entry as a ready-to-add word (pass the meaning from dictExplain to use the plain-English version)
+  L.dictToWord = (e, mean) => ({ nl: e[0], en: (mean || e[4]).split('; ').slice(0, 2).join('; '), article: e[2] === 'de' || e[2] === 'het' ? e[2] : '', pos: e[1] === 'n' ? 'noun' : e[1] === 'v' ? 'verb' : 'other' });
 
   // ---------- worksheets built from the downloaded data (no Claude needed) ----------
   L.LOCAL_TYPES = [['meaning', '🎯 Meanings'], ['article', '🔀 De / het'], ['cloze', '✏️ Fill the gap'], ['forms', '🔧 Verb forms'], ['order', '🧩 Word order']];

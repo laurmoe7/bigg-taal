@@ -194,7 +194,7 @@ svg.pig { overflow: visible; }
 .wcard { background: linear-gradient(160deg, var(--c1), var(--c2)); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; transition: transform .15s, border-color .15s; }
 .wcard:hover { transform: translateY(-2px); border-color: var(--hl); }
 .wtop { display: flex; justify-content: space-between; align-items: center; gap: 8px; } .wt { font-size: 17px; min-width: 0; overflow-wrap: anywhere; }
-.we { color: var(--text); font-weight: 700; } .wex { color: var(--muted); font-size: 12.5px; font-style: italic; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.we { color: var(--text); font-weight: 700; } .wex { color: var(--muted); font-size: 12.5px; font-style: italic; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } .wnote { color: var(--muted); font-size: 12.5px; }
 .wf { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 6px; }
 .mini { padding: 3px 9px; font-size: 14px; border-radius: 10px; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 18px 0 4px; }

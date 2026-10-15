@@ -95,13 +95,14 @@ async function addSuggested(words) { // words: [dutch, ...]; adds them with real
 let DICT_IX = null;
 const haveWord = (nl) => liveWords().some((x) => x.nl.toLowerCase().replace(/^(de|het|een|zich)\s+/, '') === nl.toLowerCase());
 const dictIndex = () => (DICT_IX = DICT_IX || L.buildDictIndex(DICT));
+const dictMean = (e) => L.dictExplain(DICT, dictIndex(), e); // plain-English meaning, plus a note for grammar-only entries
 const formsLine = (e) => { const f = e[3] ? e[3].split(',') : []; return e[1] === 'n' && f[0] ? 'plural: ' + f[0] : e[1] === 'v' && f.length ? 'past: ' + (f[0] || '') + (f[1] ? ' · participle: ' + f[1] : '') + (f[2] ? ' · ' + f[2] : '') : e[1] === 'a' && f.length ? f.join(', ') : ''; };
 function dictResults(q) {
   const res = L.dictSearch(DICT, dictIndex(), q, 30);
   if (!q.trim()) return '<div class="empty">Type a Dutch or English word to look it up. You can also search for a plural or a past tense, like <b>huizen</b> or <b>ging</b>.</div>';
   if (!res.length) return '<div class="empty">Nothing found for that word.</div>';
   return '<div class="wgrid">' + res.map(({ e, how }) => `<div class="wcard"><div class="wtop"><div class="wt">${artOf(e[2]) ? `<span class="art-${e[2]}">${e[2]}</span> ` : e[2] === 'de/het' ? '<span class="muted">de/het</span> ' : ''}<b>${esc(e[0])}</b> <span class="muted" style="font-size:12px">${L.POS_NAMES[e[1]] || ''}</span></div><button class="ghost mini" data-act="say" data-t="${esc((artOf(e[2]) ? e[2] + ' ' : '') + e[0])}" title="Listen">🔊</button></div>
-    <div class="we">${esc(e[4])}</div>${formsLine(e) ? `<div class="wex">${esc(formsLine(e))}</div>` : ''}
+    <div class="we">${esc(dictMean(e).mean)}</div>${dictMean(e).note ? `<div class="wnote">${esc(dictMean(e).note)}</div>` : ''}${formsLine(e) ? `<div class="wex">${esc(formsLine(e))}</div>` : ''}
     <div class="wf"><span class="muted" style="font-size:12px">${how === 'form' ? 'form of this word' : how === 'english' ? 'English match' : ''}</span>${haveWord(e[0]) ? '<span class="have">✓ In My words</span>' : `<button class="primary mini" data-act="dict-add" data-w="${esc(e[0])}" data-t="${e[1]}">➕ Add</button>`}</div></div>`).join('') + '</div>';
 }
 function dictTab() {
@@ -130,7 +131,7 @@ function addWordsTab() {
 Object.assign(ACT, {
   'dict-add': async (el) => {
     const e = DICT.find((x) => x[0] === el.dataset.w && x[1] === el.dataset.t); if (!e) return;
-    const o = L.dictToWord(e); let ex = null; try { ex = (await examplesFor(o.nl, o.pos, 1))[0]; } catch {}
+    const o = L.dictToWord(e, dictMean(e).mean); let ex = null; try { ex = (await examplesFor(o.nl, o.pos, 1))[0]; } catch {}
     if (S.words.some((x) => !x.deleted && x.nl.toLowerCase() === o.nl.toLowerCase())) return toast(o.nl + ' is already in your list');
     S.words.push(L.newWord(Object.assign(o, { example: ex ? ex[0] : '', exampleEn: ex ? ex[1] : '' }))); gainXp(XP.addWord); save(); toast('Added ' + o.nl + ' to My words'); render();
   },
@@ -138,7 +139,7 @@ Object.assign(ACT, {
     const nl = $('#w-nl').value.trim(); if (!nl) return toast('Type the Dutch word first.');
     try { await loadData('dict'); } catch { return toast('Could not load the dictionary.'); }
     const r = L.dictSearch(DICT, dictIndex(), nl, 1)[0]; if (!r) return toast('Not found in the dictionary.');
-    const o = L.dictToWord(r.e); $('#w-nl').value = r.how === 'word' ? o.nl : nl; if (o.article) $('#w-art').value = o.article; if (!$('#w-en').value) $('#w-en').value = o.en;
+    const o = L.dictToWord(r.e, dictMean(r.e).mean); $('#w-nl').value = r.how === 'word' ? o.nl : nl; if (o.article) $('#w-art').value = o.article; if (!$('#w-en').value) $('#w-en').value = o.en;
     toast(r.how === 'form' ? nl + ' is a form of ' + o.nl + ' (filled in for ' + o.nl + ')' : 'Filled in'); if (r.how === 'form') $('#w-nl').value = o.nl;
   },
   'sg-band': (el) => { ui.words.band = el.dataset.v; ui.words.page = 0; render(); },
