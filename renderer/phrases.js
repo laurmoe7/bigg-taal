@@ -138,7 +138,7 @@ function phSession() {
   const front = nlFront ? `<div class="ph-big">${esc(p.nl)}</div>${speakBtn(p.nl)}`
     : kind === 'fill' ? `<div class="muted">${esc(p.en)}</div><div class="ph-big">${phGapHtml(p)}</div>${hintLine}`
     : `<div class="ph-big">${esc(p.en)}</div><div class="muted">in Dutch</div>${kind === 'type' ? hintLine : ''}`;
-  const verdict = s.res === 'close' ? '<div class="warn">Almost! Check the spelling.</div>' : s.res === 'wrong' ? `<div class="warn">${s.typed ? 'You typed: ' + esc(s.typed) : 'That is okay, here it is!'}</div>` : '';
+  const verdict = s.res === 'close' ? spellNote(s.typed, [target]) : s.res === 'wrong' ? `<div class="warn">${s.typed ? 'You typed: ' + esc(s.typed) : 'That is okay, here it is!'}</div>` : '';
   const back = nlFront ? `<div class="ph-big">${esc(p.en)}</div><div class="fc-ex">${esc(p.nl)}</div>`
     : `<div class="ph-big ${s.res ? 'ans ' + s.res : ''}">${esc(p.nl)}</div>${speakBtn(p.nl)}<div class="fc-ex">${esc(p.en)}</div>${verdict}`;
   const sug = s.res === 'wrong' ? 'again' : 'good', iv = L.previewIntervals(phRec(p), today()), hk = hotkeys();

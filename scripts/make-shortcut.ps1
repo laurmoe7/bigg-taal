@@ -5,9 +5,9 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $electron = Join-Path $root 'node_modules\electron\dist\electron.exe'
-$icon = Join-Path $root 'build\icon.ico'
+$icon = Join-Path $root 'build\biggtaal-nl.ico'
 if (-not (Test-Path $electron)) { throw "Electron is missing. Run: npm install   (in $root)" }
-if (-not (Test-Path $icon)) { throw "build\icon.ico is missing" }
+if (-not (Test-Path $icon)) { throw "build\biggtaal-nl.ico is missing" }
 
 $targets = @(
     (Join-Path $root 'BiggTaal.lnk'),

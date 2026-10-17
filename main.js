@@ -8,10 +8,11 @@ const { autoUpdater } = require('electron-updater');
 const azure = require('./azure.js');
 
 app.setAppUserModelId('com.laurmoe.biggtaal');
-if (!app.requestSingleInstanceLock()) app.quit();
+const firstInstance = app.requestSingleInstanceLock();
+if (!firstInstance) app.quit(); // the running copy is brought to the front instead (second-instance below)
 
 const dataFile = () => path.join(app.getPath('userData'), 'data.json');
-const icon = () => path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+const icon = () => path.join(__dirname, 'build', process.platform === 'win32' ? 'biggtaal-nl.ico' : 'icon.png');
 let win = null, quitting = false;
 let cache = null; // last saved state (the updater reads the autoUpdate setting from it)
 
@@ -24,14 +25,26 @@ function migrate() {
     if (fs.existsSync(old)) { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.copyFileSync(old, f); }
   } catch {}
 }
+const backups = () => { try { return fs.readdirSync(path.dirname(dataFile())).filter((n) => /^backup-\d{4}-\d{2}-\d{2}\.json$/.test(n)).sort(); } catch { return []; } };
 function readData() {
-  try { return JSON.parse(fs.readFileSync(dataFile(), 'utf8')); } catch { return null; }
+  const f = dataFile();
+  if (!fs.existsSync(f)) return null;
+  try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
+  // data.json is there but cannot be read: never start over on top of it. Keep the broken file aside and load the newest good backup.
+  try { fs.copyFileSync(f, f.replace(/\.json$/, '') + '-broken-' + Date.now() + '.json'); } catch {}
+  for (const n of backups().reverse()) {
+    try { return JSON.parse(fs.readFileSync(path.join(path.dirname(f), n), 'utf8')); } catch {}
+  }
+  return null;
 }
 function writeData(state) {
   const f = dataFile(), tmp = f + '.tmp';
   fs.mkdirSync(path.dirname(f), { recursive: true });
   const b = path.join(path.dirname(f), 'backup-' + new Date().toISOString().slice(0, 10) + '.json');
-  if (fs.existsSync(f) && !fs.existsSync(b)) fs.copyFileSync(f, b); // one backup per day, before the first save of the day
+  if (fs.existsSync(f) && !fs.existsSync(b)) { // one backup per day, before the first save of the day; the last 30 are kept
+    fs.copyFileSync(f, b);
+    for (const old of backups().slice(0, -30)) { try { fs.unlinkSync(path.join(path.dirname(f), old)); } catch {} }
+  }
   fs.writeFileSync(tmp, JSON.stringify(state, null, 1));
   fs.renameSync(tmp, f);
 }
@@ -58,7 +71,7 @@ function createWindow() {
   // Run from the project folder, Windows would show the generic Electron icon on the taskbar: give the window the pig icon and
   // tell the taskbar which shortcut to use when you pin it (the same one as the desktop shortcut).
   if (process.platform === 'win32' && !app.isPackaged) {
-    try { win.setAppDetails({ appId: 'com.laurmoe.biggtaal', appIconPath: path.join(__dirname, 'build', 'icon.ico'), appIconIndex: 0, relaunchDisplayName: 'BiggTaal', relaunchCommand: '"' + process.execPath + '" "' + app.getAppPath() + '"' }); } catch {}
+    try { win.setAppDetails({ appId: 'com.laurmoe.biggtaal', appIconPath: path.join(__dirname, 'build', 'biggtaal-nl.ico'), appIconIndex: 0, relaunchDisplayName: 'BiggTaal', relaunchCommand: '"' + process.execPath + '" "' + app.getAppPath() + '"' }); } catch {}
   }
   win.webContents.on('before-input-event', (e, input) => {
     if (input.type !== 'keyDown') return;
@@ -210,6 +223,7 @@ ipcMain.handle('app:version', () => app.getVersion());
 
 ipcMain.handle('data:load', () => { cache = readData(); return cache; });
 ipcMain.handle('data:save', (_e, state) => { cache = state; writeData(state); return true; });
+ipcMain.on('data:save-sync', (e, state) => { try { cache = state; writeData(state); e.returnValue = true; } catch { e.returnValue = false; } });
 ipcMain.handle('data:where', () => dataFile());
 ipcMain.handle('data:reveal', () => { shell.showItemInFolder(dataFile()); });
 ipcMain.handle('app:login', (_e, on) => { app.setLoginItemSettings({ openAtLogin: !!on }); return true; });
@@ -227,6 +241,7 @@ ipcMain.handle('file:import', async () => {
 
 app.on('second-instance', showWin);
 app.whenReady().then(() => {
+  if (!firstInstance) return;
   migrate();
   trimCache();
   cache = readData();

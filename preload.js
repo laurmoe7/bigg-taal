@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('vt', {
   load: () => ipcRenderer.invoke('data:load'),
   save: (s) => ipcRenderer.invoke('data:save', s),
+  saveNow: (s) => ipcRenderer.sendSync('data:save-sync', s), // blocks until written: used while the window is closing
   where: () => ipcRenderer.invoke('data:where'),
   reveal: () => ipcRenderer.invoke('data:reveal'),
   launchAtLogin: (on) => ipcRenderer.invoke('app:login', on),

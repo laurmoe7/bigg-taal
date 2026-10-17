@@ -113,7 +113,7 @@ function fmSession() {
   const hintTxt = s.hint ? esc(FM_KINDS[it.kind]) + (s.hint > 1 ? ' · ' + esc(L.hintText(it.form, 2)) : '') : '';
   const front = `<div class="ph-big">${esc(it.before)}<span class="vt-gap">___</span>${esc(it.after)}</div>
     <div class="muted">the word: <b class="fm-base">${esc(it.inf)}</b> <span class="muted">(${esc(it.meaning)})</span></div><div class="fc-hint" id="fm-hint">${hintTxt}</div>`;
-  const verdict = s.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : s.res === 'wrong' ? (s.typed ? `<div class="warn">You typed: ${esc(s.typed)}</div>` : '') : '';
+  const verdict = s.res === 'close' ? spellNote(s.typed, [it.form]) : s.res === 'wrong' ? (s.typed ? `<div class="warn">You typed: ${esc(s.typed)}</div>` : '') : '';
   const parts = it.v ? `<div class="fc-ex">${vtParts(it.v)}</div>` : `<div class="fc-ex">${esc(it.inf)} = ${esc(it.meaning)}</div>`;
   const back = `<div class="ph-big ${s.res ? 'ans ' + s.res : ''}">${esc(it.before)}<b class="fc-form">${esc(it.form)}</b>${esc(it.after)}</div>${speakBtn(it.nl)}${parts}${verdict}${it.en ? `<div class="${s.res === 'wrong' && !s.typed ? 'warn' : 'cz-en'}">${esc(it.en)}</div>` : ''}`;
   const sug = s.res === 'wrong' ? 'again' : 'good', iv = L.previewIntervals(fmRec(it), today()), hk = hotkeys();

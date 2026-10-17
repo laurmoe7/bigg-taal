@@ -11,8 +11,14 @@ const fill = (s, o) => s.replace(/\{(\w+)\}/g, (_, k) => (o && o[k] != null ? o[
 let saveT = 0;
 function save() {
   clearTimeout(saveT);
-  saveT = setTimeout(() => { if (window.vt) window.vt.save(S); else try { localStorage.setItem('biggtaal', JSON.stringify(S)); } catch {} }, 250);
+  saveT = setTimeout(() => { saveT = 0; if (window.vt) window.vt.save(S); else try { localStorage.setItem('biggtaal', JSON.stringify(S)); } catch {} }, 250);
 }
+// closing the window (or restarting for an update) within the 250 ms wait would lose the last answer: write it out right away
+window.addEventListener('beforeunload', () => {
+  if (!saveT) return;
+  clearTimeout(saveT); saveT = 0;
+  try { if (window.vt && window.vt.saveNow) window.vt.saveNow(S); else if (window.vt) window.vt.save(S); else localStorage.setItem('biggtaal', JSON.stringify(S)); } catch {}
+});
 async function load() {
   let d = null;
   try { d = window.vt ? await window.vt.load() : JSON.parse(localStorage.getItem('biggtaal') || 'null'); } catch {}
@@ -97,9 +103,10 @@ async function speakPiper(text, slow, id) {
     const a = new Audio(url); a.volume = vol(); curAudio = a; a.onended = () => URL.revokeObjectURL(url); await a.play();
   } catch (e) { if (my === speakToken && !speakWin(text, slow, dutchVoices()[0])) toast('Could not play the voice. See Settings > Voice.'); }
 }
+let noVoiceAt = 0;
 function speak(text, slow) {
   const c = voiceChoice();
-  if (!c) { toast('No Dutch voice found. See Settings > Voice.'); return false; }
+  if (!c) { if (Date.now() - noVoiceAt > 15000) { noVoiceAt = Date.now(); toast('No Dutch voice found. See Settings > Voice.'); } return false; } // said once, not after every card
   stopSpeech();
   if (c.engine === 'piper' || c.engine === 'azure') { speakPiper(text, slow, c.id); return true; } // both come from the main process, as audio
   return speakWin(text, slow);
@@ -178,12 +185,13 @@ function go(v) { if (ui.view === 'sheets' && ui.sheetId) ui.wsScroll[ui.sheetId]
 const VIEWS = {};
 
 // ---------- home ----------
-const dailyPick = (list, n) => { const d = Math.floor(Date.now() / 864e5); return Array.from({ length: n }, (_, i) => list[(d * n + i) % list.length]); }; // the same few every time today, different tomorrow
+const dayNo = () => L.daysBetween('2000-01-01', today()); // counts local days, so the daily things change at your midnight, not at UTC's
+const dailyPick = (list, n) => { const d = dayNo(); return Array.from({ length: n }, (_, i) => list[(d * n + i) % list.length]); }; // the same few every time today, different tomorrow
 VIEWS.home = () => {
   const t = todayStats(), g = S.settings.dailyGoal, due = dueList().length, m = L.mastery(S.words), lv = L.levelInfo(S.xp || 0);
   if (!ui.say) ui.say = pigLine();
   const week = L.week(S.log, today()), max = Math.max(5, ...week.map((x) => x.n));
-  const pv = PROVERBS[Math.floor(Date.now() / 864e5) % PROVERBS.length];
+  const pv = PROVERBS[dayNo() % PROVERBS.length];
   const dn = (d) => ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][new Date(d + 'T12:00').getDay()];
   const upd = UPD.status === 'ready' ? `<div class="card upd"><div class="row"><div class="grow"><b>A new BiggTaal is ready! 🌸</b><div class="muted">Version ${esc(UPD.version)} has been downloaded. It installs when you restart, and your words and progress are safe.</div></div><button class="primary" data-act="update-install">Restart to update</button></div></div>` : '';
   return `${upd}${typeof recapNotice === 'function' ? recapNotice() : ''}<div class="hero">${pigSvg(pigMood(), '', { stage: pigStage(), note: true, cap: isNight() })}<div class="bubble" id="bubble">${esc(ui.say)}</div></div>

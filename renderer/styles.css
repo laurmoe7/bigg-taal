@@ -810,3 +810,15 @@ body.nofx .sparkles { display: none; }
 
 .lvl-line { font-size: 30px; font-weight: 900; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; } .lvl-line small { font-size: 15px; font-weight: 800; color: var(--muted); -webkit-text-fill-color: var(--muted); }
 .celeb .lvl-line + .celeb-big { font-size: 28px; }
+
+/* how a near-miss was spelled: right letters green, wrong ones underlined in red, left-out letters shown dashed in place */
+.spell { margin-top: 6px; font-size: 26px; font-weight: 900; letter-spacing: .02em; }
+.sp-ok { color: var(--mint); }
+.sp-bad { color: var(--danger); text-decoration: underline wavy; text-underline-offset: 6px; background: color-mix(in srgb, var(--danger) 13%, transparent); border-radius: 5px; }
+.sp-miss { color: var(--danger); font-size: .8em; border: 1px dashed var(--danger); border-radius: 6px; padding: 0 3px; margin: 0 1px; opacity: .9; }
+
+/* words that still need an example sentence for Fill the blank */
+.needex { margin: 0 0 12px; } .needex-list { margin-top: 8px; padding: 10px 14px; max-height: 360px; overflow-y: auto; }
+.needex-row { padding: 10px 0; border-bottom: 1px dashed var(--line); } .needex-row:last-child { border-bottom: 0; }
+.needex-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .needex-top .ghost { margin-left: auto; padding: 5px 12px; font-size: 14px; }
+.needex-own { flex: 1; min-width: 180px; } .needex-row .exs { display: block; width: 100%; text-align: left; margin-top: 6px; }

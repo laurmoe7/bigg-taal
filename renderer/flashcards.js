@@ -87,6 +87,46 @@ const bestCheck = (typed, w, dir) => {
   return a === 'right' || b === 'right' ? 'right' : a === 'close' || b === 'close' ? 'close' : 'wrong';
 };
 // Retype: the word has to be typed right after a miss (accents and capitals do not matter; the article is optional)
+// Shows how a near-miss was spelled: your letters with the wrong ones underlined, and the letters you left out marked in place.
+// (Capitals do not matter, accents do: a missing accent is marked too.)
+function spellMarks(typed, answer) {
+  const strip = (c) => c.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const ty = Array.from(String(typed).trim()), an = Array.from(String(answer)), t = ty.map(strip), a = an.map(strip), n = t.length, m = a.length;
+  const dp = Array.from({ length: n + 1 }, (_, i) => { const r = new Array(m + 1).fill(0); r[0] = i; return r; });
+  for (let j = 0; j <= m; j++) dp[0][j] = j;
+  for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (t[i - 1] === a[j - 1] ? 0 : 1));
+  const out = []; let i = n, j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && t[i - 1] === a[j - 1] && dp[i][j] === dp[i - 1][j - 1]) { out.push([ty[i - 1], ty[i - 1].toLowerCase() === an[j - 1].toLowerCase() ? 'ok' : 'bad']); i--; j--; }
+    else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) { out.push([ty[i - 1], 'bad']); i--; j--; }
+    else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) { out.push([ty[i - 1], 'bad']); i--; }
+    else { out.push([an[j - 1], 'miss']); j--; }
+  }
+  return out.reverse().map(([c, k]) => `<span class="sp-${k}">${esc(c)}</span>`).join('');
+}
+// the "Close!" note under the answer: picks the answer you were closest to and marks the slips
+function spellNote(typed, answers) {
+  const t = L.norm(typed), list = answers.map((x) => String(x).replace(/\(.*?\)/g, '').trim()).filter(Boolean);
+  if (!t || !list.length) return '<div class="warn">Close! Check the spelling.</div>';
+  const best = list.reduce((x, y) => (L.lev(t, L.norm(y)) < L.lev(t, L.norm(x)) ? y : x));
+  return `<div class="warn">Close! Look at the marked letters:<div class="spell">${spellMarks(typed, best)}</div></div>`;
+}
+// Fill the blank needs an example sentence that contains the word. This lists the words that have none, so you can add one.
+const needEx = (ui.needEx = ui.needEx || { open: false, found: {} });
+function needExHtml() {
+  if (cardPrefs().mode !== 'cloze') return '';
+  const miss = cardPool().filter((w) => !clozeFor(w));
+  if (!miss.length) return '';
+  const head = `<button class="ghost" data-act="needex-toggle">${needEx.open ? '▾' : '▸'} ${miss.length} word${miss.length === 1 ? '' : 's'} need${miss.length === 1 ? 's' : ''} an example sentence for Fill the blank</button>`;
+  if (!needEx.open) return `<div class="needex">${head}</div>`;
+  const rows = miss.map((w) => {
+    const found = needEx.found[w.id];
+    return `<div class="needex-row"><div class="needex-top"><b>${esc(wordLabel(w))}</b> <span class="muted">${esc(w.en)}</span>${w.example ? ' <span class="pill bad" title="Its example does not contain the word">example does not fit</span>' : ''}<button class="ghost" data-act="needex-find" data-id="${esc(w.id)}">🔎 Find sentences</button></div>
+      ${found ? (found.length ? found.map((p, i) => `<button class="exs" data-act="needex-use" data-id="${esc(w.id)}" data-i="${i}"><b>${esc(p[0])}</b><span class="muted">${esc(p[1])}</span></button>`).join('') : '<div class="muted" style="margin:6px 0">No sentences found for that word. Write your own below.</div>') : ''}
+      <div class="row" style="margin-top:6px"><input type="text" class="needex-own" data-own="${esc(w.id)}" data-enter="needex-own" placeholder="Or write your own sentence with the word" autocomplete="off" spellcheck="false"><button class="ghost" data-act="needex-own" data-id="${esc(w.id)}">Save</button></div></div>`;
+  }).join('');
+  return `<div class="needex">${head}<div class="card needex-list">${rows}</div></div>`;
+}
 const typedMatches = (typed, w, form) => { const t = L.norm(typed); return !!t && (form ? t === L.norm(form) : t === L.norm(w.nl) || (!!w.article && t === L.norm(w.article + ' ' + w.nl))); };
 
 // ---------- the screens ----------
@@ -118,7 +158,7 @@ VIEWS.cards = () => {
     <div class="og"><span class="muted">Group</span>${cardGroupSel()}</div>
     <div class="og hint muted">${MODE_INFO[p.mode] || MODE_INFO.flip}</div></div>`;
   if (!c) {
-    return `<div class="top"><div><h1>Flashcards</h1></div></div><div class="fc-wrap">${prefs}
+    return `<div class="top"><div><h1>Flashcards</h1></div></div><div class="fc-wrap">${prefs}${needExHtml()}
       <div class="card" style="text-align:center;padding:30px">${pigSvg(due ? 'happy' : 'sleep', 'pig-md', { stage: pigStage(), card: true })}
       <p>${due ? `<b>${due}</b> cards are ready. I will be right here to cheer you on!` : 'Nothing is due right now. Nice!'}</p>
       ${due ? '<div class="row" style="justify-content:center"><button class="primary" data-act="cards-start">Start</button></div>' : ''}
@@ -145,8 +185,8 @@ VIEWS.cards = () => {
     : `<div class="fc-big">${esc(w.en)}</div><div class="muted">in Dutch</div>`;
   const ans = nlFront ? esc(w.en) : `${w.article ? `<span class="fc-art">${esc(w.article)}</span> ` : ''}${esc(w.nl)}`;
   const czBase = cz && c.res === 'close' && L.norm(c.typed) === L.norm(w.nl) && L.norm(c.typed) !== L.norm(cz.form);
-  const backHtml = cz ? `<div class="ph-big ${c.res ? 'ans ' + c.res : ''}">${czBack}</div>${speakBtn(w.example)}<div class="fc-ex">${esc(wordLabel(w))} = ${esc(w.en)}</div>${czBase ? `<div class="warn">Right word, but this sentence needs <b>${esc(cz.form)}</b>.</div>` : c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : c.res === 'wrong' ? (c.typed || !exEnOf(w) ? `<div class="warn">${c.typed ? 'You typed: ' + esc(c.typed) : 'That is okay, here it is!'}</div>` : '') : ''}${exEnOf(w) ? `<div class="${c.res === 'wrong' && !c.typed ? 'warn' : 'cz-en'}">${esc(exEnOf(w))}</div>` : ''}`
-    : `<div class="fc-big ${c.res ? 'ans ' + (c.res === 'article' ? 'close' : c.res) : ''}">${ans}</div>${!nlFront ? speakBtn(wordLabel(w)) : ''}${w.example ? `<div class="fc-ex">${esc(w.example)}${exEnOf(w) ? '<br>' + esc(exEnOf(w)) : ''}</div>` : ''}${c.res === 'close' ? '<div class="warn">Close! Check the spelling.</div>' : c.res === 'wrong' ? `<div class="warn">You typed: ${esc(c.typed)}</div>` : ''}`;
+  const backHtml = cz ? `<div class="ph-big ${c.res ? 'ans ' + c.res : ''}">${czBack}</div>${speakBtn(w.example)}<div class="fc-ex">${esc(wordLabel(w))} = ${esc(w.en)}</div>${czBase ? `<div class="warn">Right word, but this sentence needs <b>${esc(cz.form)}</b>.</div>` : c.res === 'close' ? spellNote(c.typed, [cz.form]) : c.res === 'wrong' ? (c.typed || !exEnOf(w) ? `<div class="warn">${c.typed ? 'You typed: ' + esc(c.typed) : 'That is okay, here it is!'}</div>` : '') : ''}${exEnOf(w) ? `<div class="${c.res === 'wrong' && !c.typed ? 'warn' : 'cz-en'}">${esc(exEnOf(w))}</div>` : ''}`
+    : `<div class="fc-big ${c.res ? 'ans ' + (c.res === 'article' ? 'close' : c.res) : ''}">${ans}</div>${!nlFront ? speakBtn(wordLabel(w)) : ''}${w.example ? `<div class="fc-ex">${esc(w.example)}${exEnOf(w) ? '<br>' + esc(exEnOf(w)) : ''}</div>` : ''}${c.res === 'close' ? spellNote(c.typed, nlFront ? w.en.split(/[\/;,]/) : [wordLabel(w), w.nl]) : c.res === 'wrong' ? `<div class="warn">You typed: ${esc(c.typed)}</div>` : ''}`;
   const sug = c.res === 'wrong' ? 'again' : 'good';
   const iv = L.previewIntervals(w, today());
   const hk = hotkeys(), gradeBtns = `<div class="grades"><button class="g-again ${sug === 'again' ? 'on' : ''}" data-act="grade" data-g="again"><span class="gl"><kbd class="kbd" title="Press this key">${keyLabel(hk.again)}</kbd>Again</span><small>today</small></button><button class="g-good" data-act="grade" data-g="good"><span class="gl"><kbd class="kbd" title="Press this key">${keyLabel(hk.good)}</kbd>Good</span><small>${iv.good}d</small></button><button class="g-easy" data-act="grade" data-g="easy"><span class="gl"><kbd class="kbd" title="Press this key">${keyLabel(hk.easy)}</kbd>Easy</span><small>${iv.easy}d</small></button></div><div class="muted keyhint">⌨ Keyboard: press ${keyLabel(hk.again)}, ${keyLabel(hk.good)} or ${keyLabel(hk.easy)} to rate, ${keyLabel(hk.speak)} to hear it</div>`;
@@ -226,7 +266,20 @@ function copyContinue(force) { // after a miss with Retype on: type the right wo
   gradeCard('again', true);
 }
 
+function needExSet(id, nl, en) {
+  const w = S.words.find((x) => x.id === id); if (!w) return;
+  if (!L.clozeOf(nl, w.nl, w.pos)) return toast('That sentence does not contain ' + w.nl + ' in a form I can find.');
+  w.example = nl; w.exampleEn = en || ''; save(); toast('Added an example for ' + w.nl); render();
+}
 Object.assign(ACT, {
+  'needex-toggle': () => { needEx.open = !needEx.open; render(); },
+  'needex-find': async (el) => {
+    const w = S.words.find((x) => x.id === el.dataset.id); if (!w) return;
+    try { needEx.found[w.id] = (await examplesFor(w.nl.replace(/^(de|het|een)\s+/, ''), w.pos, 6)).filter((p) => L.clozeOf(p[0], w.nl, w.pos)); } catch { return toast('Could not load the sentences.'); }
+    render();
+  },
+  'needex-use': (el) => { const p = (needEx.found[el.dataset.id] || [])[+el.dataset.i]; if (p) needExSet(el.dataset.id, p[0], p[1]); },
+  'needex-own': (el) => { el = el || document.activeElement; const id = el.dataset.id || el.dataset.own; const inp = document.querySelector('[data-own="' + CSS.escape(id) + '"]'); const v = inp ? inp.value.trim() : ''; if (!v) return toast('Type a sentence first.'); needExSet(id, v, ''); },
   flip: () => { ui.cards.flipped = true; render(); },
   'cards-start': () => startCards(), 'cards-more': (el) => startMore(el.dataset.k), 'cards-done': () => { ui.cards = null; go('home'); },
   cpref: (el) => { const p = cardPrefs(); p[el.dataset.k] = ['auto', 'retype', 'repeat'].includes(el.dataset.k) ? !!el.dataset.v : el.dataset.v; save(); render(); },
