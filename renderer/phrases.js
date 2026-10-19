@@ -93,7 +93,7 @@ function phStartScreen() { // laid out like the start page of the word cards: op
   const sw = (on, k, label, off, tip) => `<button class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" data-act="ph-pref" data-k="${k}" data-v="${on ? '' : '1'}" ${off ? 'disabled' : ''} title="${tip}"><i></i>${label}</button>`;
   const MODE_INFO = { flip: 'See the sentence, flip it, then rate how well you knew it.', type: 'You see the English and type the whole Dutch sentence. Capitals, accents and punctuation do not matter.', fill: 'The Dutch sentence is shown with one word missing; type that word. A few very short phrases are typed in full.' };
   const prefs = `<div class="fopts compact">
-    <div class="og"><span class="muted">Mode</span>${modeBtn('flip', 'Flip')}${modeBtn('type', '⌨️ Type')}${modeBtn('fill', '✏️ Fill the blank')}<span class="sep"></span>${sw(P.retype, 'retype', '✍️ Retype', false, 'When you get a card wrong, you have to type the right answer before moving on')}${sw(P.repeat, 'repeat', '🔁 Repeat', false, 'A card you rate 1 or 2, or get wrong, comes back 2 or 3 cards later until you know it')}</div>
+    <div class="og"><span class="muted">Mode</span>${modeBtn('flip', 'Flip')}${modeBtn('type', '⌨️ Type')}${modeBtn('fill', '✏️ Fill the blank')}<span class="sep"></span>${sw(P.retype, 'retype', '✍️ Retype', false, 'When you get a card wrong, you have to type the right answer before moving on')}${sw(P.repeat, 'repeat', '🔁 Repeat', false, 'A card you get wrong comes back a few cards later, up to 2 times')}</div>
     <div class="og"><span class="muted">Direction</span>${dirBtn('en-nl', 'EN → NL')}${dirBtn('nl-en', 'NL → EN')}${dirBtn('mixed', 'Mixed')}<span class="sep"></span>${sw(P.auto, 'auto', '🔊 Auto-speak', false, 'Say each sentence out loud')}</div>
     <div class="og"><span class="muted">Group</span><select id="ph-cat-sel"><option value="">All phrases</option>${PH_CATS.map(([id, ic, name]) => `<option value="${id}" ${P.cats[0] === id ? 'selected' : ''}>${ic} ${esc(name)}</option>`).join('')}</select></div>
     <div class="og hint muted">${MODE_INFO[P.mode]}</div></div>`;
@@ -148,7 +148,7 @@ function phSession() {
     ? `<input type="text" class="big-in" id="ph-in" data-focus data-enter="ph-check" autocomplete="off" spellcheck="false" placeholder="${kind === 'fill' ? 'Type the missing word... (Enter)' : 'Type the Dutch sentence... (Enter)'}"><div class="row" style="justify-content:center;margin-top:10px">${phSpace() ? '<kbd class="kbd">Space</kbd>' : ''}<button class="primary" data-act="ph-check">Check</button><button class="ghost keyed" data-act="ph-hint">💡 Hint<small class="btn-key">${typingKbd('hint')}</small></button><button class="ghost keyed" data-act="ph-skip">I don't know${skipKey()}</button></div>`
     : `<div class="row" style="justify-content:center"><button class="primary keyed" data-act="ph-flip">Show answer<small class="btn-key">${kbdIn('flip')}</small></button></div>`;
   const selfFlip = !typing && !s.flipped;
-  return `<div class="top"><div><h1>Phrases</h1><p class="sub">${s.i + 1} of ${s.queue.length}${s.label ? ' · ' + esc(s.label) : ''}</p></div><button class="ghost" data-act="ph-end">End session</button></div>
+  return `<div class="top"><div><h1>Phrases</h1><p class="sub">${L.sessionProgress(s)}${s.label ? ' · ' + esc(s.label) : ''}</p></div><button class="ghost" data-act="ph-end">End session</button></div>
     <div class="fc-wrap">${coach}<div class="bar"><i style="width:${(s.i / s.queue.length) * 100}%"></i></div>
     <div class="fc ${s.flipped ? 'flip' : ''}" ${selfFlip ? 'data-act="ph-flip"' : ''}><div class="fc-in"><div class="fc-face">${front}${selfFlip ? '<div class="muted">click or press Space to flip</div>' : ''}</div><div class="fc-face back">${back}</div></div></div>
     ${controls}</div>`;
@@ -171,10 +171,8 @@ function phGrade(g, retyped) {
   if (!phRec(cur.p).reps) bumpDay('newPhrases');
   S.phrases = S.phrases || {}; S.phrases[cur.p.id] = L.grade(phRec(cur.p), g, today());
   s.n++; if (g !== 'again' && !cur.q.again) s.good++;
-  const retry = { id: cur.q.id, kind: cur.q.kind, dir: cur.q.dir, again: true };
-  if (phPrefs().repeat) { // Repeat: a card rated 1 or 2 (or answered wrong) comes back 2 or 3 cards later; a retry rated 1 or wrong comes back again
-    if (cur.q.again ? g === 'again' || s.res === 'wrong' : g !== 'easy' || s.res === 'wrong') s.queue.splice(Math.min(s.queue.length, s.i + 2 + Math.floor(Math.random() * 2)), 0, retry);
-  } else if (g === 'again' && !cur.q.again) s.queue.push(retry);
+  if (phPrefs().repeat) { if (g === 'again' || s.res === 'wrong') L.requeueMiss(s, cur.q, retyped); } // Repeat: only a miss comes back, a few cards later and at most twice
+  else if (g === 'again' && !cur.q.again) s.queue.push(Object.assign({}, cur.q, { again: true, back: 1 }));
   chime(g === 'again' ? 'bad' : 'ok'); gainXp(g === 'again' ? XP.cardAgain : g === 'easy' ? XP.cardEasy : XP.cardGood);
   bumpDay(g === 'again' ? 'cMiss' : 'cOk'); if (g === 'again') noteMiss(cur.p.nl, 'phrases');
   s.last = { ok: g !== 'again', p: cur.p };

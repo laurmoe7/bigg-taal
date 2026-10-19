@@ -429,3 +429,18 @@ test('settings: the volume starts at full and old saves get it', () => {
   assert.equal(L.fixState({ settings: { rate: 0.8 } }).settings.volume, 1);
   assert.equal(L.fixState({ settings: { volume: 0.4 } }).settings.volume, 0.4);
 });
+test('repeat: a missed card comes back 2 or 3 cards later, further after a retype, and at most twice', () => {
+  const s = { queue: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((id) => ({ id, again: false })), i: 0 };
+  assert.equal(L.requeueMiss(s, s.queue[0], false, () => 0), true); assert.deepEqual(s.queue[2], { id: 1, again: true, back: 1 });
+  s.i = 2; assert.equal(L.requeueMiss(s, s.queue[2], true, () => 0), true); assert.deepEqual(s.queue[7], { id: 1, again: true, back: 2 });
+  s.i = 7; const n = s.queue.length; assert.equal(L.requeueMiss(s, s.queue[7], false), false); assert.equal(s.queue.length, n);
+  const end = { queue: [{ id: 1 }], i: 0 }; L.requeueMiss(end, end.queue[0], true, () => 0.99); assert.equal(end.queue.length, 2); // near the end it goes last
+});
+test('repeat: progress counts the cards you chose, plus the redos left', () => {
+  const q = [{ id: 1 }, { id: 2 }, { id: 1, again: true }, { id: 3 }, { id: 2, again: true }];
+  assert.equal(L.sessionProgress({ queue: q, i: 0 }), '1 of 3 · 2 to redo');
+  assert.equal(L.sessionProgress({ queue: q, i: 2 }), '🔁 Redo · 2 of 3 done · 1 to redo');
+  assert.equal(L.sessionProgress({ queue: q, i: 3 }), '3 of 3 · 1 to redo');
+  assert.equal(L.sessionProgress({ queue: q, i: 4 }), '🔁 Redo · 3 of 3 done');
+  assert.equal(L.sessionProgress({ queue: [{ id: 1 }, { id: 2 }], i: 1 }), '2 of 2');
+});

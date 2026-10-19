@@ -153,7 +153,7 @@ VIEWS.cards = () => {
   const dirBtn = (d, label) => dirChip(d, label);
   const sw = (on, k, label, off, tip) => `<button class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" data-act="cpref" data-k="${k}" data-v="${on ? '' : '1'}" ${off ? 'disabled' : ''} title="${tip}"><i></i>${label}</button>`;
   const prefs = `<div class="fopts compact">
-    <div class="og"><span class="muted">Mode</span>${modeChip('flip', 'Flip')}${modeChip('type', '⌨️ Type')}${modeChip('cloze', '✏️ Fill the blank')}<span class="sep"></span>${sw(p.retype, 'retype', '✍️ Retype', false, 'When you get a card wrong, you have to type the right word before moving on')}${sw(p.repeat, 'repeat', '🔁 Repeat', false, 'A card you rate 1 or 2, or get wrong, comes back 2 or 3 cards later until you know it')}</div>
+    <div class="og"><span class="muted">Mode</span>${modeChip('flip', 'Flip')}${modeChip('type', '⌨️ Type')}${modeChip('cloze', '✏️ Fill the blank')}<span class="sep"></span>${sw(p.retype, 'retype', '✍️ Retype', false, 'When you get a card wrong, you have to type the right word before moving on')}${sw(p.repeat, 'repeat', '🔁 Repeat', false, 'A card you get wrong comes back a few cards later, up to 2 times')}</div>
     <div class="og"><span class="muted">Direction</span>${dirBtn('nl-en', 'NL → EN')}${dirBtn('en-nl', 'EN → NL')}${dirBtn('mixed', 'Mixed')}<span class="sep"></span>${sw(p.auto, 'auto', '🔊 Auto-speak', false, 'Say each word out loud when it appears')}</div>
     <div class="og"><span class="muted">Group</span>${cardGroupSel()}</div>
     <div class="og hint muted">${MODE_INFO[p.mode] || MODE_INFO.flip}</div></div>`;
@@ -200,7 +200,7 @@ VIEWS.cards = () => {
       : `<div class="row" style="justify-content:center"><button class="primary keyed" data-act="flip">Show answer<small class="btn-key">${kbdIn('flip')}</small></button></div>`;
   }
   const selfFlip = !type && !c.flipped;
-  return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${c.i + 1} of ${c.queue.length}${c.label ? ' · ' + c.label : ''}</p></div><button class="ghost" data-act="cards-done">End session</button></div>
+  return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${L.sessionProgress(c)}${c.label ? ' · ' + c.label : ''}</p></div><button class="ghost" data-act="cards-done">End session</button></div>
     <div class="fc-wrap">${coach}<div class="bar"><i style="width:${(c.i / c.queue.length) * 100}%"></i></div>
     <div class="fc ${c.flipped ? 'flip' : ''} ${c.flipped && c.res ? 'r-' + (c.res === 'article' ? 'close' : c.res) : ''}${c.flipped && c.res === 'right' && w.article && !cz && !nlFront && L.norm(c.typed) === L.norm(w.nl) ? ' noart' : ''}" ${selfFlip ? 'data-act="flip"' : ''}><div class="fc-in"><div class="fc-face">${frontHtml}${selfFlip ? '<div class="muted">click or press Space to flip</div>' : ''}</div><div class="fc-face back">${backHtml}</div></div></div>
     ${controls}</div>`;
@@ -222,10 +222,8 @@ function gradeCard(g, retyped) {
   if (!cur.w.reps) L.bump(S.log, today(), 'newWords');
   const upd = L.grade(cur.w, g, today()); S.words[S.words.indexOf(cur.w)] = upd;
   c.n++; if (g !== 'again' && !cur.q.again) c.good++;
-  const retry = { id: cur.q.id, dir: cur.q.dir, again: true, cz: cur.q.cz };
-  if (cardPrefs().repeat) { // Repeat: a card rated 1 or 2 (or answered wrong) comes back 2 or 3 cards later; a retry rated 1 or wrong comes back again
-    if (cur.q.again ? g === 'again' || c.res === 'wrong' : g !== 'easy' || c.res === 'wrong') c.queue.splice(Math.min(c.queue.length, c.i + 2 + Math.floor(Math.random() * 2)), 0, retry);
-  } else if (g === 'again' && !cur.q.again) c.queue.push(retry);
+  if (cardPrefs().repeat) { if (g === 'again' || c.res === 'wrong') L.requeueMiss(c, cur.q, retyped); } // Repeat: only a miss comes back, a few cards later and at most twice
+  else if (g === 'again' && !cur.q.again) c.queue.push(Object.assign({}, cur.q, { again: true, back: 1 }));
   chime(g === 'again' ? 'bad' : 'ok');
   gainXp(g === 'again' ? XP.cardAgain : g === 'easy' ? XP.cardEasy : XP.cardGood);
   bumpDay(g === 'again' ? 'cMiss' : 'cOk'); if (g === 'again') noteMiss(cur.w.nl, 'cards');

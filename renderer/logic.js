@@ -874,6 +874,24 @@
     return { kind: 'right', act: pick(['hop', 'wiggle', 'nod', 'bounce', 'twirl', 'wave']), burst: rnd() < 0.35 ? '💗' : '' };
   };
 
+  // Repeat: a missed card comes back a few cards later, at most twice in a session, so one hard word cannot take over.
+  // After you retyped it, it waits longer (5 to 8 cards), so seeing it again tests your memory and not what you just typed.
+  // s = { queue, i } with i still on the missed card q. Returns false when the card has come back enough (it waits for the next session).
+  L.MAX_COMEBACKS = 2;
+  L.requeueMiss = (s, q, retyped, rnd) => {
+    rnd = rnd || Math.random; const back = q.back || 0;
+    if (back >= L.MAX_COMEBACKS) return false;
+    const gap = retyped ? 5 + Math.floor(rnd() * 4) : 2 + Math.floor(rnd() * 2);
+    s.queue.splice(Math.min(s.queue.length, s.i + gap), 0, Object.assign({}, q, { again: true, back: back + 1 }));
+    return true;
+  };
+  // Where a session is, counted against the cards you chose (each once), plus the redos still waiting: "14 of 20 · 3 to redo".
+  L.sessionProgress = ({ queue, i }) => {
+    const total = queue.filter((q) => !q.again).length, done = queue.slice(0, i).filter((q) => !q.again).length, cur = queue[i];
+    const redo = queue.slice(i).filter((q) => q.again).length - (cur && cur.again ? 1 : 0), more = redo ? ` · ${redo} to redo` : '';
+    return cur && cur.again ? `🔁 Redo · ${done} of ${total} done${more}` : `${Math.min(done + 1, total)} of ${total}${more}`;
+  };
+
   // Rough size of a prompt in Claude tokens (about 3.6 characters each for mixed Dutch and English). An estimate, not a count.
   L.estimateTokens = (text) => Math.ceil(String(text || '').length / 3.6);
 

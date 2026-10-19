@@ -78,7 +78,7 @@ function formsStartScreen() {
   const ready = due + Math.min(fresh, fmNewLeft());
   const sw = (on, k, label, tip) => `<button class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" data-act="fm-pref" data-k="${k}" data-v="${on ? '' : '1'}" title="${tip}"><i></i>${label}</button>`;
   const prefs = `<div class="fopts compact">
-    <div class="og"><span class="muted">Options</span>${sw(P.retype, 'retype', '✍️ Retype', 'When you get a card wrong, you have to type the right form before moving on')}${sw(P.repeat, 'repeat', '🔁 Repeat', 'A card you rate 1 or 2, or get wrong, comes back 2 or 3 cards later until you know it')}${sw(P.auto, 'auto', '🔊 Auto-speak', 'Say each sentence out loud after you answer')}</div>
+    <div class="og"><span class="muted">Options</span>${sw(P.retype, 'retype', '✍️ Retype', 'When you get a card wrong, you have to type the right form before moving on')}${sw(P.repeat, 'repeat', '🔁 Repeat', 'A card you get wrong comes back a few cards later, up to 2 times')}${sw(P.auto, 'auto', '🔊 Auto-speak', 'Say each sentence out loud after you answer')}</div>
     <div class="og"><span class="muted">Group</span><select id="fm-grp">${FM_GROUPS.map(([id, n]) => `<option value="${id}" ${P.group === id ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="og hint muted">You get a sentence with a word missing and the word it comes from. Type the right form: zijn → was, waren or geweest.</div></div>`;
   const loading = !fmVerbCache && !sel.length;
@@ -121,7 +121,7 @@ function fmSession() {
   const copyIn = `<p class="muted" style="text-align:center;margin:4px 0 8px">Type it once to move on 🌱</p><input type="text" class="big-in" id="fm-copy" data-focus data-enter="fm-copy-ok" autocomplete="off" spellcheck="false" placeholder="${esc(it.form)}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="fm-copy-ok">Continue</button><button class="ghost keyed" data-act="fm-copy-skip">Skip${skipKey()}</button></div>`;
   const controls = s.phase === 'miss' ? copyIn : s.flipped ? grades
     : `<input type="text" class="big-in" id="fm-in" data-focus data-enter="fm-check" autocomplete="off" spellcheck="false" placeholder="Type the right form... (Enter)"><div class="row" style="justify-content:center;margin-top:10px"><kbd class="kbd">Space</kbd><button class="primary" data-act="fm-check">Check</button><button class="ghost keyed" data-act="fm-hint">💡 Hint<small class="btn-key">${typingKbd('hint')}</small></button><button class="ghost keyed" data-act="fm-skip">I don't know${skipKey()}</button></div>`;
-  return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${s.i + 1} of ${s.queue.length}${s.label ? ' · ' + esc(s.label) : ''}</p></div><button class="ghost" data-act="fm-end">End session</button></div>
+  return `<div class="top"><div><h1>Flashcards</h1><p class="sub">${L.sessionProgress(s)}${s.label ? ' · ' + esc(s.label) : ''}</p></div><button class="ghost" data-act="fm-end">End session</button></div>
     <div class="fc-wrap">${coach}<div class="bar"><i style="width:${(s.i / s.queue.length) * 100}%"></i></div>
     <div class="fc ${s.flipped ? 'flip' : ''} ${s.flipped && s.res ? 'r-' + s.res : ''}"><div class="fc-in"><div class="fc-face">${front}</div><div class="fc-face back">${back}</div></div></div>
     ${controls}</div>`;
@@ -151,10 +151,8 @@ function fmGrade(g, retyped) {
   if (!fmRec(cur.it).reps) bumpDay('newForms');
   S.forms = S.forms || {}; S.forms[cur.it.id] = L.grade(fmRec(cur.it), g, today());
   s.n++; if (g !== 'again' && !cur.q.again) s.good++;
-  const retry = { id: cur.q.id, again: true };
-  if (fmPrefs().repeat) { // Repeat: a card rated 1 or 2 (or answered wrong) comes back 2 or 3 cards later; a retry rated 1 or wrong comes back again
-    if (cur.q.again ? g === 'again' || s.res === 'wrong' : g !== 'easy' || s.res === 'wrong') s.queue.splice(Math.min(s.queue.length, s.i + 2 + Math.floor(Math.random() * 2)), 0, retry);
-  } else if (g === 'again' && !cur.q.again) s.queue.push(retry);
+  if (fmPrefs().repeat) { if (g === 'again' || s.res === 'wrong') L.requeueMiss(s, cur.q, retyped); } // Repeat: only a miss comes back, a few cards later and at most twice
+  else if (g === 'again' && !cur.q.again) s.queue.push(Object.assign({}, cur.q, { again: true, back: 1 }));
   chime(g === 'again' ? 'bad' : 'ok'); gainXp(g === 'again' ? XP.cardAgain : g === 'easy' ? XP.cardEasy : XP.cardGood);
   bumpDay(g === 'again' ? 'cMiss' : 'cOk'); if (g === 'again') noteMiss(cur.it.inf, 'forms');
   s.last = { ok: g !== 'again', it: cur.it };
