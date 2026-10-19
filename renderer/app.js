@@ -157,7 +157,7 @@ function pigLine() {
 
 // ---------- shell ----------
 const NAV = [['home', '🏠', 'Today', '#ff9d8e'], ['cards', '🃏', 'Flashcards', '#7fd4f0'], ['listen', '🎧', 'Listening', '#9ccbff'], ['sheets', '📝', 'Worksheets', '#ffe08a'],
-  ['words', '🔤', 'Words', '#ffb38a'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['bonus', '🎁', 'Bonus Lessons', '#c9a7ff'], ['progress', '📈', 'Progress', '#b5b9ff'], ['wardrobe', '🎩', 'Wardrobe', '#a8e6cf'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
+  ['words', '🔤', 'My words', '#ffb38a'], ['dict', '📖', 'Dictionary', '#ffd1a6'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['bonus', '🎁', 'Bonus Lessons', '#c9a7ff'], ['progress', '📈', 'Progress', '#b5b9ff'], ['wardrobe', '🎩', 'Wardrobe', '#a8e6cf'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
 function renderSide() {
   const lv = L.levelInfo(S.xp || 0); ui.sideLevel = lv.level;
   const due = dueList().length, fresh = ((S.wardrobe || {}).fresh || []).length, sig = [ui.view, due, lv.level, liveWords().length, pigStage(), currentLook(), currentBg(), fresh, today()].join('|');
