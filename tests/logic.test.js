@@ -362,15 +362,15 @@ test('seasons and holidays (ported from Varken board)', () => {
 });
 
 test('levels: 99 levels shaped like RuneScape, names spread out, start from old history', () => {
-  assert.equal(L.XP_TO[2], 151); assert.equal(L.levelInfo(0).level, 1); assert.equal(L.levelInfo(150).level, 1); assert.equal(L.levelInfo(151).level, 2); assert.equal(L.levelInfo(151).into, 0);
+  assert.equal(L.XP_TO[2], 302); assert.equal(L.levelInfo(0).level, 1); assert.equal(L.levelInfo(301).level, 1); assert.equal(L.levelInfo(302).level, 2); assert.equal(L.levelInfo(302).into, 0);
   const total = L.XP_TO[99];
-  assert.ok(total > 120000 && total < 170000, 'about 145,000 XP in all');
+  assert.ok(total > 250000 && total < 330000, 'about 290,000 XP in all');
   assert.ok(L.XP_TO[92] / total > 0.48 && L.XP_TO[92] / total < 0.58, 'level 92 is about halfway');
   assert.ok(L.XP_TO[90] < total / 2 && L.XP_TO[92] >= total / 2, 'the halfway point sits at level 91-92');
   for (let n = 2; n < 99; n++) assert.ok(L.levelNeed(n) >= L.levelNeed(n - 1), 'every level costs at least as much as the last');
   assert.equal(L.levelInfo(total).level, 99); assert.equal(L.levelInfo(total).max, true); assert.equal(L.levelInfo(total * 3).level, 99); assert.equal(L.levelInfo(total - 1).level, 98);
   assert.equal(L.levelTitle(1)[0], 'Zaadje'); assert.equal(L.levelTitle(4)[0], 'Zaadje'); assert.equal(L.levelTitle(5)[0], 'Kiem'); assert.equal(L.levelTitle(92)[0], 'Taalkoning'); assert.equal(L.levelTitle(98)[0], 'Taalfee'); assert.equal(L.levelTitle(99)[0], 'Taallegende');
-  assert.equal(L.levelInfo(75).pct, 50); assert.ok(/MAX/.test(L.xpText(L.levelInfo(total))));
+  assert.equal(L.levelInfo(151).pct, 50); assert.ok(/MAX/.test(L.xpText(L.levelInfo(total))));
   assert.equal(L.xpFromHistory({ a: { reviews: 10, listen: 5, sheets: 1 }, b: { reviews: 99, xp: 40 } }, [L.newWord({ reps: 2 }), L.newWord({}), L.newWord({ deleted: true, reps: 3 })]), 40 + 20 + 15 + 40 + 1);
 });
 
