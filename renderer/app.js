@@ -188,22 +188,14 @@ const VIEWS = {};
 const dayNo = () => L.daysBetween('2000-01-01', today()); // counts local days, so the daily things change at your midnight, not at UTC's
 const dailyPick = (list, n) => { const d = dayNo(); return Array.from({ length: n }, (_, i) => list[(d * n + i) % list.length]); }; // the same few every time today, different tomorrow
 VIEWS.home = () => {
-  const t = todayStats(), g = S.settings.dailyGoal, due = dueList().length, m = L.mastery(S.words), lv = L.levelInfo(S.xp || 0);
   if (!ui.say) ui.say = pigLine();
-  const week = L.week(S.log, today()), max = Math.max(5, ...week.map((x) => x.n));
   const pv = PROVERBS[dayNo() % PROVERBS.length];
   const dn = (d) => ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][new Date(d + 'T12:00').getDay()];
   const upd = UPD.status === 'ready' ? `<div class="card upd"><div class="row"><div class="grow"><b>A new BiggTaal is ready! 🌸</b><div class="muted">Version ${esc(UPD.version)} has been downloaded. It installs when you restart, and your words and progress are safe.</div></div><button class="primary" data-act="update-install">Restart to update</button></div></div>` : '';
   return `${upd}${typeof recapNotice === 'function' ? recapNotice() : ''}<div class="hero">${pigSvg(pigMood(), '', { stage: pigStage(), note: true, cap: isNight() })}<div class="bubble" id="bubble">${esc(ui.say)}</div></div>
-  <div class="grid g4">
-    <div class="card stat s-coral"><i class="si">🎯</i><b>${(t.reviews || 0)} / ${g}</b><span>cards today</span><div class="bar" style="margin-top:8px"><i style="width:${Math.min(100, ((t.reviews || 0) / g) * 100)}%"></i></div></div>
-    <div class="card stat s-sun"><i class="si">⭐</i><b>Lv ${lv.level}</b><span>${esc(lv.title[0])}</span></div>
-    <div class="card stat s-aqua"><i class="si">🃏</i><b>${due}</b><span>cards due now</span></div>
-    <div class="card stat s-mint"><i class="si">🌱</i><b>${m.learned} <small class="muted">/ ${m.total}</small></b><span>words learned (box 4+)</span></div>
-  </div>
-  <div class="grid g2" style="margin-top:14px">
-    ${typeof mixCard === 'function' ? mixCard() : ''}
-    <div class="stack">${levelCard()}${mistakesCard()}${trickyCard()}</div>
+  <div class="grid g2 home">
+    <div class="stack">${typeof mixCard === 'function' ? mixCard() : ''}${trickyCard()}</div>
+    <div class="stack">${levelCard()}${mistakesCard()}</div>
     <div class="card daily"><h2>Spreuk van de dag</h2><div class="dl-row"><div><b class="dl-big">${esc(pv[0])}</b><small class="muted">${esc(pv[1])}</small></div><button class="ghost mini" data-act="say" data-t="${esc(pv[0])}" title="Listen">🔊</button></div>
       <h3 class="dl-h">Zinnen van de dag</h3>${dailyPick(DAILY_PHRASES, 2).map((x) => `<div class="dl-row"><div><b>${esc(x[0])}</b><small class="muted">${esc(x[1])}</small></div><button class="ghost mini" data-act="say" data-t="${esc(x[0])}" title="Listen">🔊</button></div>`).join('')}
       <h3 class="dl-h">Woorden van de dag</h3>${dailyPick(DAILY_WORDS, 2).map((x) => `<div class="dl-row"><div><b>${esc(x[0])}</b><small class="muted">${esc(x[1])}</small></div><button class="ghost mini" data-act="say" data-t="${esc(x[0])}" title="Listen">🔊</button></div>`).join('')}</div>

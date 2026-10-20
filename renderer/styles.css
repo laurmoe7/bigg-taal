@@ -550,6 +550,7 @@ body::before { will-change: transform; }
 .wd-new { position: absolute; top: 8px; right: 8px; background: var(--grad); color: var(--ink); font-size: 11px; font-weight: 900; padding: 1px 8px; border-radius: 999px; }
 /* daily mix */
 .mix-rows { display: flex; flex-direction: column; gap: 8px; }
+.mix-goal { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 13px; font-weight: 800; color: var(--muted); } .mix-goal .bar { flex: 1; height: 8px; } .mix-goal b { color: var(--text); white-space: nowrap; }
 .mix-row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 16px; border: 1px solid var(--line); background: #ffffff08; color: var(--text); text-align: left; transition: transform .15s, border-color .15s; }
 .mix-row:hover { transform: translateX(3px); border-color: var(--lav); } .mix-ic { font-size: 24px; } .mix-t { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; } .mix-t b { font-size: 16px; } .mix-t small { font-size: 13px; }
 .mix-t .bar { display: block; height: 6px; } .mix-n { font-weight: 900; color: var(--muted); min-width: 52px; text-align: right; }
@@ -586,6 +587,11 @@ body::before { will-change: transform; }
 .dl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); } .daily h2 + .dl-row { border-top: 0; }
 .dl-row > div { display: flex; flex-direction: column; min-width: 0; } .dl-row b { font-size: 16px; } .dl-row .dl-big { font-size: 18px; } .dl-row small { font-size: 14px; }
 
+/* Today: everything on one screen. Bigg is a bit smaller, cards keep their natural height (only the last in a column fills it) */
+.hero { margin-bottom: 12px; padding-top: 2px; } .hero .pig { width: 148px; height: 148px; } .hero::before { width: 210px; height: 210px; }
+.home h2 { margin-bottom: 8px; } .home .stack > .card { flex: none; } .home .stack > .card:last-child { flex: 1; }
+.home .row button { padding: 7px 14px; font-size: 14px; } .home .mix-row { padding: 6px 12px; } .home .mix-rows { gap: 6px; } .home .dl-row { padding: 6px 0; } .home .dl-h { margin-top: 10px; }
+.home .lvgraph { flex: none; height: 104px; min-height: 0; } .home .lvgraph svg { height: 100%; }
 .lvgraph { flex: 1; min-height: 96px; display: flex; align-items: flex-end; margin-top: 10px; } .lvgraph svg { width: 100%; height: auto; max-height: 100%; display: block; } .lvcap { font-size: 13px; margin-top: 4px; text-align: center; font-weight: 700; }
 
 .dd-list { overscroll-behavior: contain; }

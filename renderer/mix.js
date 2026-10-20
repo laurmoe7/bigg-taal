@@ -9,8 +9,10 @@ function mixCard() {
   const row = (s) => `<button class="mix-row ${s.done ? 'done' : ''}" data-act="mix-go" data-v="${s.id}"><span class="mix-ic">${s.icon}</span>
     <span class="mix-t"><b>${esc(s.title)}</b><small class="muted">${esc(s.text)}</small><span class="bar"><i style="width:${Math.min(100, (s.have / s.need) * 100)}%"></i></span></span>
     <span class="mix-n">${s.done ? '✓' : Math.min(s.have, s.need) + ' / ' + s.need}</span></button>`;
+  const cards = todayStats().reviews || 0, goal = S.settings.dailyGoal;
   return `<div class="card mix"><h2>🌈 Daily mix <span class="pill ${all ? 'mint' : 'sky'}">${done} / ${steps.length}</span></h2>
-    <p class="muted" style="margin:0 0 10px">${all ? 'All done for today! Bigg is so proud of you. 🎉' : 'A little of everything. Finish all three for bonus XP.'}</p>
+    <div class="mix-goal"><span>🎯 Daily goal</span><span class="bar"><i style="width:${Math.min(100, (cards / goal) * 100)}%"></i></span><b>${cards} / ${goal} cards</b></div>
+    ${all ? '<p class="muted" style="margin:0 0 10px">All done for today! Bigg is so proud of you. 🎉</p>' : ''}
     <div class="mix-rows">${steps.map(row).join('')}</div>
     <div class="row" style="margin-top:12px">${all ? `<button class="ghost" data-act="mix-go" data-v="cards">🃏 Keep practising</button>` : `<button class="primary" data-act="mix-go">▶ ${next.id === 'cards' ? 'Start' : 'Next'}: ${esc(next.title)}</button>`}<span class="muted">+${MIX_BONUS} XP bonus when all three are done</span></div></div>`;
 }
