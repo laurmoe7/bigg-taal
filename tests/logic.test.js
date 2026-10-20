@@ -122,7 +122,7 @@ test('card queue: due cards, new words Dutch first, then English → Dutch cards
   const weak = L.newWord({ nl: 'weak', en: 'x', reps: 3, last: '2026-10-01', due: '2026-10-25', box: 2, stab: 5 });
   const both = L.newWord({ nl: 'both', en: 'x', reps: 3, last: '2026-10-01', due: '2026-10-10', box: 2, rv: { reps: 2, due: '2026-10-08', box: 1 } });
   const q = L.cardQueue([...fresh, seenToday, known, weak, both], t, o);
-  assert.deepEqual(q.map((c) => c.w.nl + ':' + c.dir), ['both:en-nl', 'n1:nl-en', 'n2:nl-en', 'known:en-nl']); // both cards due: one comes; the best-known word starts first
+  assert.deepEqual(q.map((c) => c.w.nl + ':' + c.dir), ['n1:nl-en', 'both:en-nl', 'n2:nl-en', 'known:en-nl']); // both cards due: one comes; new cards spread in; the best-known word starts first
   assert.equal(L.cardQueue([seenToday, known, both], t, Object.assign({}, o, { dirs: 'nl-en' })).map((c) => c.w.nl + ':' + c.dir).join(), 'both:nl-en');
   assert.equal(L.cardQueue([known, both], t, Object.assign({}, o, { dirs: 'en-nl', revToday: 1 })).map((c) => c.w.nl).join(), 'both'); // today's starts used up
   assert.deepEqual(L.aheadCards([known, weak, both], t, 'both').map((c) => c.w.nl), ['weak', 'known']);
@@ -469,4 +469,32 @@ test('repeat: progress counts the cards you chose, plus the redos left', () => {
   assert.equal(L.sessionProgress({ queue: q, i: 3 }), '3 of 3 · 1 to redo');
   assert.equal(L.sessionProgress({ queue: q, i: 4 }), '🔁 Redo · 3 of 3 done');
   assert.equal(L.sessionProgress({ queue: [{ id: 1 }, { id: 2 }], i: 1 }), '2 of 2');
+});
+
+test('spread: extra items go evenly between the others, in order', () => {
+  assert.equal(L.spread(['a', 'b', 'c', 'd'], ['X', 'Y']).join(''), 'aXbcYd');
+  assert.equal(L.spread([...'abcdefghi'], ['X']).join(''), 'abcdeXfghi');
+  assert.equal(L.spread([], ['X']).join(''), 'X'); assert.equal(L.spread(['a'], []).join(''), 'a');
+});
+
+test('tricky words: 4+ misses on a card that is still weak', () => {
+  const w = (o) => L.newWord(Object.assign({ nl: 'x', en: 'y', reps: 6 }, o));
+  assert.equal(L.isTricky(w({ lapses: 4, box: 2 })), true);
+  assert.equal(L.isTricky(w({ lapses: 4, box: 4 })), false); // strong again
+  assert.equal(L.isTricky(w({ lapses: 3, box: 1 })), false);
+  assert.equal(L.isTricky(w({ lapses: 0, box: 5, rv: { reps: 5, lapses: 5, box: 1 } })), true); // the English → Dutch card
+  assert.equal(L.isTricky(w({ lapses: 5, box: 1, deleted: true })), false);
+  const t = L.trickyWords([w({ nl: 'a', lapses: 4, box: 1 }), w({ nl: 'b', lapses: 6, box: 1, rv: { reps: 1, lapses: 1 } }), w({ nl: 'c' })]);
+  assert.deepEqual(t.map((x) => x.nl), ['b', 'a']); assert.equal(L.missCount(t[0]), 7);
+});
+
+test('stories: prompt and reading the reply from Claude', () => {
+  const p = L.storyPrompt({ level: 'B1', length: 'short', topic: 'Work & jobs', words: [{ nl: 'afspraak', article: 'de', en: 'appointment' }] });
+  assert.match(p, /B1/); assert.match(p, /about 120 words/); assert.match(p, /de afspraak \(appointment\)/); assert.match(p, /Work & jobs/);
+  const reply = 'Here you go!\n```json\n' + JSON.stringify({ story: { title: 'Een dag', paragraphs: [{ nl: 'Sara werkt.', en: 'Sara works.' }, 'Ze is moe.', { en: 'no Dutch' }],
+    glossary: [{ nl: 'de dag', en: 'day' }, { nl: 'x' }], questions: [{ q: 'Wie werkt?', options: ['Sara', 'Tom'], answer: 'Sara' }, { q: 'Bad', options: ['a', 'b'], answer: 'c' }] } }) + '\n```';
+  const r = L.parseStory(reply).story;
+  assert.equal(r.title, 'Een dag'); assert.equal(r.paragraphs.length, 2); assert.equal(r.paragraphs[1].nl, 'Ze is moe.');
+  assert.equal(r.glossary.length, 1); assert.equal(r.questions.length, 1);
+  assert.ok(L.parseStory('no json here').error); assert.ok(L.parseStory('{"story":{"paragraphs":[]}}').error);
 });

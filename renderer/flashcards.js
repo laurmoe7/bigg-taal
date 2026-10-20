@@ -87,6 +87,13 @@ function autoSpeak() { const c = curCard(); if (c && c.q.dir === 'nl-en' && card
 // The ratings a card can get. In the typing modes the app has checked the answer: wrong is Again, a slip is Again or Good,
 // right is Good or Easy. Flip mode, where you judge yourself, has all three.
 const cardGrades = () => { const r = ui.cards && ui.cards.res; return !r ? ['again', 'good', 'easy'] : r === 'wrong' ? ['again'] : r === 'close' ? ['again', 'good'] : ['good', 'easy']; };
+// Below a flipped card: your memory trick for the word, or, for a tricky word without one, a box to write one
+function trickHtml(w) {
+  if (w.trick) return `<div class="trick">💡 <b>Memory trick:</b> ${esc(w.trick)}</div>`;
+  if (!L.isTricky(w)) return '';
+  return `<div class="trick ask"><div>🧠 <b>This one keeps slipping</b> (missed ${L.missCount(w)}×). A memory trick helps: a picture, a sound-alike, a silly sentence.</div>
+    <div class="row" style="margin-top:6px"><input type="text" class="grow" id="fc-trick" autocomplete="off" placeholder="e.g. tafel sounds like 'table full' of food" data-enter="trick-save" data-id="${w.id}"><button class="ghost" data-act="trick-save" data-id="${w.id}">Save</button></div></div>`;
+}
 // ---------- checking what you typed ----------
 // Old "type answer" mode (you grade yourself afterwards): right | close | wrong
 const bestCheck = (typed, w, dir) => {
@@ -207,11 +214,12 @@ VIEWS.cards = () => {
   const hk = hotkeys(), gs = cardGrades(), gBtn = (g, label, small) => (gs.includes(g) ? `<button class="g-${g} ${sug === g ? 'on' : ''}" data-act="grade" data-g="${g}"><span class="gl"><kbd class="kbd" title="Press this key">${keyLabel(hk[g])}</kbd>${label}</span><small>${small}</small></button>` : '');
   const gradeBtns = `<div class="grades">${gBtn('again', 'Again', 'today')}${gBtn('good', 'Good', iv.good + 'd')}${gBtn('easy', 'Easy', iv.easy + 'd')}</div>${c.res === 'wrong' && c.typed ? '<div class="row" style="justify-content:center;margin-top:6px"><button class="ghost mini" data-act="grade" data-g="good" title="Your answer was right too (another meaning or spelling): count it as Good">✓ I was right</button></div>' : ''}<div class="muted keyhint">⌨ Keyboard: press ${gs.map((g) => keyLabel(hk[g])).join(gs.length > 2 ? ', ' : ' or ')} to rate, ${keyLabel(hk.speak)} to hear it</div>`;
   let controls;
+  const trick = c.flipped || c.phase === 'miss' ? trickHtml(w) : '';
   const want = cz ? cz.form : wordLabel(w);
   if (c.phase === 'miss') {
-    controls = `<p class="muted" style="text-align:center;margin:4px 0 8px">Type it once to move on 🌱</p><input type="text" class="big-in" id="copy" data-focus autocomplete="off" spellcheck="false" placeholder="${esc(want)}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="copy-ok">Continue</button><button class="ghost keyed" data-act="copy-skip">Skip${skipKey()}</button>${c.typed ? '<button class="ghost" data-act="grade" data-g="good" title="Your answer was right too (another meaning or spelling): count it as Good">✓ I was right</button>' : ''}</div>`;
+    controls = trick + `<p class="muted" style="text-align:center;margin:4px 0 8px">Type it once to move on 🌱</p><input type="text" class="big-in" id="copy" data-focus autocomplete="off" spellcheck="false" placeholder="${esc(want)}"><div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-act="copy-ok">Continue</button><button class="ghost keyed" data-act="copy-skip">Skip${skipKey()}</button>${c.typed ? '<button class="ghost" data-act="grade" data-g="good" title="Your answer was right too (another meaning or spelling): count it as Good">✓ I was right</button>' : ''}</div>`;
   } else {
-    controls = c.flipped ? gradeBtns : type
+    controls = c.flipped ? trick + gradeBtns : type
       ? `<input type="text" class="big-in" id="typed" data-focus autocomplete="off" spellcheck="false" placeholder="${cz ? 'Type the missing word... (Enter)' : `Type the ${nlFront ? 'English' : 'Dutch'}... (Enter)`}"><div class="row" style="justify-content:center;margin-top:10px">${spaceKbd(cur)}<button class="primary" data-act="check">Check</button>${cz ? `<button class="ghost keyed" data-act="fc-hint">💡 Hint<small class="btn-key">${typingKbd('hint')}</small></button>` : ''}<button class="ghost keyed" data-act="skip">I don't know${skipKey()}</button></div>`
       : `<div class="row" style="justify-content:center"><button class="primary keyed" data-act="flip">Show answer<small class="btn-key">${kbdIn('flip')}</small></button></div>`;
   }
@@ -308,6 +316,11 @@ Object.assign(ACT, {
     render();
   },
   'fc-hint': () => { const c = ui.cards, cur = curCard(); if (!cur) return; c.hint = Math.min(2, (c.hint || 0) + 1); const h = $('#fc-hint'); if (h) h.textContent = L.hintText(cardPrefs().mode === 'cloze' && cur.q.cz ? cur.q.cz.form : cur.w.nl, c.hint); const t = $('#typed'); if (t) t.focus(); },
+  'trick-save': (el) => {
+    const w = S.words.find((x) => x.id === ((el && el.dataset.id) || ($('#fc-trick') || {}).dataset.id)), v = (($('#fc-trick') || {}).value || '').trim();
+    if (!w) return; if (!v) return toast('Write a trick first.');
+    w.trick = v; save(); toast('Saved your memory trick 💡'); render();
+  },
   'copy-ok': () => copyContinue(false), 'copy-skip': () => copyContinue(true),
 });
 document.addEventListener('change', (e) => { if (e.target.id === 'fc-n') { cardPrefs().more = +e.target.value; save(); } });

@@ -20,7 +20,17 @@ function mistakesCard() {
       <div class="row"><button class="primary" data-act="mr-cards">🃏 Flashcards</button><button class="ghost" data-act="mr-listen">🎧 Listening</button><button class="ghost" data-act="mr-sheet">📝 Worksheet</button></div>`
       : '<p class="muted" style="margin:0">No mistakes this week. 🌸</p>'}</div>`;
 }
+// Words that keep slipping (missed 4+ times and still weak): practise them, or give them a memory trick
+function trickyCard() {
+  const t = L.trickyWords(S.words); if (!t.length) return '';
+  const noTrick = t.filter((w) => !w.trick).length;
+  return `<div class="card"><h2>🧠 Tricky words</h2>
+    <p class="muted" style="margin:0 0 10px">${t.slice(0, 5).map((w) => `<b>${esc(w.nl)}</b> <small>${L.missCount(w)}×</small>`).join(', ')}${t.length > 5 ? ' +' + (t.length - 5) : ''}${noTrick ? `<br>${noTrick} without a memory trick yet.` : ''}</p>
+    <div class="row"><button class="primary" data-act="tr-cards">🃏 Practise them</button><button class="ghost" data-act="tr-words">💡 Add tricks</button></div></div>`;
+}
 Object.assign(ACT, {
+  'tr-cards': () => { const t = L.trickyWords(S.words); if (!t.length) return; go('cards'); launchCards(t.slice(0, 15), 'Tricky words'); },
+  'tr-words': () => { ui.words.tab = 'tricky'; go('words'); },
   'mr-cards': () => { const m = missedNow(); if (!m.length) return toast('No mistakes to review yet.'); go('cards'); launchCards(m.slice(0, 15), 'Mistakes review'); },
   'mr-listen': () => { const m = missedNow(); if (!m.length) return toast('No mistakes to review yet.'); go('listen'); ui.listenPool = m.slice(0, 15); startListen('word'); },
   'mr-sheet': async () => {

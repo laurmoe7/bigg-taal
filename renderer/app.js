@@ -156,7 +156,7 @@ function pigLine() {
 }
 
 // ---------- shell ----------
-const NAV = [['home', '🏠', 'Today', '#ff9d8e'], ['cards', '🃏', 'Flashcards', '#7fd4f0'], ['listen', '🎧', 'Listening', '#9ccbff'], ['sheets', '📝', 'Worksheets', '#ffe08a'],
+const NAV = [['home', '🏠', 'Today', '#ff9d8e'], ['cards', '🃏', 'Flashcards', '#7fd4f0'], ['listen', '🎧', 'Listening', '#9ccbff'], ['read', '📚', 'Reading', '#a6e3c4'], ['sheets', '📝', 'Worksheets', '#ffe08a'],
   ['words', '🔤', 'My words', '#ffb38a'], ['dict', '📖', 'Dictionary', '#ffd1a6'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['bonus', '🎁', 'Bonus Lessons', '#c9a7ff'], ['progress', '📈', 'Progress', '#b5b9ff'], ['wardrobe', '🎩', 'Wardrobe', '#a8e6cf'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
 function renderSide() {
   const lv = L.levelInfo(S.xp || 0); ui.sideLevel = lv.level;
@@ -203,7 +203,7 @@ VIEWS.home = () => {
   </div>
   <div class="grid g2" style="margin-top:14px">
     ${typeof mixCard === 'function' ? mixCard() : ''}
-    <div class="stack">${levelCard()}${mistakesCard()}</div>
+    <div class="stack">${levelCard()}${mistakesCard()}${trickyCard()}</div>
     <div class="card daily"><h2>Spreuk van de dag</h2><div class="dl-row"><div><b class="dl-big">${esc(pv[0])}</b><small class="muted">${esc(pv[1])}</small></div><button class="ghost mini" data-act="say" data-t="${esc(pv[0])}" title="Listen">🔊</button></div>
       <h3 class="dl-h">Zinnen van de dag</h3>${dailyPick(DAILY_PHRASES, 2).map((x) => `<div class="dl-row"><div><b>${esc(x[0])}</b><small class="muted">${esc(x[1])}</small></div><button class="ghost mini" data-act="say" data-t="${esc(x[0])}" title="Listen">🔊</button></div>`).join('')}
       <h3 class="dl-h">Woorden van de dag</h3>${dailyPick(DAILY_WORDS, 2).map((x) => `<div class="dl-row"><div><b>${esc(x[0])}</b><small class="muted">${esc(x[1])}</small></div><button class="ghost mini" data-act="say" data-t="${esc(x[0])}" title="Listen">🔊</button></div>`).join('')}</div>
@@ -240,7 +240,10 @@ function prepListen() {
   l.hint = 0; l.diff = null; l.tags = []; l.mean = null; l.showTr = false; l.ex = null;
   warmSpeech(l.mode === 'sentence' ? w.example : w.nl);
   const nx = l.queue[l.i + 1]; if (nx) warmSpeech(l.mode === 'sentence' ? nx.example : nx.nl);
-  if (l.mode === 'meaning') l.opts = L.shuffle([w.en, ...L.pick(liveWords().filter((x) => x.id !== w.id && x.en !== w.en), 3).map((x) => x.en)]);
+  if (l.mode === 'meaning') { // wrong choices of the same kind of word (a verb for a verb), so the sound has to decide
+    const others = liveWords().filter((x) => x.id !== w.id && x.en !== w.en), same = others.filter((x) => (x.pos || 'other') === (w.pos || 'other'));
+    l.opts = L.shuffle([w.en, ...L.pick(same.length >= 3 ? same : others, 3).map((x) => x.en)]);
+  }
 }
 function listenSay(slow) {
   const l = ui.listen; if (!l || !l.queue[l.i]) return;
@@ -479,7 +482,7 @@ const ACT = {
   'listen-next': () => { const l = ui.listen; l.i++; if (!l.queue[l.i]) gainXp(XP.session); l.coach = { kind: 'ask', act: '', line: rnd(LISTEN_ASK), played: true }; l.res = null; l.typed = ''; l.picked = ''; prepListen(); render(); if (l.queue[l.i]) setTimeout(listenSay, 150); },
   'word-save': () => {
     const nl = $('#w-nl').value.trim(), en = $('#w-en').value.trim(); if (!nl || !en) return toast('Need both Dutch and English');
-    const o = { nl, en, article: $('#w-art').value, example: $('#w-ex').value.trim() }; o.pos = o.article ? 'noun' : guessPos(nl);
+    const o = { nl, en, article: $('#w-art').value, example: $('#w-ex').value.trim(), trick: ($('#w-trick') || { value: '' }).value.trim() }; o.pos = o.article ? 'noun' : guessPos(nl);
     o.exampleEn = o.example && ui.exEn && ui.exEn[0] === o.example ? ui.exEn[1] : ''; ui.exEn = null; ui.exFound = null;
     if (ui.edit) Object.assign(S.words.find((w) => w.id === ui.edit), o); else S.words.push(L.newWord(o));
     const wasEdit = !!ui.edit; ui.edit = null; if (wasEdit) ui.words.tab = ui.words.back || 'all'; save(); toast(wasEdit ? 'Saved' : 'Added ' + nl); render();

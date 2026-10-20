@@ -822,3 +822,16 @@ body.nofx .sparkles { display: none; }
 .needex-row { padding: 10px 0; border-bottom: 1px dashed var(--line); } .needex-row:last-child { border-bottom: 0; }
 .needex-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .needex-top .ghost { margin-left: auto; padding: 5px 12px; font-size: 14px; }
 .needex-own { flex: 1; min-width: 180px; } .needex-row .exs { display: block; width: 100%; text-align: left; margin-top: 6px; }
+
+/* memory tricks under a turned flashcard */
+.trick { max-width: 560px; margin: 10px auto 4px; padding: 10px 14px; border-radius: 14px; background: color-mix(in srgb, var(--butter) 12%, transparent); border: 1px solid color-mix(in srgb, var(--butter) 35%, transparent); font-size: 15px; }
+.trick.ask { text-align: left; }
+
+/* reading: stories with tap-to-translate words */
+.rd-text { max-width: none; }
+.rd-p { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 12px; }
+.rd-nl { margin: 0; }
+.rd-en { margin: 4px 0 0; font-size: 15px; line-height: 1.5; }
+.rd-tapbox { position: sticky; top: 0; z-index: 5; margin-bottom: 12px; }
+.rd-q { margin: 12px 0; }
+.rd-done { font-weight: 700; text-align: center; margin: 12px 0 0; }
