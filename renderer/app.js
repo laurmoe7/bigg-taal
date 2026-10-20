@@ -123,7 +123,7 @@ function count(key, n) {
   if (key === 'reviews' && before < S.settings.dailyGoal && after >= S.settings.dailyGoal) { chime('goal'); confetti(); toast('Daily goal reached! Yay! 🎉'); ui.say = rnd(PIG.goal); if (typeof gainXp === 'function') gainXp(XP.goal); }
   save();
 }
-const dueList = () => L.queue(S.words, today(), S.settings.newPerDay, todayStats().newWords);
+const dueList = () => L.cardQueue(S.words, today(), cardQueueOpts()); // every card due today (cardQueueOpts is in flashcards.js)
 const todayStats = () => S.log[today()] || {};
 const liveWords = () => S.words.filter((w) => !w.deleted);
 const isNight = () => { const h = new Date().getHours(); return h >= 22 || h < 6; };
@@ -539,7 +539,7 @@ document.addEventListener('keydown', (e) => {
   if (ui.view === 'cards' && ui.cards && curCard() && ui.cards.phase !== 'miss') {
     const c = ui.cards, hk = hotkeys(), k = keyOf(e);
     if (!c.flipped && (k === hk.flip || e.key === 'Enter') && cardPrefs().mode === 'flip') { e.preventDefault(); ACT.flip(); }
-    else if (c.flipped && (k === hk.again || k === hk.good || k === hk.easy)) { e.preventDefault(); gradeCard(k === hk.again ? 'again' : k === hk.good ? 'good' : 'easy'); }
+    else if (c.flipped && (k === hk.again || k === hk.good || k === hk.easy)) { e.preventDefault(); const g = k === hk.again ? 'again' : k === hk.good ? 'good' : 'easy'; if (cardGrades().includes(g)) gradeCard(g); }
     else if (c.flipped && e.key === 'Enter') { e.preventDefault(); gradeCard(c.res === 'wrong' ? 'again' : 'good'); }
     else if (k === hk.skip && !c.flipped && document.querySelector('[data-act="skip"]')) { e.preventDefault(); ACT.skip(); }
     else if (k === hk.speak) { const w = curCard().w; speak((w.article ? w.article + ' ' : '') + w.nl); }

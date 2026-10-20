@@ -102,6 +102,32 @@ test('queue: due reviews plus a capped number of new words', () => {
   assert.equal(L.queue(ws, '2026-10-12', 0, 0)[0].nl, 'r1');
 });
 
+test('two cards per word: each direction keeps its own schedule', () => {
+  const t = '2026-10-12', w = L.grade(L.newWord({ nl: 'huis', en: 'house' }), 'good', t);
+  const first = L.gradeCard(L.newWord({ nl: 'x', en: 'y' }), 'good', t, 'en-nl'); // a first card always counts Dutch → English
+  assert.equal(first.reps, 1); assert.equal(first.rv, undefined);
+  const b = L.gradeCard(w, 'again', '2026-10-14', 'en-nl');
+  assert.equal(b.due, w.due); assert.equal(b.reps, 1); // Dutch → English untouched
+  assert.equal(b.rv.reps, 1); assert.equal(b.rv.lapses, 1); assert.equal(b.rv.due, '2026-10-14');
+  const c = L.gradeCard(b, 'good', '2026-10-14', 'en-nl');
+  assert.equal(c.rv.reps, 2); assert.ok(c.rv.due > '2026-10-14');
+  assert.equal(L.cardRec(c, 'nl-en'), c); assert.equal(L.cardRec(c, 'en-nl').reps, 2);
+});
+
+test('card queue: due cards, new words Dutch first, then English → Dutch cards to start', () => {
+  const t = '2026-10-12', o = { dirs: 'both', newPerDay: 2, newToday: 0, revPerDay: 1, revToday: 0 };
+  const fresh = [1, 2, 3].map((i) => L.newWord({ nl: 'n' + i, en: 'x' }));
+  const seenToday = L.newWord({ nl: 'today', en: 'x', reps: 1, last: t, due: '2026-10-15', box: 1, stab: 3 });
+  const known = L.newWord({ nl: 'known', en: 'x', reps: 3, last: '2026-10-01', due: '2026-10-30', box: 4, stab: 20 });
+  const weak = L.newWord({ nl: 'weak', en: 'x', reps: 3, last: '2026-10-01', due: '2026-10-25', box: 2, stab: 5 });
+  const both = L.newWord({ nl: 'both', en: 'x', reps: 3, last: '2026-10-01', due: '2026-10-10', box: 2, rv: { reps: 2, due: '2026-10-08', box: 1 } });
+  const q = L.cardQueue([...fresh, seenToday, known, weak, both], t, o);
+  assert.deepEqual(q.map((c) => c.w.nl + ':' + c.dir), ['both:en-nl', 'n1:nl-en', 'n2:nl-en', 'known:en-nl']); // both cards due: one comes; the best-known word starts first
+  assert.equal(L.cardQueue([seenToday, known, both], t, Object.assign({}, o, { dirs: 'nl-en' })).map((c) => c.w.nl + ':' + c.dir).join(), 'both:nl-en');
+  assert.equal(L.cardQueue([known, both], t, Object.assign({}, o, { dirs: 'en-nl', revToday: 1 })).map((c) => c.w.nl).join(), 'both'); // today's starts used up
+  assert.deepEqual(L.aheadCards([known, weak, both], t, 'both').map((c) => c.w.nl), ['weak', 'known']);
+});
+
 test('soundTags finds the confusion behind a misspelling', () => {
   assert.deepEqual(L.soundTags('tijd', 'teid'), ['ij-ei']);
   assert.deepEqual(L.soundTags('huis', 'heus'), ['eu-ui']);

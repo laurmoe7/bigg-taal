@@ -56,7 +56,7 @@ Listening uses natural offline Dutch voices (alex, pim) from [Piper](https://git
 
 ## Learning tools
 
-- **FSRS scheduling**: flashcard reviews are timed with FSRS (the modern spaced-repetition algorithm used by Anki). The Again / Good / Easy buttons show the real number of days until you see the card again. Older words carry over from the previous box system.
+- **FSRS scheduling**: flashcard reviews are timed with FSRS (the modern spaced-repetition algorithm used by Anki). The Again / Good / Easy buttons show the real number of days until you see the card again. Older words carry over from the previous box system. Each word has **two cards** with their own schedule, Dutch → English and English → Dutch (kept in the word's `rv`); Direction picks which you practise (Both by default). A new word starts Dutch first and its English → Dutch card can start from the next day, up to the new-words-per-day number, best-known words first. Fill the blank follows the English → Dutch schedule. In the typing modes the app grades for you: wrong is Again (with an "I was right" button for answers it does not know), a slip is Again or Good, right is Good or Easy. A missing or wrong de/het still counts as right, with a note.
 - **Suggested words** (Words > Suggested): the most common Dutch words you do not have yet, in bands (top 500, 1,500, ...), added one by one or 24 at a time, each with a real example sentence.
 - **Find examples** (Words > Add words): real Dutch sentences with English translations for the word you are adding.
 - **Real sentences** (Listening): dictation with real Tatoeba sentences that use your words.

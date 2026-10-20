@@ -70,6 +70,48 @@
   };
   // days until the next review for each answer, to show on the buttons
   L.previewIntervals = (w, today) => ({ again: 0, good: ivOf(L.nextFsrs(w, 'good', today).s), easy: ivOf(L.nextFsrs(w, 'easy', today).s) });
+
+  // ---------- two cards per word ----------
+  // Each word has two cards, each with its own schedule: Dutch → English (recognising it, the word's own fields) and
+  // English → Dutch (producing it, kept in w.rv). A word's first card always counts for Dutch → English; its English → Dutch
+  // card can start from the next day, a few a day, the words you know best first.
+  const RV_KEYS = ['reps', 'stab', 'diff', 'last', 'due', 'box', 'lapses'];
+  L.revRec = (w) => Object.assign({ reps: 0, box: 0, due: '', lapses: 0 }, w.rv || {});
+  L.cardRec = (w, dir) => (dir === 'en-nl' && w.reps ? L.revRec(w) : w); // the schedule a card of this direction uses
+  L.gradeCard = (w, grade, today, dir) => {
+    const rec = L.cardRec(w, dir);
+    if (rec === w) return L.grade(w, grade, today);
+    const r = L.grade(rec, grade, today), rv = {};
+    RV_KEYS.forEach((k) => { if (r[k] !== undefined) rv[k] = r[k]; });
+    return Object.assign({}, w, { rv });
+  };
+  // Today's cards as [{ w, dir }]. o = { dirs: 'nl-en' | 'en-nl' | 'both', newPerDay, newToday, revPerDay, revToday }.
+  // Due reviews first (lowest level first), then new words (always Dutch first), then English → Dutch cards to start.
+  // A word is in it once: when both its cards are due, the one that has waited longest comes (the other waits a day).
+  L.cardQueue = (words, today, o) => {
+    const dirs = o.dirs || 'both', fwd = dirs !== 'en-nl', back = dirs !== 'nl-en', live = words.filter((w) => !w.deleted), due = [];
+    live.forEach((w) => {
+      if (!w.reps) return;
+      const r = L.revRec(w), f = fwd && L.isDue(w, today), b = back && r.reps > 0 && L.isDue(r, today);
+      if (b && (!f || (r.due || '') <= (w.due || ''))) due.push({ w, dir: 'en-nl', rec: r });
+      else if (f) due.push({ w, dir: 'nl-en', rec: w });
+    });
+    due.sort((x, y) => x.rec.box - y.rec.box || (x.rec.due || '').localeCompare(y.rec.due || ''));
+    const fresh = live.filter((w) => !w.reps).slice(0, Math.max(0, (o.newPerDay || 0) - (o.newToday || 0))).map((w) => ({ w, dir: 'nl-en' }));
+    const busy = new Set(due.map((c) => c.w.id));
+    const start = !back ? [] : live.filter((w) => w.reps > 0 && !L.revRec(w).reps && (!w.last || w.last < today) && !busy.has(w.id))
+      .sort((x, y) => (y.stab || 0) - (x.stab || 0)).slice(0, Math.max(0, (o.revPerDay || 0) - (o.revToday || 0))).map((w) => ({ w, dir: 'en-nl' }));
+    return due.map(({ w, dir }) => ({ w, dir })).concat(fresh, start);
+  };
+  // Cards to review ahead of schedule (not due yet), soonest first, one per word
+  L.aheadCards = (words, today, dirs) => {
+    const out = [];
+    words.filter((w) => !w.deleted && w.reps > 0).forEach((w) => {
+      const r = L.revRec(w), f = dirs !== 'en-nl' && !L.isDue(w, today), b = dirs !== 'nl-en' && r.reps > 0 && !L.isDue(r, today);
+      if (b && (!f || r.due < w.due)) out.push({ w, dir: 'en-nl', due: r.due }); else if (f) out.push({ w, dir: 'nl-en', due: w.due });
+    });
+    return out.sort((x, y) => (x.due || '').localeCompare(y.due || '')).map(({ w, dir }) => ({ w, dir }));
+  };
   L.mastery = (words) => {
     const live = words.filter((w) => !w.deleted);
     const learned = live.filter((w) => w.box >= 4).length;

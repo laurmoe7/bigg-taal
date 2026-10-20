@@ -60,7 +60,7 @@ function rcFinish() {
   const r = ui.rc; if (!r || r.screen !== 'play') return;
   clearInterval(r.tid); r.screen = 'done';
   const got = new Set(r.found.map((f) => f.w.id)); r.missed = r.pool.filter((w) => !got.has(w.id));
-  r.missed.forEach((w) => { const o = rcOwned(w); if (o && o.reps > 0 && !L.isDue(o, today())) o.due = today(); }); // the ones you missed come first in the next session
+  r.missed.forEach((w) => { const o = rcOwned(w); if (o && o.reps > 0 && !L.isDue(o, today())) o.due = today(); if (o && o.rv && o.rv.reps > 0 && !L.isDue(o.rv, today())) o.rv.due = today(); }); // the ones you missed come first in the next session
   S.rcLog = (S.rcLog || []).concat({ d: today(), name: r.name, found: r.found.length, total: r.pool.length }).slice(-30);
   if (r.found.length) { count('reviews', r.found.length); gainXp(Math.min(80, r.found.length * 4 + (r.missed.length ? 0 : 20))); chime('goal'); if (!r.missed.length) confetti(); }
   save(); if (ui.view === 'words') render();
