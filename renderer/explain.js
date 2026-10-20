@@ -17,7 +17,11 @@ const sxIsSep = (verb, part) => { // is there a real separable verb "part + verb
   let r = ''; try { for (const v of sxFormsOf(verb).filter((x) => x[1] === 'v')) { const j = part + v[0].toLowerCase(); if (sxFormsOf(j).some((x) => x[1] === 'v' && x[0].toLowerCase() === j)) { r = j; break; } } } catch {}
   sxSepCache.set(key, r); return r;
 };
-const sxExplain = (nl) => L.explainSentence(nl, { isVerb: sxIsVerb, isSepVerb: sxIsSep });
+const sxIsParticiple = (w) => { // true or false when the dictionary knows the word, null when it does not (then the ge-/be-/ver- rule decides)
+  let f = []; try { f = sxFormsOf(w); } catch {} if (!f.length) return null;
+  return f.some((e) => e[1] === 'v' && String(e[3] || '').split(',').slice(1).some((p) => p.trim().toLowerCase() === w));
+};
+const sxExplain = (nl) => L.explainSentence(nl, { isVerb: sxIsVerb, isSepVerb: sxIsSep, isParticiple: sxIsParticiple });
 
 // sentences that fit a pattern are collected in the background, a little at a time, so the page never freezes
 async function sxInit() {
@@ -34,9 +38,9 @@ async function sxInit() {
       const r = sxExplain(nl); if (r) r.pats.forEach((p) => { if (pools[p].length < want) pools[p].push(order[at - 1]); });
     }
     st.scanned = at;
-    if (!st.cur && Object.values(pools).some((a) => a.length)) { sxNext(); if (ui.view === 'grammar' && ui.grTab === 'explain') render(); }
+    if (!st.cur && Object.values(pools).some((a) => a.length)) { sxNext(); if (ui.view === 'grammar' && (ui.grTab === 'explain' || ui.grTab === 'build')) render(); }
     const full = pats.every((p) => pools[p].length >= 40);
-    if (at < order.length && at < limit && !(full && at > 3000)) setTimeout(step, 16); else { st.ready = true; if (ui.view === 'grammar' && ui.grTab === 'explain') { if (!st.cur) sxNext(); render(); } }
+    if (at < order.length && at < limit && !(full && at > 3000)) setTimeout(step, 16); else { st.ready = true; if (ui.view === 'grammar' && (ui.grTab === 'explain' || ui.grTab === 'build')) { if (!st.cur) sxNext(); render(); } }
   };
   step();
 }
@@ -74,7 +78,7 @@ function sxView() {
 const baseGrammar = VIEWS.grammar;
 VIEWS.grammar = () => {
   const tab = (id, label) => `<button class="tab ${(ui.grTab || 'sheets') === id ? 'on' : ''}" data-act="gr-tab" data-v="${id}">${label}</button>`;
-  return `<div class="top"><h1>Grammar</h1></div><div class="tabs">${tab('sheets', '📚 Cheat sheets')}${tab('explain', '🔍 Sentence explainer')}${tab('verbs', '🔧 Verb trainer')}</div>${ui.grTab === 'explain' ? sxView() : ui.grTab === 'verbs' ? vtView() : baseGrammar()}`;
+  return `<div class="top"><h1>Grammar</h1></div><div class="tabs">${tab('sheets', '📚 Cheat sheets')}${tab('build', '🧩 Sentence builder')}${tab('explain', '🔍 Sentence explainer')}${tab('verbs', '🔧 Verb trainer')}</div>${ui.grTab === 'build' ? sbView() : ui.grTab === 'explain' ? sxView() : ui.grTab === 'verbs' ? vtView() : baseGrammar()}`;
 };
 Object.assign(ACT, {
   'gr-tab': (el) => { ui.grTab = el.dataset.v; render(); },

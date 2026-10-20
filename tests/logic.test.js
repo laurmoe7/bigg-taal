@@ -423,7 +423,19 @@ test('sentence explainer: spots the word-order patterns and uses the words of th
   assert.deepEqual(pats('Ik bel je morgen op.'), ['separable']);
   assert.deepEqual(pats('Ik ben moe, want ik heb slecht geslapen.'), ['coord', 'perfect']);
   assert.equal(L.explainSentence('Het huis is groot.'), null);
+  assert.equal(L.explainSentence('Dat is een verstandig besluit.', { isParticiple: (w) => w !== 'besluit' }), null); // a noun, not a participle
   const q = L.explainSentence('Waar woon je?', iv); assert.equal(q.roles[0], 'q'); assert.equal(q.roles[1], 'verb');
+});
+
+test('sentence builder: grades the order, with "close" when only the unmarked words moved', () => {
+  const r = L.explainSentence('Gisteren heb ik een boek gelezen.'), w = r.words;
+  assert.equal(L.sbGrade(w, w.slice(), r.roles).res, 'right');
+  assert.equal(L.sbGrade(w, ['gisteren', 'heb', 'ik', 'boek', 'een', 'gelezen'], r.roles).res, 'close');
+  const bad = L.sbGrade(w, ['Gisteren', 'ik', 'heb', 'een', 'boek', 'gelezen'], r.roles); assert.equal(bad.res, 'wrong'); assert.deepEqual(bad.bad, [1, 2]);
+  assert.equal(L.sbGrade(w, w.slice(0, 3), r.roles).res, 'wrong');
+  const s = L.explainSentence('Ik denk dat hij wil komen.'), alt = L.sbGrade(s.words, ['Ik', 'denk', 'dat', 'hij', 'komen', 'wil'], s.roles);
+  assert.equal(alt.res, 'right'); assert.equal(alt.alt, true);
+  assert.equal(L.sbPrefix(w, ['Gisteren', 'heb', 'een']), 2); assert.equal(L.sbPrefix(w, []), 0);
 });
 
 test('weekly recap: Monday to Sunday sums, accuracy, best day and the level you started on', () => {

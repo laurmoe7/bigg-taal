@@ -792,7 +792,8 @@
     let cs = 0; for (let i = 0; i < mEnd; i++) if (comma[i]) cs = i + 1; // the clause that ends the main part starts here (after the last comma)
     if (SX.coord.has(l[cs]) && cs < mEnd) cs++; // want / maar / dus do not count as a position
     let aux = -1; for (let i = cs; i <= Math.min(cs + 3, mEnd - 1); i++) if (SX.haveAux.has(l[i]) || SX.beAux.has(l[i])) { aux = i; break; }
-    const hasPerfect = aux >= 0 && sxIsPart(l[mEnd]) && mEnd > aux + 1;
+    const known = opt && opt.isParticiple ? opt.isParticiple(l[mEnd]) : null; // the dictionary can tell a participle from a noun like "besluit"
+    const hasPerfect = aux >= 0 && (known == null ? sxIsPart(l[mEnd]) : known) && mEnd > aux + 1;
     if (hasPerfect) {
       mark(aux, 'verb'); mark(mEnd, 'inf'); const be = SX.beAux.has(l[aux]);
       findings.push({ pat: 'perfect', title: 'The perfect tense: the verb is split in two', bullets: [
@@ -835,6 +836,22 @@
     if (!findings.length) return null;
     return { words, roles, findings, pats: findings.map((f) => f.pat) };
   };
+  // Sentence builder: how does a word order you built compare with the real sentence? 'right' when it is the same, 'close' when every word
+  // the explainer marked (the verbs, subject, conjunction...) is in its place and only other words moved, otherwise 'wrong'.
+  // Returns { res, bad } where bad lists the positions that differ.
+  L.sbGrade = (target, answer, roles) => {
+    const t = target.map((w) => String(w).toLowerCase()), a = answer.map((w) => String(w).toLowerCase());
+    const bad = t.map((w, i) => (a[i] === w ? -1 : i)).filter((i) => i >= 0);
+    if (a.length !== t.length) return { res: 'wrong', bad };
+    if (!bad.length) return { res: 'right', bad };
+    // two verbs side by side at the end may swap ("dat hij wil spreken" or "dat hij spreken wil"): both are good Dutch
+    const vb = (i) => ['verb', 'inf'].includes((roles || {})[i]);
+    if (bad.length === 2 && bad[1] === bad[0] + 1 && vb(bad[0]) && vb(bad[1]) && a[bad[0]] === t[bad[1]] && a[bad[1]] === t[bad[0]]) return { res: 'right', bad: [], alt: true };
+    const keys = Object.keys(roles || {}).map(Number);
+    return { res: keys.length && keys.every((i) => a[i] === t[i]) ? 'close' : 'wrong', bad };
+  };
+  // How many words still sit in the right place from the start (a hint keeps these and adds the next one)
+  L.sbPrefix = (target, answer) => { let k = 0; while (k < answer.length && k < target.length && String(answer[k]).toLowerCase() === String(target[k]).toLowerCase()) k++; return k; };
 
   // 't kofschip: does the regular past tense of this verb end in -te (stem ends in t, k, f, s, ch or p) or -de? Uses the stem of the infinitive
   // (so reizen, with a z, gets -de: reisde). Returns { suffix: 'te' | 'de', letter }.
