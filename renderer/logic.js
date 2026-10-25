@@ -365,33 +365,6 @@
     lines.push('JSON shape, shown with three items:\n```json\n' + JSON_SHEET + '\n```');
     return lines.join('\n\n');
   };
-  // ---------- reading: short stories that Claude writes with your words ----------
-  const JSON_STORY = '{"story":{"title":"Een drukke maandag","paragraphs":[{"nl":"Op maandag heeft Sara een afspraak bij de dokter.","en":"On Monday Sara has an appointment with the doctor."}],"glossary":[{"nl":"de afspraak","en":"appointment"}],"questions":[{"q":"Waar gaat Sara op maandag naartoe?","en":"Where does Sara go on Monday?","options":["Naar de dokter","Naar haar werk","Naar de winkel"],"answer":"Naar de dokter"}]}}';
-  L.STORY_LEVELS = { A1: 'A1 (very simple: present tense, short sentences, everyday words)', A2: 'A2 (simple sentences, present and perfect tense, common words)', B1: 'B1 (normal everyday Dutch, some longer sentences with omdat/dat/als)' };
-  L.STORY_LENGTHS = { short: 120, medium: 250, long: 400 };
-  L.storyPrompt = (o) => {
-    const words = (o.words || []).slice(0, 15).map((w) => (w.article ? w.article + ' ' : '') + w.nl + (w.en ? ' (' + w.en + ')' : '')).join(', ');
-    const lines = [`${LEVEL}. Please write me a short Dutch story to read inside my BiggTaal app, so reply with ONLY one JSON object in a code block and no other text.`,
-      `Level: ${L.STORY_LEVELS[o.level] || L.STORY_LEVELS.A2}. Length: about ${L.STORY_LENGTHS[o.length] || 250} words, in ${o.length === 'short' ? '3 to 4' : o.length === 'long' ? '6 to 8' : '4 to 6'} short paragraphs.`];
-    if (o.topic) lines.push('Topic: ' + o.topic + '.');
-    if (words) lines.push('Use each of these words from my list at least once, in a natural way (other forms are fine, like plurals or past tenses): ' + words + '.');
-    if (o.note) lines.push('In my own words, what else I want: ' + o.note);
-    lines.push('Rules: a real little story with people, a problem and an ending, not a list of facts. Mostly words a learner at this level knows. Every paragraph has "nl" and a natural English translation "en". "glossary": 6 to 12 words from the story I may not know yet (not the ones from my list), with de/het for nouns and the dictionary form. "questions": 4 multiple-choice questions in simple Dutch about the story, 3 options each, "answer" equal to one of "options" exactly, and "en" the question in English.');
-    lines.push('JSON shape, shown with one paragraph, one glossary word and one question:\n```json\n' + JSON_STORY + '\n```');
-    return lines.join('\n\n');
-  };
-  // Reads Claude's story reply: { story } or { error }.
-  L.parseStory = (text) => {
-    const j = L.extractJson(text);
-    if (!j) return { error: 'I could not find a story in that text. Paste the whole reply from Claude, JSON included.' };
-    const st = j.story || j, str = (x) => String(x == null ? '' : x).trim();
-    const paragraphs = (Array.isArray(st.paragraphs) ? st.paragraphs : []).map((p) => (typeof p === 'string' ? { nl: str(p), en: '' } : { nl: str(p && p.nl), en: str(p && p.en) })).filter((p) => p.nl);
-    if (!paragraphs.length) return { error: 'That JSON has no story paragraphs.' };
-    const glossary = (Array.isArray(st.glossary) ? st.glossary : []).map((g) => ({ nl: str(g && g.nl), en: str(g && g.en) })).filter((g) => g.nl && g.en).slice(0, 20);
-    const questions = (Array.isArray(st.questions) ? st.questions : []).map((q) => ({ q: str(q && q.q), en: str(q && q.en), options: (Array.isArray(q && q.options) ? q.options : []).map(str).filter(Boolean), answer: str(q && q.answer) }))
-      .filter((q) => q.q && q.options.length >= 2 && q.options.includes(q.answer)).slice(0, 8);
-    return { story: { title: str(st.title).slice(0, 80) || 'Een verhaal', paragraphs, glossary, questions } };
-  };
   const RESULT_SHAPE ='{"results":[{"id":"3","verdict":"partly","correct":"Morgen heb ik een afspraak.","explain":"One short English sentence about the rule.","tr":"Tomorrow I have an appointment.","skills":["word order"]}],"summary":{"good":"What went well.","improve":["Concrete thing 1","Concrete thing 2"],"next":"What to focus on in the next worksheet."}}';
   L.checkPrompt = (sheet, o) => {
     const all = !!(o && o.explainAll);

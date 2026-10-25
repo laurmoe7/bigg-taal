@@ -156,7 +156,7 @@ function pigLine() {
 }
 
 // ---------- shell ----------
-const NAV = [['home', '🏠', 'Today', '#ff9d8e'], ['cards', '🃏', 'Flashcards', '#7fd4f0'], ['listen', '🎧', 'Listening', '#9ccbff'], ['read', '📚', 'Reading', '#a6e3c4'], ['sheets', '📝', 'Worksheets', '#ffe08a'],
+const NAV = [['home', '🏠', 'Today', '#ff9d8e'], ['cards', '🃏', 'Flashcards', '#7fd4f0'], ['listen', '🎧', 'Listening', '#9ccbff'], ['sheets', '📝', 'Worksheets', '#ffe08a'],
   ['words', '🔤', 'My words', '#ffb38a'], ['dict', '📖', 'Dictionary', '#ffd1a6'], ['grammar', '🧠', 'Grammar', '#ffa6c4'], ['bonus', '🎁', 'Bonus Lessons', '#c9a7ff'], ['progress', '📈', 'Progress', '#b5b9ff'], ['wardrobe', '🎩', 'Wardrobe', '#a8e6cf'], ['settings', '⚙️', 'Settings', '#cfc6ee']];
 function renderSide() {
   const lv = L.levelInfo(S.xp || 0); ui.sideLevel = lv.level;

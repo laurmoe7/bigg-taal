@@ -833,14 +833,6 @@ body.nofx .sparkles { display: none; }
 .trick { max-width: 560px; margin: 10px auto 4px; padding: 10px 14px; border-radius: 14px; background: color-mix(in srgb, var(--butter) 12%, transparent); border: 1px solid color-mix(in srgb, var(--butter) 35%, transparent); font-size: 15px; }
 .trick.ask { text-align: left; }
 
-/* reading: stories with tap-to-translate words */
-.rd-text { max-width: none; }
-.rd-p { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 12px; }
-.rd-nl { margin: 0; }
-.rd-en { margin: 4px 0 0; font-size: 15px; line-height: 1.5; }
-.rd-tapbox { position: sticky; top: 0; z-index: 5; margin-bottom: 12px; }
-.rd-q { margin: 12px 0; }
-.rd-done { font-weight: 700; text-align: center; margin: 12px 0 0; }
 /* Sentence builder (Grammar page): word tiles you put in order */
 .sb-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; font-weight: 700; }
 .sb-en { font-size: 22px; font-weight: 800; margin: 10px 0 14px; }

@@ -499,14 +499,3 @@ test('tricky words: 4+ misses on a card that is still weak', () => {
   const t = L.trickyWords([w({ nl: 'a', lapses: 4, box: 1 }), w({ nl: 'b', lapses: 6, box: 1, rv: { reps: 1, lapses: 1 } }), w({ nl: 'c' })]);
   assert.deepEqual(t.map((x) => x.nl), ['b', 'a']); assert.equal(L.missCount(t[0]), 7);
 });
-
-test('stories: prompt and reading the reply from Claude', () => {
-  const p = L.storyPrompt({ level: 'B1', length: 'short', topic: 'Work & jobs', words: [{ nl: 'afspraak', article: 'de', en: 'appointment' }] });
-  assert.match(p, /B1/); assert.match(p, /about 120 words/); assert.match(p, /de afspraak \(appointment\)/); assert.match(p, /Work & jobs/);
-  const reply = 'Here you go!\n```json\n' + JSON.stringify({ story: { title: 'Een dag', paragraphs: [{ nl: 'Sara werkt.', en: 'Sara works.' }, 'Ze is moe.', { en: 'no Dutch' }],
-    glossary: [{ nl: 'de dag', en: 'day' }, { nl: 'x' }], questions: [{ q: 'Wie werkt?', options: ['Sara', 'Tom'], answer: 'Sara' }, { q: 'Bad', options: ['a', 'b'], answer: 'c' }] } }) + '\n```';
-  const r = L.parseStory(reply).story;
-  assert.equal(r.title, 'Een dag'); assert.equal(r.paragraphs.length, 2); assert.equal(r.paragraphs[1].nl, 'Ze is moe.');
-  assert.equal(r.glossary.length, 1); assert.equal(r.questions.length, 1);
-  assert.ok(L.parseStory('no json here').error); assert.ok(L.parseStory('{"story":{"paragraphs":[]}}').error);
-});
